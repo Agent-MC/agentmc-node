@@ -1056,7 +1056,7 @@ export class AgentRuntimeProgram {
     const runInput: AgentRuntimeRunInput = {
       sessionId: claimed.taskId,
       requestId,
-      userText: prompt
+      userText: buildRecurringTaskAgentMcMessage(prompt)
     };
 
     let runResult: AgentRuntimeRunResult;
@@ -1259,6 +1259,36 @@ function normalizeOpenClawAgentName(value: unknown): string {
   }
 
   return resolved;
+}
+
+function buildRecurringTaskAgentMcMessage(userPrompt: string): string {
+  const normalizedPrompt = String(userPrompt ?? "").trim();
+  if (normalizedPrompt === "") {
+    return "";
+  }
+
+  if (hasAgentMcContextBlock(normalizedPrompt)) {
+    return normalizedPrompt;
+  }
+
+  const lines = [
+    "[AgentMC Context]",
+    "app=AgentMC",
+    "source=agentmc_recurring_task",
+    "intent_scope=agentmc",
+    "skill_reference=.agentmc/skills/skill.md",
+    "rules_reference=.agentmc/skills/rules.md",
+    "routing_hint=Treat actions with no external app specified as AgentMC operations.",
+    "skill_hint=Follow the current AgentMC skill/rules files as the source of truth for supported capabilities and execution behavior.",
+    "",
+    normalizedPrompt
+  ];
+
+  return lines.join("\n");
+}
+
+function hasAgentMcContextBlock(value: string): boolean {
+  return /^\[AgentMC Context\]\s*$/m.test(value);
 }
 
 function summarizeRecurringRunText(value: unknown): string | null {
@@ -1730,9 +1760,9 @@ function extractHeartbeatTelemetryFromRuntimeSnapshot(snapshot: JsonObject): Jso
 
   assignStringTelemetryField(telemetry, "usage_window_time_left", lookup, ["usage_window_time_left", "window_time_left"]);
   assignStringTelemetryField(telemetry, "usage_day_time_left", lookup, ["usage_day_time_left", "daily_time_left"]);
-  assignStringTelemetryField(telemetry, "session", lookup, ["session", "session_id"]);
-  assignStringTelemetryField(telemetry, "queue", lookup, ["queue", "queue_name"]);
-  assignStringTelemetryField(telemetry, "auth", lookup, ["auth", "auth_mode", "authentication"]);
+  assignStringTelemetryField(telemetry, "session", lookup, ["session_id", "session"]);
+  assignStringTelemetryField(telemetry, "queue", lookup, ["queue_name", "queue"]);
+  assignStringTelemetryField(telemetry, "auth", lookup, ["auth_mode", "authentication", "auth"]);
 
   const thinkingModeRaw = firstValueFromLookup(lookup, ["thinking_mode", "reasoning_mode", "thinking"]);
   const thinkingModeBool = valueAsBoolean(thinkingModeRaw);
@@ -1755,12 +1785,15 @@ function extractHeartbeatTelemetryFromRuntimeSnapshot(snapshot: JsonObject): Jso
     }
   }
 
-  assignBooleanTelemetryField(telemetry, "browser_tool_available", lookup, ["browser_tool_available"]);
-  assignBooleanTelemetryField(telemetry, "exec_tool_available", lookup, ["exec_tool_available"]);
-  assignBooleanTelemetryField(telemetry, "nodes_tool_available", lookup, ["nodes_tool_available"]);
-  assignBooleanTelemetryField(telemetry, "messaging_tool_available", lookup, ["messaging_tool_available"]);
-  assignBooleanTelemetryField(telemetry, "sessions_tool_available", lookup, ["sessions_tool_available"]);
-  assignBooleanTelemetryField(telemetry, "memory_tool_available", lookup, ["memory_tool_available"]);
+  assignBooleanTelemetryField(telemetry, "browser_tool_available", lookup, ["browser_tool_available", "tools_browser", "browser"]);
+  assignBooleanTelemetryField(telemetry, "exec_tool_available", lookup, ["exec_tool_available", "tools_exec", "exec"]);
+  assignBooleanTelemetryField(telemetry, "nodes_tool_available", lookup, ["nodes_tool_available", "tools_nodes", "nodes"]);
+  assignBooleanTelemetryField(telemetry, "messaging_tool_available", lookup, ["messaging_tool_available", "tools_messaging", "messaging"]);
+  assignBooleanTelemetryField(telemetry, "sessions_tool_available", lookup, ["sessions_tool_available", "tools_sessions", "sessions"]);
+  assignBooleanTelemetryField(telemetry, "memory_tool_available", lookup, ["memory_tool_available", "tools_memory", "memory"]);
+
+  applyTextTelemetryFallbacks(telemetry, snapshot);
+  sanitizeTelemetryStringFields(telemetry);
 
   if (!("context_percent_used" in telemetry)) {
     const used = numberFromUnknown(telemetry.context_tokens_used);
@@ -1775,25 +1808,32 @@ function extractHeartbeatTelemetryFromRuntimeSnapshot(snapshot: JsonObject): Jso
 
 function createLookupMap(source: JsonObject): Map<string, unknown[]> {
   const lookup = new Map<string, unknown[]>();
+  const visit = (value: unknown, pathSegments: string[]): void => {
+    if (pathSegments.length > 0) {
+      for (let suffixLength = 1; suffixLength <= pathSegments.length; suffixLength += 1) {
+        const key = normalizeLookupKey(pathSegments.slice(-suffixLength).join("_"));
+        pushLookupValue(lookup, key, value);
+      }
+    }
 
-  walk(source, (value, key) => {
-    if (typeof key !== "string") {
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        visit(item, pathSegments);
+      }
       return;
     }
 
-    const normalized = normalizeLookupKey(key);
-    if (normalized === "") {
+    const objectValue = valueAsObject(value);
+    if (!objectValue) {
       return;
     }
 
-    const bucket = lookup.get(normalized);
-    if (bucket) {
-      bucket.push(value);
-      return;
+    for (const [childKey, childValue] of Object.entries(objectValue)) {
+      visit(childValue, [...pathSegments, childKey]);
     }
+  };
 
-    lookup.set(normalized, [value]);
-  });
+  visit(source, []);
 
   return lookup;
 }
@@ -1821,6 +1861,20 @@ function normalizeLookupKey(value: string): string {
     .replace(/[^a-z0-9]/g, "");
 }
 
+function pushLookupValue(lookup: Map<string, unknown[]>, key: string, value: unknown): void {
+  if (key === "") {
+    return;
+  }
+
+  const bucket = lookup.get(key);
+  if (bucket) {
+    bucket.push(value);
+    return;
+  }
+
+  lookup.set(key, [value]);
+}
+
 function extractBooleanMap(source: JsonObject): JsonObject {
   const map: JsonObject = {};
 
@@ -1832,6 +1886,209 @@ function extractBooleanMap(source: JsonObject): JsonObject {
   }
 
   return map;
+}
+
+function applyTextTelemetryFallbacks(target: JsonObject, snapshot: JsonObject): void {
+  const fragments = collectTelemetryTextFragments(snapshot);
+  if (fragments.length === 0) {
+    return;
+  }
+
+  for (const fragment of fragments) {
+    const line = fragment.trim();
+    if (line === "") {
+      continue;
+    }
+
+    const tokensMatch = line.match(/\b([\d,]+)\s*in\b[^\d]+([\d,]+)\s*out\b/i);
+    if (tokensMatch) {
+      setTelemetryIfMissing(target, "tokens_in", parseIntegerToken(tokensMatch[1] ?? ""));
+      setTelemetryIfMissing(target, "tokens_out", parseIntegerToken(tokensMatch[2] ?? ""));
+    }
+
+    const cacheMatch = line.match(/\b([\d.]+)\s*%\s*hit\b.*?\b([\d,]+)\s*cached\b.*?\b([\d,]+)\s*new\b/i);
+    if (cacheMatch) {
+      setTelemetryIfMissing(target, "cache_hit_rate_percent", parseNumberToken(cacheMatch[1] ?? ""));
+      setTelemetryIfMissing(target, "cache_tokens_cached", parseIntegerToken(cacheMatch[2] ?? ""));
+      setTelemetryIfMissing(target, "cache_tokens_new", parseIntegerToken(cacheMatch[3] ?? ""));
+    }
+
+    const contextMatch = line.match(/\b([\d,]+)\s*\/\s*([\d,]+)\s*\(\s*([\d.]+)\s*%\s*\)/i);
+    if (contextMatch) {
+      setTelemetryIfMissing(target, "context_tokens_used", parseIntegerToken(contextMatch[1] ?? ""));
+      setTelemetryIfMissing(target, "context_tokens_max", parseIntegerToken(contextMatch[2] ?? ""));
+      setTelemetryIfMissing(target, "context_percent_used", parseNumberToken(contextMatch[3] ?? ""));
+    }
+
+    const compactionsMatch = line.match(/\bcompactions?\b\s*[:=]?\s*([\d,]+)/i);
+    if (compactionsMatch) {
+      setTelemetryIfMissing(target, "context_compactions", parseIntegerToken(compactionsMatch[1] ?? ""));
+    }
+
+    const windowPercentMatch = line.match(/\bwindow\b[^0-9]*([\d.]+)\s*%\s*left\b/i);
+    if (windowPercentMatch) {
+      setTelemetryIfMissing(target, "usage_window_percent_left", parseNumberToken(windowPercentMatch[1] ?? ""));
+    }
+
+    const dayPercentMatch = line.match(/\bday\b[^0-9]*([\d.]+)\s*%\s*left\b/i);
+    if (dayPercentMatch) {
+      setTelemetryIfMissing(target, "usage_day_percent_left", parseNumberToken(dayPercentMatch[1] ?? ""));
+    }
+
+    const windowTimeMatch = line.match(/\bwindow\b.*?@\s*(.+?)(?:\s+(?:\u00b7|\|)\s+|\s+\bday\b|$)/i);
+    if (windowTimeMatch) {
+      const value = nonEmpty(windowTimeMatch[1] ?? "");
+      if (value && value.toLowerCase() !== "unknown") {
+        setTelemetryIfMissing(target, "usage_window_time_left", value);
+      }
+    }
+
+    const dayTimeMatch = line.match(/\bday\b.*?@\s*(.+?)(?:\s+(?:\u00b7|\|)\s+|$)/i);
+    if (dayTimeMatch) {
+      const value = nonEmpty(dayTimeMatch[1] ?? "");
+      if (value && value.toLowerCase() !== "unknown") {
+        setTelemetryIfMissing(target, "usage_day_time_left", value);
+      }
+    }
+
+    const queueDepthMatch = line.match(/\bqueue\s*depth\b\s*[:=]?\s*([\d,]+)/i);
+    if (queueDepthMatch) {
+      setTelemetryIfMissing(target, "queue_depth", parseIntegerToken(queueDepthMatch[1] ?? ""));
+    }
+
+    const runtimeModeMatch = line.match(/\bruntime\b\s*[:=]?\s*([a-z0-9._-]+)/i);
+    if (runtimeModeMatch) {
+      setTelemetryIfMissing(target, "runtime_mode", nonEmpty(runtimeModeMatch[1] ?? ""));
+    }
+
+    const thinkingModeMatch = line.match(/\bthink(?:ing)?\b\s*[:=]?\s*([a-z0-9._-]+)/i);
+    if (thinkingModeMatch) {
+      setTelemetryIfMissing(target, "thinking_mode", nonEmpty(thinkingModeMatch[1] ?? ""));
+    }
+
+    const sessionMatch = line.match(/\bsession\b\s*[:=]?\s*(.+)$/i);
+    if (sessionMatch) {
+      const value = nonEmpty(sessionMatch[1] ?? "");
+      if (value && value.toLowerCase() !== "unknown") {
+        setTelemetryIfMissing(target, "session", value);
+      }
+    }
+
+    const queueNameMatch = line.match(/\bqueue\b\s*[:=]?\s*([a-z0-9._:-]+)/i);
+    const queueName = nonEmpty(queueNameMatch?.[1] ?? "");
+    if (queueName && queueName.toLowerCase() !== "depth") {
+      setTelemetryIfMissing(target, "queue", queueName);
+    }
+
+    const authMatch = line.match(/\bauth\b\s*[:=]?\s*(.+)$/i);
+    if (authMatch) {
+      const value = nonEmpty(authMatch[1] ?? "");
+      if (value && value.toLowerCase() !== "unknown") {
+        setTelemetryIfMissing(target, "auth", value);
+      }
+    }
+
+    const modelMatch = line.match(/\bmodel\b\s*[:=]?\s*(.+)$/i);
+    if (modelMatch && !Object.prototype.hasOwnProperty.call(target, "models")) {
+      const model = nonEmpty(modelMatch[1] ?? "");
+      if (model && model.toLowerCase() !== "unknown") {
+        target.models = [model];
+      }
+    }
+
+    for (const [tool, field] of TOOL_FIELD_PAIRS) {
+      const toolMatch = line.match(new RegExp(`\\b${tool}\\b\\s*(?:tool\\b\\s*)?(on|off|true|false|1|0|yes|no)\\b`, "i"));
+      if (!toolMatch) {
+        continue;
+      }
+
+      const enabled = valueAsBoolean(toolMatch[1]);
+      if (enabled !== null) {
+        setTelemetryIfMissing(target, field, enabled);
+      }
+    }
+  }
+}
+
+const TOOL_FIELD_PAIRS: ReadonlyArray<readonly [string, string]> = [
+  ["browser", "browser_tool_available"],
+  ["exec", "exec_tool_available"],
+  ["nodes", "nodes_tool_available"],
+  ["messaging", "messaging_tool_available"],
+  ["sessions", "sessions_tool_available"],
+  ["memory", "memory_tool_available"]
+];
+
+function collectTelemetryTextFragments(source: JsonObject): string[] {
+  const fragments: string[] = [];
+  const seen = new Set<string>();
+
+  walk(source, (value) => {
+    if (typeof value !== "string") {
+      return;
+    }
+
+    const trimmed = value.trim();
+    if (trimmed === "" || seen.has(trimmed)) {
+      return;
+    }
+
+    seen.add(trimmed);
+    fragments.push(trimmed);
+  });
+
+  return fragments;
+}
+
+function setTelemetryIfMissing(target: JsonObject, field: string, value: unknown): void {
+  if (value === null || value === undefined) {
+    return;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(target, field)) {
+    return;
+  }
+
+  target[field] = value;
+}
+
+function parseNumberToken(value: string): number | null {
+  const cleaned = String(value ?? "")
+    .trim()
+    .replace(/,/g, "");
+
+  if (cleaned === "") {
+    return null;
+  }
+
+  const parsed = Number.parseFloat(cleaned);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function parseIntegerToken(value: string): number | null {
+  const parsed = parseNumberToken(value);
+  if (parsed === null) {
+    return null;
+  }
+
+  return Math.trunc(parsed);
+}
+
+function sanitizeTelemetryStringFields(target: JsonObject): void {
+  const session = nonEmpty(target.session);
+  if (session) {
+    target.session = stripTelemetryLabel(session, "session");
+  }
+
+  const auth = nonEmpty(target.auth);
+  if (auth) {
+    target.auth = stripTelemetryLabel(auth, "auth");
+  }
+}
+
+function stripTelemetryLabel(value: string, label: string): string {
+  const stripped = value.replace(new RegExp(`^${label}\\s*[:=]\\s*`, "i"), "").trim();
+  return stripped === "" ? value : stripped;
 }
 
 function numberFromUnknown(value: unknown): number | null {
