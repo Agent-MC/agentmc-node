@@ -3021,6 +3021,915 @@
         ]
       }
     },
+    "/files": {
+      "get": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "List managed team files.",
+        "operationId": "listFiles",
+        "responses": {
+          "200": {
+            "description": "File list returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedTeamFileResponse"
+                },
+                "example": {
+                  "data": [
+                    {
+                      "id": 101,
+                      "team_id": 7,
+                      "owner_agent_id": 42,
+                      "folder_id": 12,
+                      "display_name": "incident-timeline.md",
+                      "original_filename": "incident-timeline.md",
+                      "extension": "md",
+                      "mime_type": "text/markdown",
+                      "size_bytes": 14220,
+                      "checksum_sha256": null,
+                      "preview_kind": "markdown",
+                      "uploaded_by_user_id": 8,
+                      "uploaded_by_agent_id": null,
+                      "created_at": "2026-02-27T17:20:00Z",
+                      "updated_at": "2026-02-27T17:24:00Z",
+                      "folder": {
+                        "id": 12,
+                        "team_id": 7,
+                        "parent_id": null,
+                        "name": "Runbooks",
+                        "path_cache": "Runbooks",
+                        "created_at": "2026-02-27T17:10:00Z",
+                        "updated_at": "2026-02-27T17:10:00Z"
+                      }
+                    }
+                  ],
+                  "links": {
+                    "first": "example",
+                    "last": "example",
+                    "prev": "example",
+                    "next": "example"
+                  },
+                  "meta": {
+                    "current_page": 1,
+                    "from": 1,
+                    "last_page": 1,
+                    "links": [
+                      {
+                        "url": "https://agentmc.example.com/docs/incident-123",
+                        "label": "example",
+                        "active": true
+                      }
+                    ],
+                    "path": ".agentmc/skills/skill.md",
+                    "per_page": 25,
+                    "total": 0
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/ApiError401"
+          },
+          "403": {
+            "$ref": "#/components/responses/ApiError403"
+          },
+          "422": {
+            "$ref": "#/components/responses/ApiError422"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "SessionCookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "description": "Case-insensitive text search query.",
+            "schema": {
+              "nullable": true,
+              "type": "string",
+              "maxLength": 255
+            },
+            "example": "retro"
+          },
+          {
+            "name": "folder_id",
+            "in": "query",
+            "required": false,
+            "description": "Identifier for folder.",
+            "schema": {
+              "nullable": true,
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 42
+          },
+          {
+            "name": "owner_agent_id",
+            "in": "query",
+            "required": false,
+            "description": "Identifier for owner agent.",
+            "schema": {
+              "nullable": true,
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 42
+          },
+          {
+            "name": "mime_group",
+            "in": "query",
+            "required": false,
+            "description": "Allowed values: text, markdown, image, pdf, other.",
+            "schema": {
+              "nullable": true,
+              "enum": [
+                "text",
+                "markdown",
+                "image",
+                "pdf",
+                "other"
+              ],
+              "type": "string"
+            },
+            "example": "text"
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "description": "Allowed values: updated_at, display_name, size_bytes.",
+            "schema": {
+              "nullable": true,
+              "enum": [
+                "updated_at",
+                "display_name",
+                "size_bytes"
+              ],
+              "type": "string"
+            },
+            "example": "updated_at"
+          },
+          {
+            "name": "direction",
+            "in": "query",
+            "required": false,
+            "description": "Allowed values: asc, desc.",
+            "schema": {
+              "nullable": true,
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "type": "string"
+            },
+            "example": "asc"
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "required": false,
+            "description": "Page size for paginated responses.",
+            "schema": {
+              "nullable": true,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "example": 25
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "Finalize an uploaded object into a managed file record.",
+        "operationId": "createFile",
+        "responses": {
+          "201": {
+            "description": "File created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamFileResponse"
+                },
+                "example": {
+                  "data": {
+                    "id": 101,
+                    "team_id": 7,
+                    "owner_agent_id": 42,
+                    "folder_id": 12,
+                    "display_name": "incident-timeline.md",
+                    "original_filename": "incident-timeline.md",
+                    "extension": "md",
+                    "mime_type": "text/markdown",
+                    "size_bytes": 14220,
+                    "checksum_sha256": null,
+                    "preview_kind": "markdown",
+                    "uploaded_by_user_id": 8,
+                    "uploaded_by_agent_id": null,
+                    "created_at": "2026-02-27T17:20:00Z",
+                    "updated_at": "2026-02-27T17:24:00Z",
+                    "folder": {
+                      "id": 12,
+                      "team_id": 7,
+                      "parent_id": null,
+                      "name": "Runbooks",
+                      "path_cache": "Runbooks",
+                      "created_at": "2026-02-27T17:10:00Z",
+                      "updated_at": "2026-02-27T17:10:00Z"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/ApiError401"
+          },
+          "402": {
+            "$ref": "#/components/responses/ApiError402"
+          },
+          "403": {
+            "$ref": "#/components/responses/ApiError403"
+          },
+          "404": {
+            "$ref": "#/components/responses/ApiError404"
+          },
+          "422": {
+            "$ref": "#/components/responses/ApiError422"
+          },
+          "503": {
+            "$ref": "#/components/responses/ApiError503"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "SessionCookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "$ref": "#/components/requestBodies/StoreTeamFileApiRequest"
+        }
+      }
+    },
+    "/files/uploads": {
+      "post": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "Create a presigned upload ticket for a managed file.",
+        "operationId": "createFileUpload",
+        "responses": {
+          "201": {
+            "description": "Upload ticket created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamFileUploadTicketResponse"
+                },
+                "example": {
+                  "data": {
+                    "upload_id": "tup_8f4f7f3f836d43d28c4f7311a48258f5",
+                    "object_key": "teams/7/files/2026/02/27/tup_8f4f7f3f836d43d28c4f7311a48258f5.md",
+                    "upload_url": "https://storage.example.com/bucket/teams/7/files/2026/02/27/tup_8f4f7f3f836d43d28c4f7311a48258f5.md?...",
+                    "upload_method": "PUT",
+                    "upload_headers": {
+                      "Content-Type": "text/markdown"
+                    },
+                    "expires_at": "2026-02-27T17:30:00Z"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/ApiError401"
+          },
+          "402": {
+            "$ref": "#/components/responses/ApiError402"
+          },
+          "403": {
+            "$ref": "#/components/responses/ApiError403"
+          },
+          "422": {
+            "$ref": "#/components/responses/ApiError422"
+          },
+          "503": {
+            "$ref": "#/components/responses/ApiError503"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "SessionCookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "$ref": "#/components/requestBodies/CreateTeamFileUploadApiRequest"
+        }
+      }
+    },
+    "/files/{id}": {
+      "get": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "Show one managed file.",
+        "operationId": "showFile",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "File identifier.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 42
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "File returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamFileResponse"
+                },
+                "example": {
+                  "data": {
+                    "id": 101,
+                    "team_id": 7,
+                    "owner_agent_id": 42,
+                    "folder_id": 12,
+                    "display_name": "incident-timeline.md",
+                    "original_filename": "incident-timeline.md",
+                    "extension": "md",
+                    "mime_type": "text/markdown",
+                    "size_bytes": 14220,
+                    "checksum_sha256": null,
+                    "preview_kind": "markdown",
+                    "uploaded_by_user_id": 8,
+                    "uploaded_by_agent_id": null,
+                    "created_at": "2026-02-27T17:20:00Z",
+                    "updated_at": "2026-02-27T17:24:00Z",
+                    "folder": {
+                      "id": 12,
+                      "team_id": 7,
+                      "parent_id": null,
+                      "name": "Runbooks",
+                      "path_cache": "Runbooks",
+                      "created_at": "2026-02-27T17:10:00Z",
+                      "updated_at": "2026-02-27T17:10:00Z"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/ApiError401"
+          },
+          "403": {
+            "$ref": "#/components/responses/ApiError403"
+          },
+          "404": {
+            "$ref": "#/components/responses/ApiError404"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "SessionCookieAuth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "Delete a managed file.",
+        "operationId": "deleteFile",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "File identifier.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 42
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No content.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenericDataResponse"
+                },
+                "example": {
+                  "data": {
+                    "key": "value"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/ApiError401"
+          },
+          "403": {
+            "$ref": "#/components/responses/ApiError403"
+          },
+          "404": {
+            "$ref": "#/components/responses/ApiError404"
+          },
+          "503": {
+            "$ref": "#/components/responses/ApiError503"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "SessionCookieAuth": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "Update managed file metadata.",
+        "operationId": "updateFile",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "File identifier.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 42
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "File updated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamFileResponse"
+                },
+                "example": {
+                  "data": {
+                    "id": 101,
+                    "team_id": 7,
+                    "owner_agent_id": 42,
+                    "folder_id": 12,
+                    "display_name": "incident-timeline.md",
+                    "original_filename": "incident-timeline.md",
+                    "extension": "md",
+                    "mime_type": "text/markdown",
+                    "size_bytes": 14220,
+                    "checksum_sha256": null,
+                    "preview_kind": "markdown",
+                    "uploaded_by_user_id": 8,
+                    "uploaded_by_agent_id": null,
+                    "created_at": "2026-02-27T17:20:00Z",
+                    "updated_at": "2026-02-27T17:24:00Z",
+                    "folder": {
+                      "id": 12,
+                      "team_id": 7,
+                      "parent_id": null,
+                      "name": "Runbooks",
+                      "path_cache": "Runbooks",
+                      "created_at": "2026-02-27T17:10:00Z",
+                      "updated_at": "2026-02-27T17:10:00Z"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/ApiError401"
+          },
+          "403": {
+            "$ref": "#/components/responses/ApiError403"
+          },
+          "404": {
+            "$ref": "#/components/responses/ApiError404"
+          },
+          "422": {
+            "$ref": "#/components/responses/ApiError422"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "SessionCookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTeamFileApiRequest"
+              },
+              "example": {
+                "display_name": "incident-timeline-v2.md",
+                "folder_id": 14,
+                "owner_agent_id": null
+              }
+            }
+          }
+        }
+      }
+    },
+    "/files/{id}/download": {
+      "get": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "Get a short-lived download redirect for one managed file.",
+        "operationId": "downloadFile",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "File identifier.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 42
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "Redirect to a short-lived signed download URL.",
+            "headers": {
+              "Location": {
+                "description": "Temporary object storage URL.",
+                "schema": {
+                  "type": "string",
+                  "format": "uri"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/ApiError401"
+          },
+          "403": {
+            "$ref": "#/components/responses/ApiError403"
+          },
+          "404": {
+            "$ref": "#/components/responses/ApiError404"
+          },
+          "503": {
+            "$ref": "#/components/responses/ApiError503"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "SessionCookieAuth": []
+          }
+        ]
+      }
+    },
+    "/files/{id}/preview": {
+      "get": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "Get a short-lived preview redirect for one managed file.",
+        "operationId": "previewFile",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "File identifier.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 42
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "Redirect to a short-lived signed inline preview URL.",
+            "headers": {
+              "Location": {
+                "description": "Temporary object storage URL.",
+                "schema": {
+                  "type": "string",
+                  "format": "uri"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/ApiError401"
+          },
+          "403": {
+            "$ref": "#/components/responses/ApiError403"
+          },
+          "404": {
+            "$ref": "#/components/responses/ApiError404"
+          },
+          "422": {
+            "$ref": "#/components/responses/ApiError422"
+          },
+          "503": {
+            "$ref": "#/components/responses/ApiError503"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "SessionCookieAuth": []
+          }
+        ]
+      }
+    },
+    "/files/folders": {
+      "get": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "List managed file folders for the team.",
+        "operationId": "listFileFolders",
+        "responses": {
+          "200": {
+            "description": "Folder list returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamFileFolderListResponse"
+                },
+                "example": {
+                  "data": [
+                    {
+                      "id": 12,
+                      "team_id": 7,
+                      "parent_id": null,
+                      "name": "Runbooks",
+                      "path_cache": "Runbooks",
+                      "created_at": "2026-02-27T17:10:00Z",
+                      "updated_at": "2026-02-27T17:10:00Z"
+                    }
+                  ],
+                  "tree": [
+                    {
+                      "key": "value"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/ApiError401"
+          },
+          "403": {
+            "$ref": "#/components/responses/ApiError403"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "SessionCookieAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "Create a managed file folder.",
+        "operationId": "createFileFolder",
+        "responses": {
+          "201": {
+            "description": "Folder created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamFileFolderResponse"
+                },
+                "example": {
+                  "data": {
+                    "id": 12,
+                    "team_id": 7,
+                    "parent_id": null,
+                    "name": "Runbooks",
+                    "path_cache": "Runbooks",
+                    "created_at": "2026-02-27T17:10:00Z",
+                    "updated_at": "2026-02-27T17:10:00Z"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/ApiError401"
+          },
+          "403": {
+            "$ref": "#/components/responses/ApiError403"
+          },
+          "422": {
+            "$ref": "#/components/responses/ApiError422"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "SessionCookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "$ref": "#/components/requestBodies/StoreTeamFileFolderApiRequest"
+        }
+      }
+    },
+    "/files/folders/{id}": {
+      "delete": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "Delete a managed file folder.",
+        "operationId": "deleteFileFolder",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Folder identifier.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 42
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No content.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenericDataResponse"
+                },
+                "example": {
+                  "data": {
+                    "key": "value"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/ApiError401"
+          },
+          "403": {
+            "$ref": "#/components/responses/ApiError403"
+          },
+          "404": {
+            "$ref": "#/components/responses/ApiError404"
+          },
+          "409": {
+            "$ref": "#/components/responses/ApiError409"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "SessionCookieAuth": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "Update a managed file folder.",
+        "operationId": "updateFileFolder",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Folder identifier.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 42
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Folder updated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamFileFolderResponse"
+                },
+                "example": {
+                  "data": {
+                    "id": 12,
+                    "team_id": 7,
+                    "parent_id": null,
+                    "name": "Runbooks",
+                    "path_cache": "Runbooks",
+                    "created_at": "2026-02-27T17:10:00Z",
+                    "updated_at": "2026-02-27T17:10:00Z"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/ApiError401"
+          },
+          "403": {
+            "$ref": "#/components/responses/ApiError403"
+          },
+          "404": {
+            "$ref": "#/components/responses/ApiError404"
+          },
+          "422": {
+            "$ref": "#/components/responses/ApiError422"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "SessionCookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTeamFileFolderApiRequest"
+              },
+              "example": {
+                "name": "Incident Runbooks",
+                "parent_id": null
+              }
+            }
+          }
+        }
+      }
+    },
     "/notifications": {
       "get": {
         "tags": [
@@ -4145,6 +5054,622 @@
         "description": "Generic List Response response schema.",
         "example": {
           "data": [
+            {
+              "key": "value"
+            }
+          ]
+        }
+      },
+      "TeamFileFolder": {
+        "type": "object",
+        "required": [
+          "id",
+          "team_id",
+          "parent_id",
+          "name",
+          "path_cache",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Unique identifier for this record.",
+            "example": 42
+          },
+          "team_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Team identifier that owns this record.",
+            "example": 42
+          },
+          "parent_id": {
+            "type": "integer",
+            "minimum": 1,
+            "nullable": true,
+            "description": "Identifier for parent.",
+            "example": 42
+          },
+          "name": {
+            "type": "string",
+            "description": "Human-readable name.",
+            "example": "Example Name"
+          },
+          "path_cache": {
+            "type": "string",
+            "description": "Path cache.",
+            "example": "example"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "ISO-8601 timestamp when this record was created.",
+            "example": "2026-02-22T17:21:00Z"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "ISO-8601 timestamp when this record was last updated.",
+            "example": "2026-02-22T17:21:00Z"
+          }
+        },
+        "example": {
+          "id": 12,
+          "team_id": 7,
+          "parent_id": null,
+          "name": "Runbooks",
+          "path_cache": "Runbooks",
+          "created_at": "2026-02-27T17:10:00Z",
+          "updated_at": "2026-02-27T17:10:00Z"
+        },
+        "description": "Team File Folder schema."
+      },
+      "TeamFile": {
+        "type": "object",
+        "required": [
+          "id",
+          "team_id",
+          "owner_agent_id",
+          "folder_id",
+          "display_name",
+          "original_filename",
+          "extension",
+          "mime_type",
+          "size_bytes",
+          "checksum_sha256",
+          "preview_kind",
+          "uploaded_by_user_id",
+          "uploaded_by_agent_id",
+          "created_at",
+          "updated_at",
+          "folder"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Unique identifier for this record.",
+            "example": 42
+          },
+          "team_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Team identifier that owns this record.",
+            "example": 42
+          },
+          "owner_agent_id": {
+            "type": "integer",
+            "minimum": 1,
+            "nullable": true,
+            "description": "Identifier for owner agent.",
+            "example": 42
+          },
+          "folder_id": {
+            "type": "integer",
+            "minimum": 1,
+            "nullable": true,
+            "description": "Identifier for folder.",
+            "example": 42
+          },
+          "display_name": {
+            "type": "string",
+            "description": "Display name.",
+            "example": "Example Name"
+          },
+          "original_filename": {
+            "type": "string",
+            "description": "Original filename.",
+            "example": "Example Name"
+          },
+          "extension": {
+            "type": "string",
+            "nullable": true,
+            "description": "Extension.",
+            "example": "example"
+          },
+          "mime_type": {
+            "type": "string",
+            "description": "Mime type.",
+            "example": "example"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Size bytes.",
+            "example": 0
+          },
+          "checksum_sha256": {
+            "type": "string",
+            "nullable": true,
+            "description": "Checksum sha256.",
+            "example": "example"
+          },
+          "preview_kind": {
+            "type": "string",
+            "enum": [
+              "markdown",
+              "text",
+              "image",
+              "pdf",
+              "other"
+            ],
+            "description": "Allowed values: markdown, text, image, pdf, other.",
+            "example": "markdown"
+          },
+          "uploaded_by_user_id": {
+            "type": "integer",
+            "minimum": 1,
+            "nullable": true,
+            "description": "Identifier for uploaded by user.",
+            "example": 42
+          },
+          "uploaded_by_agent_id": {
+            "type": "integer",
+            "minimum": 1,
+            "nullable": true,
+            "description": "Identifier for uploaded by agent.",
+            "example": 42
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "ISO-8601 timestamp when this record was created.",
+            "example": "2026-02-22T17:21:00Z"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "ISO-8601 timestamp when this record was last updated.",
+            "example": "2026-02-22T17:21:00Z"
+          },
+          "folder": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TeamFileFolder"
+              }
+            ],
+            "nullable": true,
+            "description": "Folder.",
+            "example": {
+              "id": 12,
+              "team_id": 7,
+              "parent_id": null,
+              "name": "Runbooks",
+              "path_cache": "Runbooks",
+              "created_at": "2026-02-27T17:10:00Z",
+              "updated_at": "2026-02-27T17:10:00Z"
+            }
+          }
+        },
+        "example": {
+          "id": 101,
+          "team_id": 7,
+          "owner_agent_id": 42,
+          "folder_id": 12,
+          "display_name": "incident-timeline.md",
+          "original_filename": "incident-timeline.md",
+          "extension": "md",
+          "mime_type": "text/markdown",
+          "size_bytes": 14220,
+          "checksum_sha256": null,
+          "preview_kind": "markdown",
+          "uploaded_by_user_id": 8,
+          "uploaded_by_agent_id": null,
+          "created_at": "2026-02-27T17:20:00Z",
+          "updated_at": "2026-02-27T17:24:00Z",
+          "folder": {
+            "id": 12,
+            "team_id": 7,
+            "parent_id": null,
+            "name": "Runbooks",
+            "path_cache": "Runbooks",
+            "created_at": "2026-02-27T17:10:00Z",
+            "updated_at": "2026-02-27T17:10:00Z"
+          }
+        },
+        "description": "Team File schema."
+      },
+      "TeamFileUploadTicket": {
+        "type": "object",
+        "required": [
+          "upload_id",
+          "object_key",
+          "upload_url",
+          "upload_method",
+          "upload_headers",
+          "expires_at"
+        ],
+        "properties": {
+          "upload_id": {
+            "type": "string",
+            "description": "Identifier for upload.",
+            "example": "example"
+          },
+          "object_key": {
+            "type": "string",
+            "description": "Object key.",
+            "example": "example"
+          },
+          "upload_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "URL value for upload url.",
+            "example": "https://agentmc.example.com/resource"
+          },
+          "upload_method": {
+            "type": "string",
+            "enum": [
+              "PUT"
+            ],
+            "description": "Allowed values: PUT.",
+            "example": "PUT"
+          },
+          "upload_headers": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Upload headers.",
+            "example": {
+              "key": "value"
+            }
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO-8601 expiration timestamp.",
+            "example": "2026-02-22T17:21:00Z"
+          }
+        },
+        "example": {
+          "upload_id": "tup_8f4f7f3f836d43d28c4f7311a48258f5",
+          "object_key": "teams/7/files/2026/02/27/tup_8f4f7f3f836d43d28c4f7311a48258f5.md",
+          "upload_url": "https://storage.example.com/bucket/teams/7/files/2026/02/27/tup_8f4f7f3f836d43d28c4f7311a48258f5.md?...",
+          "upload_method": "PUT",
+          "upload_headers": {
+            "Content-Type": "text/markdown"
+          },
+          "expires_at": "2026-02-27T17:30:00Z"
+        },
+        "description": "Team File Upload Ticket schema."
+      },
+      "PaginatedTeamFileResponse": {
+        "type": "object",
+        "required": [
+          "data",
+          "links",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TeamFile"
+            },
+            "description": "Data.",
+            "example": [
+              {
+                "id": 101,
+                "team_id": 7,
+                "owner_agent_id": 42,
+                "folder_id": 12,
+                "display_name": "incident-timeline.md",
+                "original_filename": "incident-timeline.md",
+                "extension": "md",
+                "mime_type": "text/markdown",
+                "size_bytes": 14220,
+                "checksum_sha256": null,
+                "preview_kind": "markdown",
+                "uploaded_by_user_id": 8,
+                "uploaded_by_agent_id": null,
+                "created_at": "2026-02-27T17:20:00Z",
+                "updated_at": "2026-02-27T17:24:00Z",
+                "folder": {
+                  "id": 12,
+                  "team_id": 7,
+                  "parent_id": null,
+                  "name": "Runbooks",
+                  "path_cache": "Runbooks",
+                  "created_at": "2026-02-27T17:10:00Z",
+                  "updated_at": "2026-02-27T17:10:00Z"
+                }
+              }
+            ]
+          },
+          "links": {
+            "$ref": "#/components/schemas/PaginationLinks",
+            "description": "Links.",
+            "example": {
+              "first": "example",
+              "last": "example",
+              "prev": "example",
+              "next": "example"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/PaginationMeta",
+            "description": "Arbitrary JSON metadata object.",
+            "example": {
+              "current_page": 1,
+              "from": 1,
+              "last_page": 1,
+              "links": [
+                {
+                  "url": "https://agentmc.example.com/docs/incident-123",
+                  "label": "example",
+                  "active": true
+                }
+              ],
+              "path": ".agentmc/skills/skill.md",
+              "per_page": 25,
+              "total": 0
+            }
+          }
+        },
+        "description": "Paginated Team File Response response schema.",
+        "example": {
+          "data": [
+            {
+              "id": 101,
+              "team_id": 7,
+              "owner_agent_id": 42,
+              "folder_id": 12,
+              "display_name": "incident-timeline.md",
+              "original_filename": "incident-timeline.md",
+              "extension": "md",
+              "mime_type": "text/markdown",
+              "size_bytes": 14220,
+              "checksum_sha256": null,
+              "preview_kind": "markdown",
+              "uploaded_by_user_id": 8,
+              "uploaded_by_agent_id": null,
+              "created_at": "2026-02-27T17:20:00Z",
+              "updated_at": "2026-02-27T17:24:00Z",
+              "folder": {
+                "id": 12,
+                "team_id": 7,
+                "parent_id": null,
+                "name": "Runbooks",
+                "path_cache": "Runbooks",
+                "created_at": "2026-02-27T17:10:00Z",
+                "updated_at": "2026-02-27T17:10:00Z"
+              }
+            }
+          ],
+          "links": {
+            "first": "example",
+            "last": "example",
+            "prev": "example",
+            "next": "example"
+          },
+          "meta": {
+            "current_page": 1,
+            "from": 1,
+            "last_page": 1,
+            "links": [
+              {
+                "url": "https://agentmc.example.com/docs/incident-123",
+                "label": "example",
+                "active": true
+              }
+            ],
+            "path": ".agentmc/skills/skill.md",
+            "per_page": 25,
+            "total": 0
+          }
+        }
+      },
+      "TeamFileResponse": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TeamFile",
+            "description": "Data.",
+            "example": {
+              "id": 101,
+              "team_id": 7,
+              "owner_agent_id": 42,
+              "folder_id": 12,
+              "display_name": "incident-timeline.md",
+              "original_filename": "incident-timeline.md",
+              "extension": "md",
+              "mime_type": "text/markdown",
+              "size_bytes": 14220,
+              "checksum_sha256": null,
+              "preview_kind": "markdown",
+              "uploaded_by_user_id": 8,
+              "uploaded_by_agent_id": null,
+              "created_at": "2026-02-27T17:20:00Z",
+              "updated_at": "2026-02-27T17:24:00Z",
+              "folder": {
+                "id": 12,
+                "team_id": 7,
+                "parent_id": null,
+                "name": "Runbooks",
+                "path_cache": "Runbooks",
+                "created_at": "2026-02-27T17:10:00Z",
+                "updated_at": "2026-02-27T17:10:00Z"
+              }
+            }
+          }
+        },
+        "description": "Team File Response response schema.",
+        "example": {
+          "data": {
+            "id": 101,
+            "team_id": 7,
+            "owner_agent_id": 42,
+            "folder_id": 12,
+            "display_name": "incident-timeline.md",
+            "original_filename": "incident-timeline.md",
+            "extension": "md",
+            "mime_type": "text/markdown",
+            "size_bytes": 14220,
+            "checksum_sha256": null,
+            "preview_kind": "markdown",
+            "uploaded_by_user_id": 8,
+            "uploaded_by_agent_id": null,
+            "created_at": "2026-02-27T17:20:00Z",
+            "updated_at": "2026-02-27T17:24:00Z",
+            "folder": {
+              "id": 12,
+              "team_id": 7,
+              "parent_id": null,
+              "name": "Runbooks",
+              "path_cache": "Runbooks",
+              "created_at": "2026-02-27T17:10:00Z",
+              "updated_at": "2026-02-27T17:10:00Z"
+            }
+          }
+        }
+      },
+      "TeamFileUploadTicketResponse": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TeamFileUploadTicket",
+            "description": "Data.",
+            "example": {
+              "upload_id": "tup_8f4f7f3f836d43d28c4f7311a48258f5",
+              "object_key": "teams/7/files/2026/02/27/tup_8f4f7f3f836d43d28c4f7311a48258f5.md",
+              "upload_url": "https://storage.example.com/bucket/teams/7/files/2026/02/27/tup_8f4f7f3f836d43d28c4f7311a48258f5.md?...",
+              "upload_method": "PUT",
+              "upload_headers": {
+                "Content-Type": "text/markdown"
+              },
+              "expires_at": "2026-02-27T17:30:00Z"
+            }
+          }
+        },
+        "description": "Team File Upload Ticket Response response schema.",
+        "example": {
+          "data": {
+            "upload_id": "tup_8f4f7f3f836d43d28c4f7311a48258f5",
+            "object_key": "teams/7/files/2026/02/27/tup_8f4f7f3f836d43d28c4f7311a48258f5.md",
+            "upload_url": "https://storage.example.com/bucket/teams/7/files/2026/02/27/tup_8f4f7f3f836d43d28c4f7311a48258f5.md?...",
+            "upload_method": "PUT",
+            "upload_headers": {
+              "Content-Type": "text/markdown"
+            },
+            "expires_at": "2026-02-27T17:30:00Z"
+          }
+        }
+      },
+      "TeamFileFolderResponse": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TeamFileFolder",
+            "description": "Data.",
+            "example": {
+              "id": 12,
+              "team_id": 7,
+              "parent_id": null,
+              "name": "Runbooks",
+              "path_cache": "Runbooks",
+              "created_at": "2026-02-27T17:10:00Z",
+              "updated_at": "2026-02-27T17:10:00Z"
+            }
+          }
+        },
+        "description": "Team File Folder Response response schema.",
+        "example": {
+          "data": {
+            "id": 12,
+            "team_id": 7,
+            "parent_id": null,
+            "name": "Runbooks",
+            "path_cache": "Runbooks",
+            "created_at": "2026-02-27T17:10:00Z",
+            "updated_at": "2026-02-27T17:10:00Z"
+          }
+        }
+      },
+      "TeamFileFolderListResponse": {
+        "type": "object",
+        "required": [
+          "data",
+          "tree"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TeamFileFolder"
+            },
+            "description": "Data.",
+            "example": [
+              {
+                "id": 12,
+                "team_id": 7,
+                "parent_id": null,
+                "name": "Runbooks",
+                "path_cache": "Runbooks",
+                "created_at": "2026-02-27T17:10:00Z",
+                "updated_at": "2026-02-27T17:10:00Z"
+              }
+            ]
+          },
+          "tree": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            },
+            "description": "Tree.",
+            "example": [
+              {
+                "key": "value"
+              }
+            ]
+          }
+        },
+        "description": "Team File Folder List Response response schema.",
+        "example": {
+          "data": [
+            {
+              "id": 12,
+              "team_id": 7,
+              "parent_id": null,
+              "name": "Runbooks",
+              "path_cache": "Runbooks",
+              "created_at": "2026-02-27T17:10:00Z",
+              "updated_at": "2026-02-27T17:10:00Z"
+            }
+          ],
+          "tree": [
             {
               "key": "value"
             }
@@ -9946,6 +11471,48 @@
           "error_message": "example"
         }
       },
+      "CreateTeamFileUploadApiRequest": {
+        "type": "object",
+        "properties": {
+          "filename": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "Filename.",
+            "example": "Example Name"
+          },
+          "byte_size": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Byte size.",
+            "example": 1
+          },
+          "mime_type": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "Mime type.",
+            "example": "example"
+          },
+          "checksum_sha256": {
+            "nullable": true,
+            "type": "string",
+            "pattern": "^[A-Fa-f0-9]{64}$",
+            "description": "Checksum sha256.",
+            "example": "example"
+          }
+        },
+        "required": [
+          "filename",
+          "byte_size",
+          "mime_type"
+        ],
+        "description": "Create Team File Upload Api Request request schema.",
+        "example": {
+          "filename": "Example Name",
+          "byte_size": 1,
+          "mime_type": "example",
+          "checksum_sha256": "example"
+        }
+      },
       "StoreAgentHeartbeatApiRequest": {
         "type": "object",
         "properties": {
@@ -11196,6 +12763,74 @@
           "actor_id": 42
         }
       },
+      "StoreTeamFileApiRequest": {
+        "type": "object",
+        "properties": {
+          "upload_id": {
+            "type": "string",
+            "maxLength": 64,
+            "description": "Identifier for upload.",
+            "example": "example"
+          },
+          "display_name": {
+            "nullable": true,
+            "type": "string",
+            "maxLength": 255,
+            "description": "Display name.",
+            "example": "Example Name"
+          },
+          "folder_id": {
+            "nullable": true,
+            "type": "integer",
+            "minimum": 1,
+            "description": "Identifier for folder.",
+            "example": 42
+          },
+          "owner_agent_id": {
+            "nullable": true,
+            "type": "integer",
+            "minimum": 1,
+            "description": "Identifier for owner agent.",
+            "example": 42
+          }
+        },
+        "required": [
+          "upload_id"
+        ],
+        "description": "Store Team File Api Request request schema.",
+        "example": {
+          "upload_id": "example",
+          "display_name": "Example Name",
+          "folder_id": 42,
+          "owner_agent_id": 42
+        }
+      },
+      "StoreTeamFileFolderApiRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 160,
+            "description": "Human-readable name.",
+            "example": "Example Name"
+          },
+          "parent_id": {
+            "nullable": true,
+            "type": "integer",
+            "minimum": 1,
+            "description": "Identifier for parent.",
+            "example": 42
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "description": "Store Team File Folder Api Request request schema.",
+        "example": {
+          "name": "Example Name",
+          "parent_id": 42
+        }
+      },
       "StoreTaskCommentApiRequest": {
         "type": "object",
         "properties": {
@@ -11677,6 +13312,61 @@
           "end_at": "2026-02-22T17:21:00Z"
         }
       },
+      "UpdateTeamFileApiRequest": {
+        "type": "object",
+        "properties": {
+          "display_name": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "Display name.",
+            "example": "Example Name"
+          },
+          "folder_id": {
+            "nullable": true,
+            "type": "integer",
+            "minimum": 1,
+            "description": "Identifier for folder.",
+            "example": 42
+          },
+          "owner_agent_id": {
+            "nullable": true,
+            "type": "integer",
+            "minimum": 1,
+            "description": "Identifier for owner agent.",
+            "example": 42
+          }
+        },
+        "description": "Update Team File Api Request request schema.",
+        "example": {
+          "display_name": "Example Name",
+          "folder_id": 42,
+          "owner_agent_id": 42
+        }
+      },
+      "UpdateTeamFileFolderApiRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "nullable": true,
+            "type": "string",
+            "maxLength": 160,
+            "description": "Human-readable name.",
+            "example": "Example Name"
+          },
+          "parent_id": {
+            "nullable": true,
+            "type": "integer",
+            "minimum": 1,
+            "description": "Identifier for parent.",
+            "example": 42
+          }
+        },
+        "description": "Update Team File Folder Api Request request schema.",
+        "example": {
+          "name": "Example Name",
+          "parent_id": 42
+        }
+      },
       "UpdateTaskCommentApiRequest": {
         "type": "object",
         "properties": {
@@ -11823,6 +13513,22 @@
                 "provider": "openclaw",
                 "request_id": "req_01JBPXXRM6JYAVY82ECAQ7QNA4"
               }
+            }
+          }
+        }
+      },
+      "CreateTeamFileUploadApiRequest": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/CreateTeamFileUploadApiRequest"
+            },
+            "example": {
+              "filename": "incident-timeline.md",
+              "byte_size": 14220,
+              "mime_type": "text/markdown",
+              "checksum_sha256": "43f88f3c4bf62933800d6f65dc8d9e2fbb2d930fd6134fc4ead6222b5d5f3bc5"
             }
           }
         }
@@ -12021,6 +13727,36 @@
           }
         }
       },
+      "StoreTeamFileApiRequest": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/StoreTeamFileApiRequest"
+            },
+            "example": {
+              "upload_id": "tup_8f4f7f3f836d43d28c4f7311a48258f5",
+              "display_name": "incident-timeline.md",
+              "folder_id": 12,
+              "owner_agent_id": 42
+            }
+          }
+        }
+      },
+      "StoreTeamFileFolderApiRequest": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/StoreTeamFileFolderApiRequest"
+            },
+            "example": {
+              "name": "Runbooks",
+              "parent_id": null
+            }
+          }
+        }
+      },
       "StoreTaskCommentApiRequest": {
         "required": true,
         "content": {
@@ -12139,6 +13875,35 @@
               "status": "in_progress",
               "priority": "urgent",
               "visibility": "team"
+            }
+          }
+        }
+      },
+      "UpdateTeamFileApiRequest": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/UpdateTeamFileApiRequest"
+            },
+            "example": {
+              "display_name": "incident-timeline-v2.md",
+              "folder_id": 14,
+              "owner_agent_id": null
+            }
+          }
+        }
+      },
+      "UpdateTeamFileFolderApiRequest": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/UpdateTeamFileFolderApiRequest"
+            },
+            "example": {
+              "name": "Incident Runbooks",
+              "parent_id": null
             }
           }
         }
@@ -12766,6 +14531,176 @@
           }
         }
       },
+      "PaginatedTeamFileResponse": {
+        "description": "File list returned.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/PaginatedTeamFileResponse"
+            },
+            "example": {
+              "data": [
+                {
+                  "id": 101,
+                  "team_id": 7,
+                  "owner_agent_id": 42,
+                  "folder_id": 12,
+                  "display_name": "incident-timeline.md",
+                  "original_filename": "incident-timeline.md",
+                  "extension": "md",
+                  "mime_type": "text/markdown",
+                  "size_bytes": 14220,
+                  "checksum_sha256": null,
+                  "preview_kind": "markdown",
+                  "uploaded_by_user_id": 8,
+                  "uploaded_by_agent_id": null,
+                  "created_at": "2026-02-27T17:20:00Z",
+                  "updated_at": "2026-02-27T17:24:00Z",
+                  "folder": {
+                    "id": 12,
+                    "team_id": 7,
+                    "parent_id": null,
+                    "name": "Runbooks",
+                    "path_cache": "Runbooks",
+                    "created_at": "2026-02-27T17:10:00Z",
+                    "updated_at": "2026-02-27T17:10:00Z"
+                  }
+                }
+              ],
+              "links": {
+                "first": "example",
+                "last": "example",
+                "prev": "example",
+                "next": "example"
+              },
+              "meta": {
+                "current_page": 1,
+                "from": 1,
+                "last_page": 1,
+                "links": [
+                  {
+                    "url": "https://agentmc.example.com/docs/incident-123",
+                    "label": "example",
+                    "active": true
+                  }
+                ],
+                "path": ".agentmc/skills/skill.md",
+                "per_page": 25,
+                "total": 0
+              }
+            }
+          }
+        }
+      },
+      "TeamFileResponse": {
+        "description": "File returned.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/TeamFileResponse"
+            },
+            "example": {
+              "data": {
+                "id": 101,
+                "team_id": 7,
+                "owner_agent_id": 42,
+                "folder_id": 12,
+                "display_name": "incident-timeline.md",
+                "original_filename": "incident-timeline.md",
+                "extension": "md",
+                "mime_type": "text/markdown",
+                "size_bytes": 14220,
+                "checksum_sha256": null,
+                "preview_kind": "markdown",
+                "uploaded_by_user_id": 8,
+                "uploaded_by_agent_id": null,
+                "created_at": "2026-02-27T17:20:00Z",
+                "updated_at": "2026-02-27T17:24:00Z",
+                "folder": {
+                  "id": 12,
+                  "team_id": 7,
+                  "parent_id": null,
+                  "name": "Runbooks",
+                  "path_cache": "Runbooks",
+                  "created_at": "2026-02-27T17:10:00Z",
+                  "updated_at": "2026-02-27T17:10:00Z"
+                }
+              }
+            }
+          }
+        }
+      },
+      "TeamFileUploadTicketResponse": {
+        "description": "Upload ticket created.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/TeamFileUploadTicketResponse"
+            },
+            "example": {
+              "data": {
+                "upload_id": "tup_8f4f7f3f836d43d28c4f7311a48258f5",
+                "object_key": "teams/7/files/2026/02/27/tup_8f4f7f3f836d43d28c4f7311a48258f5.md",
+                "upload_url": "https://storage.example.com/bucket/teams/7/files/2026/02/27/tup_8f4f7f3f836d43d28c4f7311a48258f5.md?...",
+                "upload_method": "PUT",
+                "upload_headers": {
+                  "Content-Type": "text/markdown"
+                },
+                "expires_at": "2026-02-27T17:30:00Z"
+              }
+            }
+          }
+        }
+      },
+      "TeamFileFolderResponse": {
+        "description": "Folder returned.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/TeamFileFolderResponse"
+            },
+            "example": {
+              "data": {
+                "id": 12,
+                "team_id": 7,
+                "parent_id": null,
+                "name": "Runbooks",
+                "path_cache": "Runbooks",
+                "created_at": "2026-02-27T17:10:00Z",
+                "updated_at": "2026-02-27T17:10:00Z"
+              }
+            }
+          }
+        }
+      },
+      "TeamFileFolderListResponse": {
+        "description": "Folder list returned.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/TeamFileFolderListResponse"
+            },
+            "example": {
+              "data": [
+                {
+                  "id": 12,
+                  "team_id": 7,
+                  "parent_id": null,
+                  "name": "Runbooks",
+                  "path_cache": "Runbooks",
+                  "created_at": "2026-02-27T17:10:00Z",
+                  "updated_at": "2026-02-27T17:10:00Z"
+                }
+              ],
+              "tree": [
+                {
+                  "key": "value"
+                }
+              ]
+            }
+          }
+        }
+      },
       "ApiError401": {
         "description": "Missing or invalid credentials.",
         "content": {
@@ -12903,6 +14838,29 @@
             }
           }
         }
+      },
+      "ApiError503": {
+        "description": "Service unavailable.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            },
+            "example": {
+              "error": {
+                "code": "validation.failed",
+                "message": "Validation failed.",
+                "details": {
+                  "fields": {
+                    "title": [
+                      "The title field is required."
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     }
   },
@@ -12934,6 +14892,10 @@
     {
       "name": "Logs",
       "description": "Logs"
+    },
+    {
+      "name": "Files",
+      "description": "Files"
     },
     {
       "name": "Notifications",

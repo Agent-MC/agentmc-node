@@ -1715,6 +1715,438 @@
     ]
   },
   {
+    "operationId": "createFile",
+    "method": "post",
+    "path": "/files",
+    "summary": "Finalize an uploaded object into a managed file record.",
+    "description": "",
+    "tags": [
+      "Files"
+    ],
+    "security": [
+      [
+        "ApiKeyAuth"
+      ],
+      [
+        "SessionCookieAuth"
+      ]
+    ],
+    "parameters": [],
+    "requestBodyRequired": true,
+    "requestExamples": [
+      {
+        "mediaType": "application/json",
+        "example": {
+          "upload_id": "tup_8f4f7f3f836d43d28c4f7311a48258f5",
+          "display_name": "incident-timeline.md",
+          "folder_id": 12,
+          "owner_agent_id": 42
+        }
+      }
+    ],
+    "responses": [
+      {
+        "status": "201",
+        "mediaType": "application/json",
+        "description": "File created.",
+        "hasContent": true,
+        "example": {
+          "data": {
+            "id": 101,
+            "team_id": 7,
+            "owner_agent_id": 42,
+            "folder_id": 12,
+            "display_name": "incident-timeline.md",
+            "original_filename": "incident-timeline.md",
+            "extension": "md",
+            "mime_type": "text/markdown",
+            "size_bytes": 14220,
+            "checksum_sha256": null,
+            "preview_kind": "markdown",
+            "uploaded_by_user_id": 8,
+            "uploaded_by_agent_id": null,
+            "created_at": "2026-02-27T17:20:00Z",
+            "updated_at": "2026-02-27T17:24:00Z",
+            "folder": {
+              "id": 12,
+              "team_id": 7,
+              "parent_id": null,
+              "name": "Runbooks",
+              "path_cache": "Runbooks",
+              "created_at": "2026-02-27T17:10:00Z",
+              "updated_at": "2026-02-27T17:10:00Z"
+            }
+          }
+        }
+      },
+      {
+        "status": "401",
+        "mediaType": "application/json",
+        "description": "Missing or invalid credentials.",
+        "hasContent": true,
+        "example": {
+          "error": {
+            "code": "validation.failed",
+            "message": "Validation failed.",
+            "details": {
+              "fields": {
+                "title": [
+                  "The title field is required."
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": "402",
+        "mediaType": "application/json",
+        "description": "Plan limit reached.",
+        "hasContent": true,
+        "example": {
+          "error": {
+            "code": "validation.failed",
+            "message": "Validation failed.",
+            "details": {
+              "fields": {
+                "title": [
+                  "The title field is required."
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": "403",
+        "mediaType": "application/json",
+        "description": "Forbidden.",
+        "hasContent": true,
+        "example": {
+          "error": {
+            "code": "validation.failed",
+            "message": "Validation failed.",
+            "details": {
+              "fields": {
+                "title": [
+                  "The title field is required."
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": "404",
+        "mediaType": "application/json",
+        "description": "Resource not found.",
+        "hasContent": true,
+        "example": {
+          "error": {
+            "code": "validation.failed",
+            "message": "Validation failed.",
+            "details": {
+              "fields": {
+                "title": [
+                  "The title field is required."
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": "422",
+        "mediaType": "application/json",
+        "description": "Validation failed.",
+        "hasContent": true,
+        "example": {
+          "error": {
+            "code": "validation.failed",
+            "message": "Validation failed.",
+            "details": {
+              "fields": {
+                "title": [
+                  "The title field is required."
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": "503",
+        "mediaType": "application/json",
+        "description": "Service unavailable.",
+        "hasContent": true,
+        "example": {
+          "error": {
+            "code": "validation.failed",
+            "message": "Validation failed.",
+            "details": {
+              "fields": {
+                "title": [
+                  "The title field is required."
+                ]
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  {
+    "operationId": "createFileFolder",
+    "method": "post",
+    "path": "/files/folders",
+    "summary": "Create a managed file folder.",
+    "description": "",
+    "tags": [
+      "Files"
+    ],
+    "security": [
+      [
+        "ApiKeyAuth"
+      ],
+      [
+        "SessionCookieAuth"
+      ]
+    ],
+    "parameters": [],
+    "requestBodyRequired": true,
+    "requestExamples": [
+      {
+        "mediaType": "application/json",
+        "example": {
+          "name": "Runbooks",
+          "parent_id": null
+        }
+      }
+    ],
+    "responses": [
+      {
+        "status": "201",
+        "mediaType": "application/json",
+        "description": "Folder created.",
+        "hasContent": true,
+        "example": {
+          "data": {
+            "id": 12,
+            "team_id": 7,
+            "parent_id": null,
+            "name": "Runbooks",
+            "path_cache": "Runbooks",
+            "created_at": "2026-02-27T17:10:00Z",
+            "updated_at": "2026-02-27T17:10:00Z"
+          }
+        }
+      },
+      {
+        "status": "401",
+        "mediaType": "application/json",
+        "description": "Missing or invalid credentials.",
+        "hasContent": true,
+        "example": {
+          "error": {
+            "code": "validation.failed",
+            "message": "Validation failed.",
+            "details": {
+              "fields": {
+                "title": [
+                  "The title field is required."
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": "403",
+        "mediaType": "application/json",
+        "description": "Forbidden.",
+        "hasContent": true,
+        "example": {
+          "error": {
+            "code": "validation.failed",
+            "message": "Validation failed.",
+            "details": {
+              "fields": {
+                "title": [
+                  "The title field is required."
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": "422",
+        "mediaType": "application/json",
+        "description": "Validation failed.",
+        "hasContent": true,
+        "example": {
+          "error": {
+            "code": "validation.failed",
+            "message": "Validation failed.",
+            "details": {
+              "fields": {
+                "title": [
+                  "The title field is required."
+                ]
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  {
+    "operationId": "createFileUpload",
+    "method": "post",
+    "path": "/files/uploads",
+    "summary": "Create a presigned upload ticket for a managed file.",
+    "description": "",
+    "tags": [
+      "Files"
+    ],
+    "security": [
+      [
+        "ApiKeyAuth"
+      ],
+      [
+        "SessionCookieAuth"
+      ]
+    ],
+    "parameters": [],
+    "requestBodyRequired": true,
+    "requestExamples": [
+      {
+        "mediaType": "application/json",
+        "example": {
+          "filename": "incident-timeline.md",
+          "byte_size": 14220,
+          "mime_type": "text/markdown",
+          "checksum_sha256": "43f88f3c4bf62933800d6f65dc8d9e2fbb2d930fd6134fc4ead6222b5d5f3bc5"
+        }
+      }
+    ],
+    "responses": [
+      {
+        "status": "201",
+        "mediaType": "application/json",
+        "description": "Upload ticket created.",
+        "hasContent": true,
+        "example": {
+          "data": {
+            "upload_id": "tup_8f4f7f3f836d43d28c4f7311a48258f5",
+            "object_key": "teams/7/files/2026/02/27/tup_8f4f7f3f836d43d28c4f7311a48258f5.md",
+            "upload_url": "https://storage.example.com/bucket/teams/7/files/2026/02/27/tup_8f4f7f3f836d43d28c4f7311a48258f5.md?...",
+            "upload_method": "PUT",
+            "upload_headers": {
+              "Content-Type": "text/markdown"
+            },
+            "expires_at": "2026-02-27T17:30:00Z"
+          }
+        }
+      },
+      {
+        "status": "401",
+        "mediaType": "application/json",
+        "description": "Missing or invalid credentials.",
+        "hasContent": true,
+        "example": {
+          "error": {
+            "code": "validation.failed",
+            "message": "Validation failed.",
+            "details": {
+              "fields": {
+                "title": [
+                  "The title field is required."
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": "402",
+        "mediaType": "application/json",
+        "description": "Plan limit reached.",
+        "hasContent": true,
+        "example": {
+          "error": {
+            "code": "validation.failed",
+            "message": "Validation failed.",
+            "details": {
+              "fields": {
+                "title": [
+                  "The title field is required."
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": "403",
+        "mediaType": "application/json",
+        "description": "Forbidden.",
+        "hasContent": true,
+        "example": {
+          "error": {
+            "code": "validation.failed",
+            "message": "Validation failed.",
+            "details": {
+              "fields": {
+                "title": [
+                  "The title field is required."
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": "422",
+        "mediaType": "application/json",
+        "description": "Validation failed.",
+        "hasContent": true,
+        "example": {
+          "error": {
+            "code": "validation.failed",
+            "message": "Validation failed.",
+            "details": {
+              "fields": {
+                "title": [
+                  "The title field is required."
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": "503",
+        "mediaType": "application/json",
+        "description": "Service unavailable.",
+        "hasContent": true,
+        "example": {
+          "error": {
+            "code": "validation.failed",
+            "message": "Validation failed.",
+            "details": {
+              "fields": {
+                "title": [
+                  "The title field is required."
+                ]
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  {
     "operationId": "createTask",
     "method": "post",
     "path": "/tasks",
@@ -2458,6 +2890,242 @@
     ]
   },
   {
+    "operationId": "deleteFile",
+    "method": "delete",
+    "path": "/files/{id}",
+    "summary": "Delete a managed file.",
+    "description": "",
+    "tags": [
+      "Files"
+    ],
+    "security": [
+      [
+        "ApiKeyAuth"
+      ],
+      [
+        "SessionCookieAuth"
+      ]
+    ],
+    "parameters": [
+      {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "description": "File identifier.",
+        "example": 42
+      }
+    ],
+    "requestBodyRequired": false,
+    "requestExamples": [],
+    "responses": [
+      {
+        "status": "204",
+        "mediaType": "application/json",
+        "description": "No content.",
+        "hasContent": true,
+        "example": {
+          "data": {
+            "key": "value"
+          }
+        }
+      },
+      {
+        "status": "401",
+        "mediaType": "application/json",
+        "description": "Missing or invalid credentials.",
+        "hasContent": true,
+        "example": {
+          "error": {
+            "code": "validation.failed",
+            "message": "Validation failed.",
+            "details": {
+              "fields": {
+                "title": [
+                  "The title field is required."
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": "403",
+        "mediaType": "application/json",
+        "description": "Forbidden.",
+        "hasContent": true,
+        "example": {
+          "error": {
+            "code": "validation.failed",
+            "message": "Validation failed.",
+            "details": {
+              "fields": {
+                "title": [
+                  "The title field is required."
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": "404",
+        "mediaType": "application/json",
+        "description": "Resource not found.",
+        "hasContent": true,
+        "example": {
+          "error": {
+            "code": "validation.failed",
+            "message": "Validation failed.",
+            "details": {
+              "fields": {
+                "title": [
+                  "The title field is required."
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": "503",
+        "mediaType": "application/json",
+        "description": "Service unavailable.",
+        "hasContent": true,
+        "example": {
+          "error": {
+            "code": "validation.failed",
+            "message": "Validation failed.",
+            "details": {
+              "fields": {
+                "title": [
+                  "The title field is required."
+                ]
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  {
+    "operationId": "deleteFileFolder",
+    "method": "delete",
+    "path": "/files/folders/{id}",
+    "summary": "Delete a managed file folder.",
+    "description": "",
+    "tags": [
+      "Files"
+    ],
+    "security": [
+      [
+        "ApiKeyAuth"
+      ],
+      [
+        "SessionCookieAuth"
+      ]
+    ],
+    "parameters": [
+      {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "description": "Folder identifier.",
+        "example": 42
+      }
+    ],
+    "requestBodyRequired": false,
+    "requestExamples": [],
+    "responses": [
+      {
+        "status": "204",
+        "mediaType": "application/json",
+        "description": "No content.",
+        "hasContent": true,
+        "example": {
+          "data": {
+            "key": "value"
+          }
+        }
+      },
+      {
+        "status": "401",
+        "mediaType": "application/json",
+        "description": "Missing or invalid credentials.",
+        "hasContent": true,
+        "example": {
+          "error": {
+            "code": "validation.failed",
+            "message": "Validation failed.",
+            "details": {
+              "fields": {
+                "title": [
+                  "The title field is required."
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": "403",
+        "mediaType": "application/json",
+        "description": "Forbidden.",
+        "hasContent": true,
+        "example": {
+          "error": {
+            "code": "validation.failed",
+            "message": "Validation failed.",
+            "details": {
+              "fields": {
+                "title": [
+                  "The title field is required."
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": "404",
+        "mediaType": "application/json",
+        "description": "Resource not found.",
+        "hasContent": true,
+        "example": {
+          "error": {
+            "code": "validation.failed",
+            "message": "Validation failed.",
+            "details": {
+              "fields": {
+                "title": [
+                  "The title field is required."
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": "409",
+        "mediaType": "application/json",
+        "description": "Conflict.",
+        "hasContent": true,
+        "example": {
+          "error": {
+            "code": "validation.failed",
+            "message": "Validation failed.",
+            "details": {
+              "fields": {
+                "title": [
+                  "The title field is required."
+                ]
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  {
     "operationId": "deleteTask",
     "method": "delete",
     "path": "/tasks/{task}",
@@ -2645,6 +3313,120 @@
         "status": "404",
         "mediaType": "application/json",
         "description": "Resource not found.",
+        "hasContent": true,
+        "example": {
+          "error": {
+            "code": "validation.failed",
+            "message": "Validation failed.",
+            "details": {
+              "fields": {
+                "title": [
+                  "The title field is required."
+                ]
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  {
+    "operationId": "downloadFile",
+    "method": "get",
+    "path": "/files/{id}/download",
+    "summary": "Get a short-lived download redirect for one managed file.",
+    "description": "",
+    "tags": [
+      "Files"
+    ],
+    "security": [
+      [
+        "ApiKeyAuth"
+      ],
+      [
+        "SessionCookieAuth"
+      ]
+    ],
+    "parameters": [
+      {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "description": "File identifier.",
+        "example": 42
+      }
+    ],
+    "requestBodyRequired": false,
+    "requestExamples": [],
+    "responses": [
+      {
+        "status": "302",
+        "mediaType": "none",
+        "description": "Redirect to a short-lived signed download URL.",
+        "hasContent": false,
+        "example": null
+      },
+      {
+        "status": "401",
+        "mediaType": "application/json",
+        "description": "Missing or invalid credentials.",
+        "hasContent": true,
+        "example": {
+          "error": {
+            "code": "validation.failed",
+            "message": "Validation failed.",
+            "details": {
+              "fields": {
+                "title": [
+                  "The title field is required."
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": "403",
+        "mediaType": "application/json",
+        "description": "Forbidden.",
+        "hasContent": true,
+        "example": {
+          "error": {
+            "code": "validation.failed",
+            "message": "Validation failed.",
+            "details": {
+              "fields": {
+                "title": [
+                  "The title field is required."
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": "404",
+        "mediaType": "application/json",
+        "description": "Resource not found.",
+        "hasContent": true,
+        "example": {
+          "error": {
+            "code": "validation.failed",
+            "message": "Validation failed.",
+            "details": {
+              "fields": {
+                "title": [
+                  "The title field is required."
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": "503",
+        "mediaType": "application/json",
+        "description": "Service unavailable.",
         "hasContent": true,
         "example": {
           "error": {
@@ -3834,6 +4616,278 @@
     ]
   },
   {
+    "operationId": "listFileFolders",
+    "method": "get",
+    "path": "/files/folders",
+    "summary": "List managed file folders for the team.",
+    "description": "",
+    "tags": [
+      "Files"
+    ],
+    "security": [
+      [
+        "ApiKeyAuth"
+      ],
+      [
+        "SessionCookieAuth"
+      ]
+    ],
+    "parameters": [],
+    "requestBodyRequired": false,
+    "requestExamples": [],
+    "responses": [
+      {
+        "status": "200",
+        "mediaType": "application/json",
+        "description": "Folder list returned.",
+        "hasContent": true,
+        "example": {
+          "data": [
+            {
+              "id": 12,
+              "team_id": 7,
+              "parent_id": null,
+              "name": "Runbooks",
+              "path_cache": "Runbooks",
+              "created_at": "2026-02-27T17:10:00Z",
+              "updated_at": "2026-02-27T17:10:00Z"
+            }
+          ],
+          "tree": [
+            {
+              "key": "value"
+            }
+          ]
+        }
+      },
+      {
+        "status": "401",
+        "mediaType": "application/json",
+        "description": "Missing or invalid credentials.",
+        "hasContent": true,
+        "example": {
+          "error": {
+            "code": "validation.failed",
+            "message": "Validation failed.",
+            "details": {
+              "fields": {
+                "title": [
+                  "The title field is required."
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": "403",
+        "mediaType": "application/json",
+        "description": "Forbidden.",
+        "hasContent": true,
+        "example": {
+          "error": {
+            "code": "validation.failed",
+            "message": "Validation failed.",
+            "details": {
+              "fields": {
+                "title": [
+                  "The title field is required."
+                ]
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  {
+    "operationId": "listFiles",
+    "method": "get",
+    "path": "/files",
+    "summary": "List managed team files.",
+    "description": "",
+    "tags": [
+      "Files"
+    ],
+    "security": [
+      [
+        "ApiKeyAuth"
+      ],
+      [
+        "SessionCookieAuth"
+      ]
+    ],
+    "parameters": [
+      {
+        "name": "q",
+        "in": "query",
+        "required": false,
+        "description": "Case-insensitive text search query.",
+        "example": "retro"
+      },
+      {
+        "name": "folder_id",
+        "in": "query",
+        "required": false,
+        "description": "Identifier for folder.",
+        "example": 42
+      },
+      {
+        "name": "owner_agent_id",
+        "in": "query",
+        "required": false,
+        "description": "Identifier for owner agent.",
+        "example": 42
+      },
+      {
+        "name": "mime_group",
+        "in": "query",
+        "required": false,
+        "description": "Allowed values: text, markdown, image, pdf, other.",
+        "example": "text"
+      },
+      {
+        "name": "sort",
+        "in": "query",
+        "required": false,
+        "description": "Allowed values: updated_at, display_name, size_bytes.",
+        "example": "updated_at"
+      },
+      {
+        "name": "direction",
+        "in": "query",
+        "required": false,
+        "description": "Allowed values: asc, desc.",
+        "example": "asc"
+      },
+      {
+        "name": "per_page",
+        "in": "query",
+        "required": false,
+        "description": "Page size for paginated responses.",
+        "example": 25
+      }
+    ],
+    "requestBodyRequired": false,
+    "requestExamples": [],
+    "responses": [
+      {
+        "status": "200",
+        "mediaType": "application/json",
+        "description": "File list returned.",
+        "hasContent": true,
+        "example": {
+          "data": [
+            {
+              "id": 101,
+              "team_id": 7,
+              "owner_agent_id": 42,
+              "folder_id": 12,
+              "display_name": "incident-timeline.md",
+              "original_filename": "incident-timeline.md",
+              "extension": "md",
+              "mime_type": "text/markdown",
+              "size_bytes": 14220,
+              "checksum_sha256": null,
+              "preview_kind": "markdown",
+              "uploaded_by_user_id": 8,
+              "uploaded_by_agent_id": null,
+              "created_at": "2026-02-27T17:20:00Z",
+              "updated_at": "2026-02-27T17:24:00Z",
+              "folder": {
+                "id": 12,
+                "team_id": 7,
+                "parent_id": null,
+                "name": "Runbooks",
+                "path_cache": "Runbooks",
+                "created_at": "2026-02-27T17:10:00Z",
+                "updated_at": "2026-02-27T17:10:00Z"
+              }
+            }
+          ],
+          "links": {
+            "first": "example",
+            "last": "example",
+            "prev": "example",
+            "next": "example"
+          },
+          "meta": {
+            "current_page": 1,
+            "from": 1,
+            "last_page": 1,
+            "links": [
+              {
+                "url": "https://agentmc.example.com/docs/incident-123",
+                "label": "example",
+                "active": true
+              }
+            ],
+            "path": ".agentmc/skills/skill.md",
+            "per_page": 25,
+            "total": 0
+          }
+        }
+      },
+      {
+        "status": "401",
+        "mediaType": "application/json",
+        "description": "Missing or invalid credentials.",
+        "hasContent": true,
+        "example": {
+          "error": {
+            "code": "validation.failed",
+            "message": "Validation failed.",
+            "details": {
+              "fields": {
+                "title": [
+                  "The title field is required."
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": "403",
+        "mediaType": "application/json",
+        "description": "Forbidden.",
+        "hasContent": true,
+        "example": {
+          "error": {
+            "code": "validation.failed",
+            "message": "Validation failed.",
+            "details": {
+              "fields": {
+                "title": [
+                  "The title field is required."
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": "422",
+        "mediaType": "application/json",
+        "description": "Validation failed.",
+        "hasContent": true,
+        "example": {
+          "error": {
+            "code": "validation.failed",
+            "message": "Validation failed.",
+            "details": {
+              "fields": {
+                "title": [
+                  "The title field is required."
+                ]
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  {
     "operationId": "listHosts",
     "method": "get",
     "path": "/hosts",
@@ -4881,6 +5935,139 @@
     ]
   },
   {
+    "operationId": "previewFile",
+    "method": "get",
+    "path": "/files/{id}/preview",
+    "summary": "Get a short-lived preview redirect for one managed file.",
+    "description": "",
+    "tags": [
+      "Files"
+    ],
+    "security": [
+      [
+        "ApiKeyAuth"
+      ],
+      [
+        "SessionCookieAuth"
+      ]
+    ],
+    "parameters": [
+      {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "description": "File identifier.",
+        "example": 42
+      }
+    ],
+    "requestBodyRequired": false,
+    "requestExamples": [],
+    "responses": [
+      {
+        "status": "302",
+        "mediaType": "none",
+        "description": "Redirect to a short-lived signed inline preview URL.",
+        "hasContent": false,
+        "example": null
+      },
+      {
+        "status": "401",
+        "mediaType": "application/json",
+        "description": "Missing or invalid credentials.",
+        "hasContent": true,
+        "example": {
+          "error": {
+            "code": "validation.failed",
+            "message": "Validation failed.",
+            "details": {
+              "fields": {
+                "title": [
+                  "The title field is required."
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": "403",
+        "mediaType": "application/json",
+        "description": "Forbidden.",
+        "hasContent": true,
+        "example": {
+          "error": {
+            "code": "validation.failed",
+            "message": "Validation failed.",
+            "details": {
+              "fields": {
+                "title": [
+                  "The title field is required."
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": "404",
+        "mediaType": "application/json",
+        "description": "Resource not found.",
+        "hasContent": true,
+        "example": {
+          "error": {
+            "code": "validation.failed",
+            "message": "Validation failed.",
+            "details": {
+              "fields": {
+                "title": [
+                  "The title field is required."
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": "422",
+        "mediaType": "application/json",
+        "description": "Validation failed.",
+        "hasContent": true,
+        "example": {
+          "error": {
+            "code": "validation.failed",
+            "message": "Validation failed.",
+            "details": {
+              "fields": {
+                "title": [
+                  "The title field is required."
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": "503",
+        "mediaType": "application/json",
+        "description": "Service unavailable.",
+        "hasContent": true,
+        "example": {
+          "error": {
+            "code": "validation.failed",
+            "message": "Validation failed.",
+            "details": {
+              "fields": {
+                "title": [
+                  "The title field is required."
+                ]
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  {
     "operationId": "showBoard",
     "method": "get",
     "path": "/boards/{id}",
@@ -5053,6 +6240,128 @@
             "created_at": "2026-02-22T17:21:00Z",
             "updated_at": "2026-02-22T17:21:00Z",
             "deleted_at": "2026-02-22T17:21:00Z"
+          }
+        }
+      },
+      {
+        "status": "401",
+        "mediaType": "application/json",
+        "description": "Missing or invalid credentials.",
+        "hasContent": true,
+        "example": {
+          "error": {
+            "code": "validation.failed",
+            "message": "Validation failed.",
+            "details": {
+              "fields": {
+                "title": [
+                  "The title field is required."
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": "403",
+        "mediaType": "application/json",
+        "description": "Forbidden.",
+        "hasContent": true,
+        "example": {
+          "error": {
+            "code": "validation.failed",
+            "message": "Validation failed.",
+            "details": {
+              "fields": {
+                "title": [
+                  "The title field is required."
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": "404",
+        "mediaType": "application/json",
+        "description": "Resource not found.",
+        "hasContent": true,
+        "example": {
+          "error": {
+            "code": "validation.failed",
+            "message": "Validation failed.",
+            "details": {
+              "fields": {
+                "title": [
+                  "The title field is required."
+                ]
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  {
+    "operationId": "showFile",
+    "method": "get",
+    "path": "/files/{id}",
+    "summary": "Show one managed file.",
+    "description": "",
+    "tags": [
+      "Files"
+    ],
+    "security": [
+      [
+        "ApiKeyAuth"
+      ],
+      [
+        "SessionCookieAuth"
+      ]
+    ],
+    "parameters": [
+      {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "description": "File identifier.",
+        "example": 42
+      }
+    ],
+    "requestBodyRequired": false,
+    "requestExamples": [],
+    "responses": [
+      {
+        "status": "200",
+        "mediaType": "application/json",
+        "description": "File returned.",
+        "hasContent": true,
+        "example": {
+          "data": {
+            "id": 101,
+            "team_id": 7,
+            "owner_agent_id": 42,
+            "folder_id": 12,
+            "display_name": "incident-timeline.md",
+            "original_filename": "incident-timeline.md",
+            "extension": "md",
+            "mime_type": "text/markdown",
+            "size_bytes": 14220,
+            "checksum_sha256": null,
+            "preview_kind": "markdown",
+            "uploaded_by_user_id": 8,
+            "uploaded_by_agent_id": null,
+            "created_at": "2026-02-27T17:20:00Z",
+            "updated_at": "2026-02-27T17:24:00Z",
+            "folder": {
+              "id": 12,
+              "team_id": 7,
+              "parent_id": null,
+              "name": "Runbooks",
+              "path_cache": "Runbooks",
+              "created_at": "2026-02-27T17:10:00Z",
+              "updated_at": "2026-02-27T17:10:00Z"
+            }
           }
         }
       },
@@ -5928,6 +7237,288 @@
             "created_at": "2026-02-22T17:21:00Z",
             "updated_at": "2026-02-22T17:21:00Z",
             "deleted_at": "2026-02-22T17:21:00Z"
+          }
+        }
+      },
+      {
+        "status": "401",
+        "mediaType": "application/json",
+        "description": "Missing or invalid credentials.",
+        "hasContent": true,
+        "example": {
+          "error": {
+            "code": "validation.failed",
+            "message": "Validation failed.",
+            "details": {
+              "fields": {
+                "title": [
+                  "The title field is required."
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": "403",
+        "mediaType": "application/json",
+        "description": "Forbidden.",
+        "hasContent": true,
+        "example": {
+          "error": {
+            "code": "validation.failed",
+            "message": "Validation failed.",
+            "details": {
+              "fields": {
+                "title": [
+                  "The title field is required."
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": "404",
+        "mediaType": "application/json",
+        "description": "Resource not found.",
+        "hasContent": true,
+        "example": {
+          "error": {
+            "code": "validation.failed",
+            "message": "Validation failed.",
+            "details": {
+              "fields": {
+                "title": [
+                  "The title field is required."
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": "422",
+        "mediaType": "application/json",
+        "description": "Validation failed.",
+        "hasContent": true,
+        "example": {
+          "error": {
+            "code": "validation.failed",
+            "message": "Validation failed.",
+            "details": {
+              "fields": {
+                "title": [
+                  "The title field is required."
+                ]
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  {
+    "operationId": "updateFile",
+    "method": "patch",
+    "path": "/files/{id}",
+    "summary": "Update managed file metadata.",
+    "description": "",
+    "tags": [
+      "Files"
+    ],
+    "security": [
+      [
+        "ApiKeyAuth"
+      ],
+      [
+        "SessionCookieAuth"
+      ]
+    ],
+    "parameters": [
+      {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "description": "File identifier.",
+        "example": 42
+      }
+    ],
+    "requestBodyRequired": false,
+    "requestExamples": [
+      {
+        "mediaType": "application/json",
+        "example": {
+          "display_name": "incident-timeline-v2.md",
+          "folder_id": 14,
+          "owner_agent_id": null
+        }
+      }
+    ],
+    "responses": [
+      {
+        "status": "200",
+        "mediaType": "application/json",
+        "description": "File updated.",
+        "hasContent": true,
+        "example": {
+          "data": {
+            "id": 101,
+            "team_id": 7,
+            "owner_agent_id": 42,
+            "folder_id": 12,
+            "display_name": "incident-timeline.md",
+            "original_filename": "incident-timeline.md",
+            "extension": "md",
+            "mime_type": "text/markdown",
+            "size_bytes": 14220,
+            "checksum_sha256": null,
+            "preview_kind": "markdown",
+            "uploaded_by_user_id": 8,
+            "uploaded_by_agent_id": null,
+            "created_at": "2026-02-27T17:20:00Z",
+            "updated_at": "2026-02-27T17:24:00Z",
+            "folder": {
+              "id": 12,
+              "team_id": 7,
+              "parent_id": null,
+              "name": "Runbooks",
+              "path_cache": "Runbooks",
+              "created_at": "2026-02-27T17:10:00Z",
+              "updated_at": "2026-02-27T17:10:00Z"
+            }
+          }
+        }
+      },
+      {
+        "status": "401",
+        "mediaType": "application/json",
+        "description": "Missing or invalid credentials.",
+        "hasContent": true,
+        "example": {
+          "error": {
+            "code": "validation.failed",
+            "message": "Validation failed.",
+            "details": {
+              "fields": {
+                "title": [
+                  "The title field is required."
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": "403",
+        "mediaType": "application/json",
+        "description": "Forbidden.",
+        "hasContent": true,
+        "example": {
+          "error": {
+            "code": "validation.failed",
+            "message": "Validation failed.",
+            "details": {
+              "fields": {
+                "title": [
+                  "The title field is required."
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": "404",
+        "mediaType": "application/json",
+        "description": "Resource not found.",
+        "hasContent": true,
+        "example": {
+          "error": {
+            "code": "validation.failed",
+            "message": "Validation failed.",
+            "details": {
+              "fields": {
+                "title": [
+                  "The title field is required."
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": "422",
+        "mediaType": "application/json",
+        "description": "Validation failed.",
+        "hasContent": true,
+        "example": {
+          "error": {
+            "code": "validation.failed",
+            "message": "Validation failed.",
+            "details": {
+              "fields": {
+                "title": [
+                  "The title field is required."
+                ]
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  {
+    "operationId": "updateFileFolder",
+    "method": "patch",
+    "path": "/files/folders/{id}",
+    "summary": "Update a managed file folder.",
+    "description": "",
+    "tags": [
+      "Files"
+    ],
+    "security": [
+      [
+        "ApiKeyAuth"
+      ],
+      [
+        "SessionCookieAuth"
+      ]
+    ],
+    "parameters": [
+      {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "description": "Folder identifier.",
+        "example": 42
+      }
+    ],
+    "requestBodyRequired": false,
+    "requestExamples": [
+      {
+        "mediaType": "application/json",
+        "example": {
+          "name": "Incident Runbooks",
+          "parent_id": null
+        }
+      }
+    ],
+    "responses": [
+      {
+        "status": "200",
+        "mediaType": "application/json",
+        "description": "Folder updated.",
+        "hasContent": true,
+        "example": {
+          "data": {
+            "id": 12,
+            "team_id": 7,
+            "parent_id": null,
+            "name": "Runbooks",
+            "path_cache": "Runbooks",
+            "created_at": "2026-02-27T17:10:00Z",
+            "updated_at": "2026-02-27T17:10:00Z"
           }
         }
       },

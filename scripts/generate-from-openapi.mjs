@@ -4,7 +4,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HTTP_METHODS = new Set(["get", "post", "put", "patch", "delete"]);
-const SUCCESS_STATUS_PATTERN = /^2\d\d$/;
+const SUCCESS_STATUS_PATTERN = /^[23]\d\d$/;
 const ERROR_STATUS_PATTERN = /^[45]\d\d$/;
 const EXCLUDED_OPERATION_IDS = new Set();
 const EXCLUDED_ENDPOINTS = new Set();
