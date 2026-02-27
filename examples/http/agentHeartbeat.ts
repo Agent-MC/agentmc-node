@@ -11,7 +11,6 @@ const result = await client.operations.agentHeartbeat({
     }
   },
   "body": {
-    "status": "online",
     "meta": {
       "type": "codex",
       "runtime": {

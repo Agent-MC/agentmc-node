@@ -817,7 +817,6 @@ export class AgentRuntimeProgram {
     }
 
     return {
-      status: "online",
       meta: heartbeatMeta as HeartbeatBody["meta"],
       host: {
         fingerprint: hostFingerprint,
@@ -871,6 +870,8 @@ export class AgentRuntimeProgram {
       throw new Error(`agentHeartbeat failed with status ${response.status}.`);
     }
 
+    const responsePayload = valueAsObject(response.data);
+    const responseHost = valueAsObject(responsePayload?.host);
     const nowIso = new Date().toISOString();
     await this.persistState({
       last_heartbeat_at: nowIso
@@ -878,7 +879,7 @@ export class AgentRuntimeProgram {
 
     this.emitInfo("Heartbeat sent", {
       at: nowIso,
-      status: body.status,
+      host_status: typeof responseHost?.status === "string" ? responseHost.status : null,
       runtime: valueAsObject(body.meta)?.runtime ?? null
     });
   }

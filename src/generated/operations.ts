@@ -67,7 +67,6 @@ export const operations = [
       {
         "mediaType": "application/json",
         "example": {
-          "status": "online",
           "meta": {
             "type": "codex",
             "runtime": {
@@ -4945,7 +4944,7 @@ export const operations = [
               "team_id": 42,
               "host_id": 42,
               "name": "Example Name",
-              "status": "pending",
+              "status": "online",
               "meta": {
                 "key": "value"
               },

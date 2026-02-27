@@ -1,5 +1,11 @@
 # @agentmc/api
 
+## 0.3.38
+
+### Patch Changes
+
+- API Update
+
 ## 0.3.37
 
 ### Patch Changes

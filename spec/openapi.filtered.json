@@ -364,7 +364,7 @@
                       "team_id": 42,
                       "host_id": 42,
                       "name": "Example Name",
-                      "status": "pending",
+                      "status": "online",
                       "meta": {
                         "key": "value"
                       },
@@ -4510,15 +4510,11 @@
           "status": {
             "type": "string",
             "enum": [
-              "pending",
               "online",
-              "busy",
-              "error",
-              "offline",
-              "disabled"
+              "offline"
             ],
-            "description": "Current lifecycle status for this record. Allowed values: pending, online, busy, error, offline, disabled.",
-            "example": "pending"
+            "description": "Current lifecycle status for this record. Allowed values: online, offline.",
+            "example": "online"
           },
           "meta": {
             "type": "object",
@@ -5714,15 +5710,11 @@
           "status": {
             "type": "string",
             "enum": [
-              "pending",
               "online",
-              "busy",
-              "error",
-              "offline",
-              "disabled"
+              "offline"
             ],
-            "description": "Current lifecycle status for this record. Allowed values: pending, online, busy, error, offline, disabled.",
-            "example": "pending"
+            "description": "Current lifecycle status for this record. Allowed values: online, offline.",
+            "example": "online"
           },
           "meta": {
             "type": "object",
@@ -5767,7 +5759,7 @@
           "team_id": 42,
           "host_id": 42,
           "name": "Example Name",
-          "status": "pending",
+          "status": "online",
           "meta": {
             "key": "value"
           },
@@ -7524,7 +7516,7 @@
                 "team_id": 42,
                 "host_id": 42,
                 "name": "Example Name",
-                "status": "pending",
+                "status": "online",
                 "meta": {
                   "key": "value"
                 },
@@ -7579,7 +7571,7 @@
               "team_id": 42,
               "host_id": 42,
               "name": "Example Name",
-              "status": "pending",
+              "status": "online",
               "meta": {
                 "key": "value"
               },
@@ -9445,19 +9437,6 @@
       "StoreAgentHeartbeatApiRequest": {
         "type": "object",
         "properties": {
-          "status": {
-            "type": "string",
-            "enum": [
-              "pending",
-              "online",
-              "busy",
-              "error",
-              "offline",
-              "disabled"
-            ],
-            "description": "Reported runtime status at heartbeat time.",
-            "example": "online"
-          },
           "meta": {
             "type": "object",
             "properties": {
@@ -10092,14 +10071,12 @@
           }
         },
         "required": [
-          "status",
           "meta",
           "host",
           "agent"
         ],
         "description": "Heartbeat payload that requires host telemetry and runtime agent state. Runtime clients should send `meta.models` on every heartbeat using current runtime model inventory.",
         "example": {
-          "status": "online",
           "meta": {
             "type": "codex",
             "runtime": {
@@ -11327,7 +11304,6 @@
               "$ref": "#/components/schemas/StoreAgentHeartbeatApiRequest"
             },
             "example": {
-              "status": "online",
               "meta": {
                 "type": "codex",
                 "runtime": {
@@ -12183,7 +12159,7 @@
                   "team_id": 42,
                   "host_id": 42,
                   "name": "Example Name",
-                  "status": "pending",
+                  "status": "online",
                   "meta": {
                     "key": "value"
                   },

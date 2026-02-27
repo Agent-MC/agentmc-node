@@ -992,11 +992,11 @@ export interface components {
              */
             name: string;
             /**
-             * @description Current lifecycle status for this record. Allowed values: pending, online, busy, error, offline, disabled.
-             * @example pending
+             * @description Current lifecycle status for this record. Allowed values: online, offline.
+             * @example online
              * @enum {string}
              */
-            status: "pending" | "online" | "busy" | "error" | "offline" | "disabled";
+            status: "online" | "offline";
             /**
              * @description Arbitrary JSON metadata object.
              * @example {
@@ -2031,7 +2031,7 @@ export interface components {
          *       "team_id": 42,
          *       "host_id": 42,
          *       "name": "Example Name",
-         *       "status": "pending",
+         *       "status": "online",
          *       "meta": {
          *         "key": "value"
          *       },
@@ -2063,11 +2063,11 @@ export interface components {
              */
             name: string;
             /**
-             * @description Current lifecycle status for this record. Allowed values: pending, online, busy, error, offline, disabled.
-             * @example pending
+             * @description Current lifecycle status for this record. Allowed values: online, offline.
+             * @example online
              * @enum {string}
              */
-            status: "pending" | "online" | "busy" | "error" | "offline" | "disabled";
+            status: "online" | "offline";
             /**
              * @description Arbitrary JSON metadata object.
              * @example {
@@ -3448,7 +3448,7 @@ export interface components {
          *           "team_id": 42,
          *           "host_id": 42,
          *           "name": "Example Name",
-         *           "status": "pending",
+         *           "status": "online",
          *           "meta": {
          *             "key": "value"
          *           },
@@ -3504,7 +3504,7 @@ export interface components {
              *         "team_id": 42,
              *         "host_id": 42,
              *         "name": "Example Name",
-             *         "status": "pending",
+             *         "status": "online",
              *         "meta": {
              *           "key": "value"
              *         },
@@ -5183,7 +5183,6 @@ export interface components {
         /**
          * @description Heartbeat payload that requires host telemetry and runtime agent state. Runtime clients should send `meta.models` on every heartbeat using current runtime model inventory.
          * @example {
-         *       "status": "online",
          *       "meta": {
          *         "type": "codex",
          *         "runtime": {
@@ -5247,12 +5246,6 @@ export interface components {
          *     }
          */
         StoreAgentHeartbeatApiRequest: {
-            /**
-             * @description Reported runtime status at heartbeat time.
-             * @example online
-             * @enum {string}
-             */
-            status: "pending" | "online" | "busy" | "error" | "offline" | "disabled";
             /**
              * @description Required runtime heartbeat telemetry object (non-secret). Include runtime identity and model inventory on every heartbeat.
              * @example {
@@ -7010,7 +7003,7 @@ export interface components {
                  *           "team_id": 42,
                  *           "host_id": 42,
                  *           "name": "Example Name",
-                 *           "status": "pending",
+                 *           "status": "online",
                  *           "meta": {
                  *             "key": "value"
                  *           },
@@ -7208,7 +7201,6 @@ export interface components {
             content: {
                 /**
                  * @example {
-                 *       "status": "online",
                  *       "meta": {
                  *         "type": "codex",
                  *         "runtime": {
@@ -7786,7 +7778,7 @@ export interface operations {
                      *           "team_id": 42,
                      *           "host_id": 42,
                      *           "name": "Example Name",
-                     *           "status": "pending",
+                     *           "status": "online",
                      *           "meta": {
                      *             "key": "value"
                      *           },

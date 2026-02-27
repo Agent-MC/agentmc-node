@@ -58,7 +58,7 @@ Host returned.
       "team_id": 42,
       "host_id": 42,
       "name": "Example Name",
-      "status": "pending",
+      "status": "online",
       "meta": {
         "key": "value"
       },

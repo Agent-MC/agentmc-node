@@ -20,7 +20,6 @@ Accepts heartbeat payloads with required host telemetry and required runtime age
 ### application/json
 ```json
 {
-  "status": "online",
   "meta": {
     "type": "codex",
     "runtime": {
@@ -212,7 +211,6 @@ const result = await client.operations.agentHeartbeat({
     }
   },
   "body": {
-    "status": "online",
     "meta": {
       "type": "codex",
       "runtime": {
