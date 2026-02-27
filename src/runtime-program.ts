@@ -22,8 +22,12 @@ const OPENCLAW_TELEMETRY_TIMEOUT_MS = 4_000;
 const DEFAULT_RECURRING_TASK_POLL_INTERVAL_SECONDS = 30;
 const DEFAULT_RECURRING_TASK_POLL_LIMIT = 5;
 const OPENCLAW_RECURRING_SUBMIT_TIMEOUT_MS = 30_000;
-const OPENCLAW_RECURRING_WAIT_TIMEOUT_MS = 90_000;
-const OPENCLAW_RECURRING_GATEWAY_TIMEOUT_MS = 120_000;
+const DEFAULT_RECURRING_TASK_WAIT_TIMEOUT_MS = 600_000;
+const DEFAULT_RECURRING_TASK_GATEWAY_TIMEOUT_MS = 720_000;
+const OPENCLAW_GATEWAY_EXEC_TIMEOUT_FLOOR_MS = 120_000;
+const RECURRING_TASK_GATEWAY_TIMEOUT_BUFFER_MS = 30_000;
+const RECURRING_TASK_SUMMARY_MAX_LENGTH = 4_000;
+const RECURRING_TASK_AGENT_RESPONSE_MAX_BYTES = 24_000;
 
 type JsonObject = Record<string, unknown>;
 
@@ -79,6 +83,8 @@ export interface AgentRuntimeProgramOptions {
   publicIpEndpoint?: string;
   hostFingerprint?: string;
   hostName?: string;
+  recurringTaskWaitTimeoutMs?: number;
+  recurringTaskGatewayTimeoutMs?: number;
   onInfo?: (message: string, meta?: JsonObject) => void;
   onError?: (error: Error, meta?: JsonObject) => void;
 }
@@ -117,6 +123,8 @@ export class AgentRuntimeProgram {
   private heartbeatIntervalSeconds: number | null;
   private readonly recurringTaskPollIntervalSeconds: number;
   private readonly recurringTaskPollLimit: number;
+  private readonly recurringTaskWaitTimeoutMs: number;
+  private readonly recurringTaskGatewayTimeoutMs: number;
   private cachedOpenClawTelemetryCommandArgs: string[] | null = null;
   private lastOpenClawTelemetryError: string | null = null;
 
@@ -128,6 +136,13 @@ export class AgentRuntimeProgram {
     this.heartbeatIntervalSeconds = toPositiveInt(options.heartbeatIntervalSeconds);
     this.recurringTaskPollIntervalSeconds = DEFAULT_RECURRING_TASK_POLL_INTERVAL_SECONDS;
     this.recurringTaskPollLimit = DEFAULT_RECURRING_TASK_POLL_LIMIT;
+    const configuredRecurringWaitTimeoutMs = toPositiveInt(options.recurringTaskWaitTimeoutMs);
+    this.recurringTaskWaitTimeoutMs = configuredRecurringWaitTimeoutMs ?? DEFAULT_RECURRING_TASK_WAIT_TIMEOUT_MS;
+    const configuredRecurringGatewayTimeoutMs = toPositiveInt(options.recurringTaskGatewayTimeoutMs);
+    this.recurringTaskGatewayTimeoutMs = Math.max(
+      configuredRecurringGatewayTimeoutMs ?? DEFAULT_RECURRING_TASK_GATEWAY_TIMEOUT_MS,
+      this.recurringTaskWaitTimeoutMs + RECURRING_TASK_GATEWAY_TIMEOUT_BUFFER_MS
+    );
 
     if (options.client) {
       this.client = options.client;
@@ -165,7 +180,9 @@ export class AgentRuntimeProgram {
       publicIp: nonEmpty(env.AGENTMC_PUBLIC_IP) ?? undefined,
       publicIpEndpoint: nonEmpty(env.AGENTMC_PUBLIC_IP_ENDPOINT) ?? undefined,
       hostFingerprint: nonEmpty(env.AGENTMC_HOST_FINGERPRINT) ?? undefined,
-      hostName: nonEmpty(env.AGENTMC_HOSTNAME) ?? undefined
+      hostName: nonEmpty(env.AGENTMC_HOSTNAME) ?? undefined,
+      recurringTaskWaitTimeoutMs: toPositiveInt(env.AGENTMC_RECURRING_WAIT_TIMEOUT_MS) ?? undefined,
+      recurringTaskGatewayTimeoutMs: toPositiveInt(env.AGENTMC_RECURRING_GATEWAY_TIMEOUT_MS) ?? undefined
     });
   }
 
@@ -1079,11 +1096,18 @@ export class AgentRuntimeProgram {
       scheduled_for: claimed.scheduledFor,
       task_id: claimed.taskId
     };
+    const rawAgentResponse = String(runResult.content ?? "");
+    const storedAgentResponse = truncateUtf8(rawAgentResponse, RECURRING_TASK_AGENT_RESPONSE_MAX_BYTES);
+    if (storedAgentResponse.value !== null) {
+      runtimeMeta.agent_response = storedAgentResponse.value;
+      runtimeMeta.agent_response_bytes = storedAgentResponse.bytes;
+      runtimeMeta.agent_response_truncated = storedAgentResponse.truncated;
+    }
 
     if (runResult.status === "ok") {
       return {
         status: "success",
-        summary: summarizeRecurringRunText(runResult.content),
+        summary: summarizeRecurringRunText(rawAgentResponse),
         errorMessage: null,
         runtimeMeta
       };
@@ -1093,7 +1117,7 @@ export class AgentRuntimeProgram {
       status: "error",
       summary: null,
       errorMessage:
-        summarizeRecurringRunText(runResult.content) ??
+        summarizeRecurringRunText(rawAgentResponse) ??
         `Runtime execution returned status "${runResult.status}".`,
       runtimeMeta
     };
@@ -1130,19 +1154,26 @@ export class AgentRuntimeProgram {
       "agent.wait",
       {
         runId: submittedRunId,
-        timeoutMs: OPENCLAW_RECURRING_WAIT_TIMEOUT_MS
+        timeoutMs: this.recurringTaskWaitTimeoutMs
       },
-      OPENCLAW_RECURRING_GATEWAY_TIMEOUT_MS
+      this.recurringTaskGatewayTimeoutMs
     );
 
     const waitStatus = (nonEmpty(waitResponse.status) ?? "ok").toLowerCase();
     if (waitStatus === "timeout") {
+      const timeoutText =
+        extractFirstRuntimeText(waitResponse.content) ??
+        extractFirstRuntimeText(waitResponse.output_text) ??
+        extractFirstRuntimeText(waitResponse.text) ??
+        extractFirstRuntimeText(waitResponse.message) ??
+        extractFirstRuntimeText(waitResponse.response) ??
+        "Recurring task execution timed out while waiting for completion.";
       return {
         requestId: input.requestId,
         runId: submittedRunId,
         status: "timeout",
         textSource: "wait",
-        content: "Recurring task execution timed out while waiting for completion."
+        content: timeoutText
       };
     }
 
@@ -1193,7 +1224,7 @@ export class AgentRuntimeProgram {
     ];
 
     const output = await execCapture(command, args, {
-      timeoutMs: Math.max(timeoutMs, OPENCLAW_RECURRING_GATEWAY_TIMEOUT_MS)
+      timeoutMs: Math.max(timeoutMs, OPENCLAW_GATEWAY_EXEC_TIMEOUT_FLOOR_MS)
     });
 
     const parsed = parseJsonUnknown(output.stdout) ?? parseJsonUnknown(output.stderr);
@@ -1300,12 +1331,52 @@ function summarizeRecurringRunText(value: unknown): string | null {
     return null;
   }
 
-  const maxLength = 1000;
+  const maxLength = RECURRING_TASK_SUMMARY_MAX_LENGTH;
   if (normalized.length <= maxLength) {
     return normalized;
   }
 
   return `${normalized.slice(0, maxLength - 3)}...`;
+}
+
+function truncateUtf8(
+  value: string,
+  maxBytes: number
+): { value: string | null; bytes: number; truncated: boolean } {
+  const normalized = String(value ?? "").trim();
+  if (!normalized) {
+    return {
+      value: null,
+      bytes: 0,
+      truncated: false
+    };
+  }
+
+  const encoder = new TextEncoder();
+  const encoded = encoder.encode(normalized);
+  if (encoded.length <= maxBytes) {
+    return {
+      value: normalized,
+      bytes: encoded.length,
+      truncated: false
+    };
+  }
+
+  let end = normalized.length;
+  let candidate = normalized;
+  while (end > 0) {
+    end -= 1;
+    candidate = normalized.slice(0, end);
+    if (encoder.encode(candidate).length <= maxBytes) {
+      break;
+    }
+  }
+
+  return {
+    value: candidate.trimEnd(),
+    bytes: encoder.encode(candidate).length,
+    truncated: true
+  };
 }
 
 function extractFirstRuntimeText(value: unknown): string | null {

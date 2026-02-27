@@ -189,6 +189,9 @@ Required env:
     -   OpenClaw auto-detect (must resolve at least one runtime model), or
     -   `AGENTMC_RUNTIME_COMMAND` + `AGENTMC_MODELS`
 -   `AGENTMC_MODELS` (comma-separated, for example `openai/gpt-5-codex`) is required whenever model auto-detection is unavailable. Heartbeats require at least one runtime model in `meta.models`.
+-   Optional recurring execution tuning:
+    -   `AGENTMC_RECURRING_WAIT_TIMEOUT_MS` (default `600000` / 10 minutes)
+    -   `AGENTMC_RECURRING_GATEWAY_TIMEOUT_MS` (default `720000` / 12 minutes; always coerced to at least wait timeout + 30 seconds)
 
 Keep these env values up to date for the running agent. Update and restart the runtime whenever provider/model/network settings change.
 -   Keep `AGENTMC_MODELS` aligned with the runtime's active/default model inventory.
