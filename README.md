@@ -100,7 +100,7 @@ const oneOperation = client.getOperation('listTasks');
 ## Realtime Notification Subscription (Agent Sessions)
 
 Use the low-level realtime helper when you need raw session signal subscription primitives.
-For full chat + runtime docs + notification handling, use `OpenClawAgentRuntime` in the next section.
+For full chat + runtime files + notification handling, use `OpenClawAgentRuntime` in the next section.
 
 ```ts
 import { AgentMCApi } from '@agentmc/api';
@@ -147,7 +147,7 @@ Notes:
 
 Use `AgentRuntimeProgram` to run:
 
--   realtime websocket handling (chat/docs/notifications)
+-   realtime websocket handling (chat/files/notifications)
 -   instruction bundle sync (`getAgentInstructions`)
 -   immediate startup heartbeat plus recurring heartbeat updates (`agentHeartbeat`)
 -   runtime health/self-heal loop
@@ -168,7 +168,7 @@ Example:
 Use `AgentRuntime` when you only want realtime socket handling without the heartbeat/instruction supervisor.
 
 -   `chat.user` -> `chat.agent.delta` / `chat.agent.done`
--   `snapshot.request` / `doc.save` / `doc.delete`
+-   `snapshot.request` / `file.save` / `file.delete`
 -   notification event bridge
 
 -   `examples/realtime/openclawAgentRuntime.ts`

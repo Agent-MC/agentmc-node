@@ -799,7 +799,8 @@ export class AgentRuntimeProgram {
       node_version: process.version,
       tool_availability: {
         chat_realtime: runtimeStatus?.chatRealtimeEnabled ?? false,
-        docs_realtime: runtimeStatus?.docsRealtimeEnabled ?? false,
+        files_realtime:
+          runtimeStatus?.filesRealtimeEnabled ?? runtimeStatus?.docsRealtimeEnabled ?? false,
         notifications_realtime: runtimeStatus?.notificationsRealtimeEnabled ?? false
       }
     };

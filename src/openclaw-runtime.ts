@@ -114,6 +114,7 @@ export interface OpenClawAgentRuntimeOptions {
   agent: number;
   realtimeSessionsEnabled?: boolean;
   chatRealtimeEnabled?: boolean;
+  filesRealtimeEnabled?: boolean;
   docsRealtimeEnabled?: boolean;
   notificationsRealtimeEnabled?: boolean;
   requestedSessionLimit?: number;
@@ -163,6 +164,7 @@ export interface OpenClawAgentRuntimeStatus {
   activeSessions: number[];
   realtimeSessionsEnabled: boolean;
   chatRealtimeEnabled: boolean;
+  filesRealtimeEnabled: boolean;
   docsRealtimeEnabled: boolean;
   notificationsRealtimeEnabled: boolean;
 }
@@ -172,6 +174,7 @@ interface ResolvedOptions {
   agent: number;
   realtimeSessionsEnabled: boolean;
   chatRealtimeEnabled: boolean;
+  filesRealtimeEnabled: boolean;
   docsRealtimeEnabled: boolean;
   notificationsRealtimeEnabled: boolean;
   requestedSessionLimit: number;
@@ -267,6 +270,7 @@ export class OpenClawAgentRuntime {
       activeSessions: Array.from(this.sessions.keys()).sort((left, right) => left - right),
       realtimeSessionsEnabled: this.options.realtimeSessionsEnabled,
       chatRealtimeEnabled: this.options.chatRealtimeEnabled,
+      filesRealtimeEnabled: this.options.filesRealtimeEnabled,
       docsRealtimeEnabled: this.options.docsRealtimeEnabled,
       notificationsRealtimeEnabled: this.options.notificationsRealtimeEnabled
     };
@@ -429,7 +433,7 @@ export class OpenClawAgentRuntime {
             state.lastConnectionStateChangeAtMs = nowMs;
             state.lastHealthActivityAtMs = nowMs;
 
-            if (this.options.includeInitialSnapshot && this.options.docsRealtimeEnabled) {
+            if (this.options.includeInitialSnapshot && this.options.filesRealtimeEnabled) {
               const reason = state.sawConnectedState ? "reconnected" : "session_ready";
               await this.sendInitialSnapshot(state, reason);
             }
@@ -451,7 +455,7 @@ export class OpenClawAgentRuntime {
 
             if (
               this.options.includeInitialSnapshot &&
-              this.options.docsRealtimeEnabled &&
+              this.options.filesRealtimeEnabled &&
               nextState === "connected" &&
               previousState !== "connected" &&
               state.sawConnectedState
@@ -664,18 +668,18 @@ export class OpenClawAgentRuntime {
       return;
     }
 
-    if (this.options.docsRealtimeEnabled && channelType === "snapshot.request") {
+    if (this.options.filesRealtimeEnabled && channelType === "snapshot.request") {
       await this.handleSnapshotRequest(state, payload, channelPayload);
       return;
     }
 
-    if (this.options.docsRealtimeEnabled && channelType === "doc.save") {
-      await this.handleDocSave(state, payload, channelPayload);
+    if (this.options.filesRealtimeEnabled && channelType === "file.save") {
+      await this.handleFileSave(state, payload, channelPayload);
       return;
     }
 
-    if (this.options.docsRealtimeEnabled && channelType === "doc.delete") {
-      await this.handleDocDelete(state, payload, channelPayload);
+    if (this.options.filesRealtimeEnabled && channelType === "file.delete") {
+      await this.handleFileDelete(state, payload, channelPayload);
       return;
     }
 
@@ -1175,54 +1179,54 @@ export class OpenClawAgentRuntime {
     await this.sendSnapshotResponse(state.sessionId, requestId, reason);
   }
 
-  private async handleDocSave(state: SessionState, envelope: JsonObject, payload: JsonObject): Promise<void> {
+  private async handleFileSave(state: SessionState, envelope: JsonObject, payload: JsonObject): Promise<void> {
     const requestIdFromPayload =
       valueAsString(payload.request_id)?.trim() ||
       valueAsString(envelope.request_id)?.trim() ||
       "";
-    const requestId = requestIdFromPayload || `doc-save-${state.sessionId}-${Date.now().toString(36)}`;
-    const docId = normalizeDocId(valueAsString(payload.doc_id));
-    const dedupeKey = `doc.save:${requestId}:${docId ?? "unknown"}`;
+    const requestId = requestIdFromPayload || `file-save-${state.sessionId}-${Date.now().toString(36)}`;
+    const fileId = normalizeDocId(valueAsString(payload.file_id) ?? valueAsString(payload.doc_id));
+    const dedupeKey = `file.save:${requestId}:${fileId ?? "unknown"}`;
 
     if (!shouldProcessInboundKey(state, dedupeKey, this.options.duplicateTtlMs)) {
       return;
     }
 
     if (!requestIdFromPayload) {
-      await this.publishChannelMessage(state.sessionId, "doc.save.error", requestId, {
-        doc_id: docId ?? "",
+      await this.publishChannelMessage(state.sessionId, "file.save.error", requestId, {
+        ...buildFileIdPayload(fileId ?? ""),
         code: "invalid_request",
         error: "request_id is required"
       });
       return;
     }
 
-    if (!docId) {
-      await this.publishChannelMessage(state.sessionId, "doc.save.error", requestId, {
-        doc_id: "",
+    if (!fileId) {
+      await this.publishChannelMessage(state.sessionId, "file.save.error", requestId, {
+        ...buildFileIdPayload(""),
         code: "invalid_request",
-        error: "doc_id is required"
+        error: "file_id is required"
       });
       return;
     }
 
-    if (!this.options.runtimeDocIds.includes(docId)) {
-      await this.publishChannelMessage(state.sessionId, "doc.save.error", requestId, {
-        doc_id: docId,
-        code: "invalid_doc_id",
-        error: "doc_id is not allowed for this runtime"
+    if (!this.options.runtimeDocIds.includes(fileId)) {
+      await this.publishChannelMessage(state.sessionId, "file.save.error", requestId, {
+        ...buildFileIdPayload(fileId),
+        code: "invalid_file_id",
+        error: "file_id is not allowed for this runtime"
       });
       return;
     }
 
     const baseHash = valueAsString(payload.base_hash)?.trim() || "";
-    const title = valueAsString(payload.title)?.trim() || docId;
+    const title = valueAsString(payload.title)?.trim() || fileId;
     const bodyMarkdown = valueAsString(payload.body_markdown) ?? "";
-    const current = await this.readRuntimeDoc(docId);
+    const current = await this.readRuntimeDoc(fileId);
 
     if (current && baseHash !== current.base_hash) {
-      await this.publishChannelMessage(state.sessionId, "doc.save.error", requestId, {
-        doc_id: docId,
+      await this.publishChannelMessage(state.sessionId, "file.save.error", requestId, {
+        ...buildFileIdPayload(fileId),
         code: "conflict",
         error: "base_hash mismatch",
         current_hash: current.base_hash
@@ -1231,8 +1235,8 @@ export class OpenClawAgentRuntime {
     }
 
     if (!current && baseHash !== "") {
-      await this.publishChannelMessage(state.sessionId, "doc.save.error", requestId, {
-        doc_id: docId,
+      await this.publishChannelMessage(state.sessionId, "file.save.error", requestId, {
+        ...buildFileIdPayload(fileId),
         code: "conflict",
         error: "base_hash mismatch",
         current_hash: null
@@ -1240,17 +1244,17 @@ export class OpenClawAgentRuntime {
       return;
     }
 
-    await writeFile(this.resolveRuntimeDocPath(docId), bodyMarkdown, "utf8");
-    const next = await this.readRuntimeDoc(docId);
+    await writeFile(this.resolveRuntimeDocPath(fileId), bodyMarkdown, "utf8");
+    const next = await this.readRuntimeDoc(fileId);
 
     if (!next) {
-      throw new Error(`Failed to read runtime doc ${docId} after save.`);
+      throw new Error(`Failed to read runtime file ${fileId} after save.`);
     }
 
-    await this.publishChannelMessage(state.sessionId, "doc.save.ok", requestId, {
-      doc_id: docId,
+    await this.publishChannelMessage(state.sessionId, "file.save.ok", requestId, {
+      ...buildFileIdPayload(fileId),
       doc: {
-        id: docId,
+        id: fileId,
         title: title || next.title,
         body_markdown: next.body_markdown,
         base_hash: next.base_hash
@@ -1258,60 +1262,60 @@ export class OpenClawAgentRuntime {
     });
   }
 
-  private async handleDocDelete(state: SessionState, envelope: JsonObject, payload: JsonObject): Promise<void> {
+  private async handleFileDelete(state: SessionState, envelope: JsonObject, payload: JsonObject): Promise<void> {
     const requestIdFromPayload =
       valueAsString(payload.request_id)?.trim() ||
       valueAsString(envelope.request_id)?.trim() ||
       "";
-    const requestId = requestIdFromPayload || `doc-delete-${state.sessionId}-${Date.now().toString(36)}`;
-    const docId = normalizeDocId(valueAsString(payload.doc_id));
-    const dedupeKey = `doc.delete:${requestId}:${docId ?? "unknown"}`;
+    const requestId = requestIdFromPayload || `file-delete-${state.sessionId}-${Date.now().toString(36)}`;
+    const fileId = normalizeDocId(valueAsString(payload.file_id) ?? valueAsString(payload.doc_id));
+    const dedupeKey = `file.delete:${requestId}:${fileId ?? "unknown"}`;
 
     if (!shouldProcessInboundKey(state, dedupeKey, this.options.duplicateTtlMs)) {
       return;
     }
 
     if (!requestIdFromPayload) {
-      await this.publishChannelMessage(state.sessionId, "doc.delete.error", requestId, {
-        doc_id: docId ?? "",
+      await this.publishChannelMessage(state.sessionId, "file.delete.error", requestId, {
+        ...buildFileIdPayload(fileId ?? ""),
         code: "invalid_request",
         error: "request_id is required"
       });
       return;
     }
 
-    if (!docId) {
-      await this.publishChannelMessage(state.sessionId, "doc.delete.error", requestId, {
-        doc_id: "",
+    if (!fileId) {
+      await this.publishChannelMessage(state.sessionId, "file.delete.error", requestId, {
+        ...buildFileIdPayload(""),
         code: "invalid_request",
-        error: "doc_id is required"
+        error: "file_id is required"
       });
       return;
     }
 
-    if (!this.options.runtimeDocIds.includes(docId)) {
-      await this.publishChannelMessage(state.sessionId, "doc.delete.error", requestId, {
-        doc_id: docId,
-        code: "invalid_doc_id",
-        error: "doc_id is not allowed for this runtime"
+    if (!this.options.runtimeDocIds.includes(fileId)) {
+      await this.publishChannelMessage(state.sessionId, "file.delete.error", requestId, {
+        ...buildFileIdPayload(fileId),
+        code: "invalid_file_id",
+        error: "file_id is not allowed for this runtime"
       });
       return;
     }
 
-    const current = await this.readRuntimeDoc(docId);
+    const current = await this.readRuntimeDoc(fileId);
     if (!current) {
-      await this.publishChannelMessage(state.sessionId, "doc.delete.error", requestId, {
-        doc_id: docId,
+      await this.publishChannelMessage(state.sessionId, "file.delete.error", requestId, {
+        ...buildFileIdPayload(fileId),
         code: "not_found",
-        error: "document not found"
+        error: "file not found"
       });
       return;
     }
 
     const baseHash = valueAsString(payload.base_hash)?.trim() || "";
     if (baseHash !== current.base_hash) {
-      await this.publishChannelMessage(state.sessionId, "doc.delete.error", requestId, {
-        doc_id: docId,
+      await this.publishChannelMessage(state.sessionId, "file.delete.error", requestId, {
+        ...buildFileIdPayload(fileId),
         code: "conflict",
         error: "base_hash mismatch",
         current_hash: current.base_hash
@@ -1319,10 +1323,10 @@ export class OpenClawAgentRuntime {
       return;
     }
 
-    await rm(this.resolveRuntimeDocPath(docId), { force: false });
+    await rm(this.resolveRuntimeDocPath(fileId), { force: false });
 
-    await this.publishChannelMessage(state.sessionId, "doc.delete.ok", requestId, {
-      doc_id: docId
+    await this.publishChannelMessage(state.sessionId, "file.delete.ok", requestId, {
+      ...buildFileIdPayload(fileId)
     });
   }
 
@@ -1533,7 +1537,10 @@ function resolveOptions(options: OpenClawAgentRuntimeOptions): ResolvedOptions {
 
   const runtimeDocIds = normalizeRuntimeDocIds(options.runtimeDocIds);
   const chatRealtimeEnabled = options.chatRealtimeEnabled !== false;
-  const docsRealtimeEnabled = options.docsRealtimeEnabled !== false;
+  const filesRealtimeEnabled = typeof options.filesRealtimeEnabled === "boolean"
+    ? options.filesRealtimeEnabled
+    : options.docsRealtimeEnabled !== false;
+  const docsRealtimeEnabled = filesRealtimeEnabled;
   const notificationsRealtimeEnabled = options.notificationsRealtimeEnabled !== false;
   const hasRealtimeCallbacks = Boolean(
     options.onSessionReady ||
@@ -1544,13 +1551,14 @@ function resolveOptions(options: OpenClawAgentRuntimeOptions): ResolvedOptions {
   );
   const realtimeSessionsEnabled = typeof options.realtimeSessionsEnabled === "boolean"
     ? options.realtimeSessionsEnabled
-    : chatRealtimeEnabled || docsRealtimeEnabled || notificationsRealtimeEnabled || hasRealtimeCallbacks;
+    : chatRealtimeEnabled || filesRealtimeEnabled || notificationsRealtimeEnabled || hasRealtimeCallbacks;
 
   return {
     client: options.client,
     agent,
     realtimeSessionsEnabled,
     chatRealtimeEnabled,
+    filesRealtimeEnabled,
     docsRealtimeEnabled,
     notificationsRealtimeEnabled,
     requestedSessionLimit: normalizePositiveInt(options.requestedSessionLimit, DEFAULT_REQUESTED_SESSION_LIMIT),
@@ -1684,6 +1692,13 @@ function docTitle(id: string): string {
   }
 
   return compact.replace(/\b[a-z]/g, (char) => char.toUpperCase());
+}
+
+function buildFileIdPayload(fileId: string): { file_id: string; doc_id: string } {
+  return {
+    file_id: fileId,
+    doc_id: fileId
+  };
 }
 
 function normalizePositiveInt(value: number | undefined, fallback: number): number {
