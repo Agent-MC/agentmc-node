@@ -785,8 +785,10 @@ export class AgentRuntimeProgram {
     }
 
     const runtimeStatus = this.realtimeRuntime?.getStatus();
+    const metaType = provider.kind === "openclaw" ? "openclaw" : provider.name;
 
     const heartbeatMeta: JsonObject = {
+      type: metaType,
       runtime: {
         name: provider.name,
         version: runtimeVersion,
@@ -808,7 +810,7 @@ export class AgentRuntimeProgram {
     }
 
     for (const [key, value] of Object.entries(runtimeTelemetry)) {
-      if (key === "models") {
+      if (key === "models" || key === "type") {
         continue;
       }
       heartbeatMeta[key] = value;
