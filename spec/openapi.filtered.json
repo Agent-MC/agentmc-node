@@ -3898,6 +3898,132 @@
           "$ref": "#/components/requestBodies/StoreCalendarItemCommentApiRequest"
         }
       }
+    },
+    "/agents/recurring-task-runs/due": {
+      "get": {
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum number of records to return.",
+            "schema": {
+              "nullable": true,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 25
+            },
+            "example": 20
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentRecurringTaskDueRunsResponse"
+                },
+                "example": {
+                  "data": [
+                    {
+                      "run_id": 42,
+                      "task_id": 42,
+                      "prompt": "example",
+                      "scheduled_for": "2026-02-22T17:21:00Z",
+                      "claim_token": "example",
+                      "agent_id": 42
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "401": {
+            "$ref": "#/components/responses/ApiError401"
+          },
+          "403": {
+            "$ref": "#/components/responses/ApiError403"
+          },
+          "404": {
+            "$ref": "#/components/responses/ApiError404"
+          },
+          "422": {
+            "$ref": "#/components/responses/ApiError422"
+          }
+        }
+      }
+    },
+    "/agents/recurring-task-runs/{run}/complete": {
+      "post": {
+        "requestBody": {
+          "$ref": "#/components/requestBodies/CompleteAgentRecurringTaskRunApiRequest"
+        },
+        "parameters": [
+          {
+            "name": "run",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "Run.",
+            "example": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentRecurringTaskRunResponse"
+                },
+                "example": {
+                  "data": {
+                    "id": 42,
+                    "team_id": 42,
+                    "agent_id": 42,
+                    "agent_recurring_task_id": 42,
+                    "scheduled_for": "2026-02-22T17:21:00Z",
+                    "status": "running",
+                    "claim_token": "example",
+                    "prompt_snapshot": "example",
+                    "schedule_snapshot": {
+                      "key": "value"
+                    },
+                    "started_at": "2026-02-22T17:21:00Z",
+                    "finished_at": "2026-02-22T17:21:00Z",
+                    "summary": "Morning operations handoff digest.",
+                    "error_message": "example",
+                    "runtime_meta": {
+                      "key": "value"
+                    },
+                    "created_at": "2026-02-22T17:21:00Z",
+                    "updated_at": "2026-02-22T17:21:00Z"
+                  }
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "401": {
+            "$ref": "#/components/responses/ApiError401"
+          },
+          "403": {
+            "$ref": "#/components/responses/ApiError403"
+          },
+          "404": {
+            "$ref": "#/components/responses/ApiError404"
+          },
+          "409": {
+            "$ref": "#/components/responses/ApiError409"
+          },
+          "422": {
+            "$ref": "#/components/responses/ApiError422"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -4825,6 +4951,313 @@
             "agents_online": 1,
             "created_at": "2026-02-22T17:21:02Z",
             "updated_at": "2026-02-22T17:21:02Z"
+          }
+        }
+      },
+      "AgentRecurringTaskDueRun": {
+        "type": "object",
+        "required": [
+          "run_id",
+          "task_id",
+          "prompt",
+          "scheduled_for",
+          "claim_token",
+          "agent_id"
+        ],
+        "properties": {
+          "run_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Identifier for run.",
+            "example": 42
+          },
+          "task_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Task identifier.",
+            "example": 42
+          },
+          "prompt": {
+            "type": "string",
+            "description": "Prompt.",
+            "example": "example"
+          },
+          "scheduled_for": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Scheduled for.",
+            "example": "2026-02-22T17:21:00Z"
+          },
+          "claim_token": {
+            "type": "string",
+            "description": "Claim token.",
+            "example": "example"
+          },
+          "agent_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Identifier for agent.",
+            "example": 42
+          }
+        },
+        "description": "Agent Recurring Task Due Run schema.",
+        "example": {
+          "run_id": 42,
+          "task_id": 42,
+          "prompt": "example",
+          "scheduled_for": "2026-02-22T17:21:00Z",
+          "claim_token": "example",
+          "agent_id": 42
+        }
+      },
+      "AgentRecurringTaskDueRunsResponse": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentRecurringTaskDueRun"
+            },
+            "description": "Data.",
+            "example": [
+              {
+                "run_id": 42,
+                "task_id": 42,
+                "prompt": "example",
+                "scheduled_for": "2026-02-22T17:21:00Z",
+                "claim_token": "example",
+                "agent_id": 42
+              }
+            ]
+          }
+        },
+        "description": "Agent Recurring Task Due Runs Response response schema.",
+        "example": {
+          "data": [
+            {
+              "run_id": 42,
+              "task_id": 42,
+              "prompt": "example",
+              "scheduled_for": "2026-02-22T17:21:00Z",
+              "claim_token": "example",
+              "agent_id": 42
+            }
+          ]
+        }
+      },
+      "AgentRecurringTaskRun": {
+        "type": "object",
+        "required": [
+          "id",
+          "team_id",
+          "agent_id",
+          "agent_recurring_task_id",
+          "scheduled_for",
+          "status",
+          "claim_token",
+          "prompt_snapshot",
+          "schedule_snapshot",
+          "started_at",
+          "finished_at",
+          "summary",
+          "error_message",
+          "runtime_meta",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Unique identifier for this record.",
+            "example": 42
+          },
+          "team_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Team identifier that owns this record.",
+            "example": 42
+          },
+          "agent_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Identifier for agent.",
+            "example": 42
+          },
+          "agent_recurring_task_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Identifier for agent recurring task.",
+            "example": 42
+          },
+          "scheduled_for": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Scheduled for.",
+            "example": "2026-02-22T17:21:00Z"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "running",
+              "success",
+              "error"
+            ],
+            "description": "Current lifecycle status for this record. Allowed values: running, success, error.",
+            "example": "running"
+          },
+          "claim_token": {
+            "type": "string",
+            "description": "Claim token.",
+            "example": "example"
+          },
+          "prompt_snapshot": {
+            "type": "string",
+            "description": "Prompt snapshot.",
+            "example": "example"
+          },
+          "schedule_snapshot": {
+            "type": "object",
+            "nullable": true,
+            "additionalProperties": true,
+            "description": "Schedule snapshot.",
+            "example": {
+              "key": "value"
+            }
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "ISO-8601 timestamp for started.",
+            "example": "2026-02-22T17:21:00Z"
+          },
+          "finished_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "ISO-8601 timestamp for finished.",
+            "example": "2026-02-22T17:21:00Z"
+          },
+          "summary": {
+            "type": "string",
+            "nullable": true,
+            "description": "Optional short summary.",
+            "example": "Morning operations handoff digest."
+          },
+          "error_message": {
+            "type": "string",
+            "nullable": true,
+            "description": "Error message.",
+            "example": "example"
+          },
+          "runtime_meta": {
+            "type": "object",
+            "nullable": true,
+            "additionalProperties": true,
+            "description": "Additional metadata for Agent Recurring Task Run.",
+            "example": {
+              "key": "value"
+            }
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "ISO-8601 timestamp when this record was created.",
+            "example": "2026-02-22T17:21:00Z"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "ISO-8601 timestamp when this record was last updated.",
+            "example": "2026-02-22T17:21:00Z"
+          }
+        },
+        "description": "Agent Recurring Task Run schema.",
+        "example": {
+          "id": 42,
+          "team_id": 42,
+          "agent_id": 42,
+          "agent_recurring_task_id": 42,
+          "scheduled_for": "2026-02-22T17:21:00Z",
+          "status": "running",
+          "claim_token": "example",
+          "prompt_snapshot": "example",
+          "schedule_snapshot": {
+            "key": "value"
+          },
+          "started_at": "2026-02-22T17:21:00Z",
+          "finished_at": "2026-02-22T17:21:00Z",
+          "summary": "Morning operations handoff digest.",
+          "error_message": "example",
+          "runtime_meta": {
+            "key": "value"
+          },
+          "created_at": "2026-02-22T17:21:00Z",
+          "updated_at": "2026-02-22T17:21:00Z"
+        }
+      },
+      "AgentRecurringTaskRunResponse": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AgentRecurringTaskRun",
+            "description": "Data.",
+            "example": {
+              "id": 42,
+              "team_id": 42,
+              "agent_id": 42,
+              "agent_recurring_task_id": 42,
+              "scheduled_for": "2026-02-22T17:21:00Z",
+              "status": "running",
+              "claim_token": "example",
+              "prompt_snapshot": "example",
+              "schedule_snapshot": {
+                "key": "value"
+              },
+              "started_at": "2026-02-22T17:21:00Z",
+              "finished_at": "2026-02-22T17:21:00Z",
+              "summary": "Morning operations handoff digest.",
+              "error_message": "example",
+              "runtime_meta": {
+                "key": "value"
+              },
+              "created_at": "2026-02-22T17:21:00Z",
+              "updated_at": "2026-02-22T17:21:00Z"
+            }
+          }
+        },
+        "description": "Agent Recurring Task Run Response response schema.",
+        "example": {
+          "data": {
+            "id": 42,
+            "team_id": 42,
+            "agent_id": 42,
+            "agent_recurring_task_id": 42,
+            "scheduled_for": "2026-02-22T17:21:00Z",
+            "status": "running",
+            "claim_token": "example",
+            "prompt_snapshot": "example",
+            "schedule_snapshot": {
+              "key": "value"
+            },
+            "started_at": "2026-02-22T17:21:00Z",
+            "finished_at": "2026-02-22T17:21:00Z",
+            "summary": "Morning operations handoff digest.",
+            "error_message": "example",
+            "runtime_meta": {
+              "key": "value"
+            },
+            "created_at": "2026-02-22T17:21:00Z",
+            "updated_at": "2026-02-22T17:21:00Z"
           }
         }
       },
@@ -9434,6 +9867,85 @@
           }
         }
       },
+      "CompleteAgentRecurringTaskRunApiRequest": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "enum": [
+              "success",
+              "error"
+            ],
+            "type": "string",
+            "description": "Current lifecycle status for this record. Allowed values: success, error.",
+            "example": "success"
+          },
+          "claim_token": {
+            "type": "string",
+            "maxLength": 64,
+            "description": "Claim token.",
+            "example": "example"
+          },
+          "summary": {
+            "nullable": true,
+            "type": "string",
+            "maxLength": 4000,
+            "description": "Optional short summary.",
+            "example": "Morning operations handoff digest."
+          },
+          "error_message": {
+            "nullable": true,
+            "type": "string",
+            "maxLength": 4000,
+            "description": "Error message.",
+            "example": "example"
+          },
+          "started_at": {
+            "nullable": true,
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO-8601 timestamp for started.",
+            "example": "2026-02-22T17:21:00Z"
+          },
+          "finished_at": {
+            "nullable": true,
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO-8601 timestamp for finished.",
+            "example": "2026-02-22T17:21:00Z"
+          },
+          "runtime_meta": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": true
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            ],
+            "description": "Additional metadata for Complete Agent Recurring Task Run Api Request.",
+            "example": {
+              "key": "value"
+            }
+          }
+        },
+        "required": [
+          "status",
+          "claim_token"
+        ],
+        "description": "Complete Agent Recurring Task Run Api Request request schema.",
+        "example": {
+          "status": "success",
+          "claim_token": "example",
+          "summary": "Morning operations handoff digest.",
+          "error_message": "example"
+        }
+      },
       "StoreAgentHeartbeatApiRequest": {
         "type": "object",
         "properties": {
@@ -11296,6 +11808,25 @@
           }
         }
       },
+      "CompleteAgentRecurringTaskRunApiRequest": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/CompleteAgentRecurringTaskRunApiRequest"
+            },
+            "example": {
+              "status": "success",
+              "claim_token": "e3ec996c-c53f-4bfa-89e3-5d9cbf71397f",
+              "summary": "Scheduled review completed and updated 2 tasks.",
+              "runtime_meta": {
+                "provider": "openclaw",
+                "request_id": "req_01JBPXXRM6JYAVY82ECAQ7QNA4"
+              }
+            }
+          }
+        }
+      },
       "StoreAgentHeartbeatApiRequest": {
         "required": true,
         "content": {
@@ -11698,6 +12229,62 @@
                 "agents_online": 1,
                 "created_at": "2026-02-22T17:21:02Z",
                 "updated_at": "2026-02-22T17:21:02Z"
+              }
+            }
+          }
+        }
+      },
+      "AgentRecurringTaskDueRunsResponse": {
+        "description": "Due recurring task runs claimed.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/AgentRecurringTaskDueRunsResponse"
+            },
+            "example": {
+              "data": [
+                {
+                  "run_id": 42,
+                  "task_id": 42,
+                  "prompt": "example",
+                  "scheduled_for": "2026-02-22T17:21:00Z",
+                  "claim_token": "example",
+                  "agent_id": 42
+                }
+              ]
+            }
+          }
+        }
+      },
+      "AgentRecurringTaskRunResponse": {
+        "description": "Recurring task run completion recorded.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/AgentRecurringTaskRunResponse"
+            },
+            "example": {
+              "data": {
+                "id": 42,
+                "team_id": 42,
+                "agent_id": 42,
+                "agent_recurring_task_id": 42,
+                "scheduled_for": "2026-02-22T17:21:00Z",
+                "status": "running",
+                "claim_token": "example",
+                "prompt_snapshot": "example",
+                "schedule_snapshot": {
+                  "key": "value"
+                },
+                "started_at": "2026-02-22T17:21:00Z",
+                "finished_at": "2026-02-22T17:21:00Z",
+                "summary": "Morning operations handoff digest.",
+                "error_message": "example",
+                "runtime_meta": {
+                  "key": "value"
+                },
+                "created_at": "2026-02-22T17:21:00Z",
+                "updated_at": "2026-02-22T17:21:00Z"
               }
             }
           }

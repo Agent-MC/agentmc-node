@@ -9,7 +9,7 @@ import { promisify } from "node:util";
 
 import { AgentMCApi } from "./client";
 import { AgentRuntime, type AgentRuntimeRunInput, type AgentRuntimeRunResult } from "./openclaw-runtime";
-import type { RequestOptionsById } from "./types";
+import type { RequestOptionsById, ResultById } from "./types";
 
 const execFileAsync = promisify(execFile);
 const OPENCLAW_TELEMETRY_COMMAND_CANDIDATES: readonly string[][] = [
@@ -19,12 +19,19 @@ const OPENCLAW_TELEMETRY_COMMAND_CANDIDATES: readonly string[][] = [
 ];
 const OPENCLAW_MODELS_TELEMETRY_COMMAND: readonly string[] = ["models", "status", "--json"];
 const OPENCLAW_TELEMETRY_TIMEOUT_MS = 4_000;
+const DEFAULT_RECURRING_TASK_POLL_INTERVAL_SECONDS = 30;
+const DEFAULT_RECURRING_TASK_POLL_LIMIT = 5;
+const OPENCLAW_RECURRING_SUBMIT_TIMEOUT_MS = 30_000;
+const OPENCLAW_RECURRING_WAIT_TIMEOUT_MS = 90_000;
+const OPENCLAW_RECURRING_GATEWAY_TIMEOUT_MS = 120_000;
 
 type JsonObject = Record<string, unknown>;
 
 type RuntimeProviderKind = "openclaw" | "external";
 
 type HeartbeatBody = NonNullable<RequestOptionsById<"agentHeartbeat">["body"]>;
+type CompleteRecurringTaskRunBody = NonNullable<RequestOptionsById<"completeRecurringTaskRun">["body"]>;
+type DueRecurringTaskRunsResult = NonNullable<ResultById<"listDueRecurringTaskRuns">["data"]>;
 
 interface RuntimeProviderDescriptor {
   kind: RuntimeProviderKind;
@@ -34,6 +41,22 @@ interface RuntimeProviderDescriptor {
   mode: string;
   models: string[];
   runAgent?: (input: AgentRuntimeRunInput) => Promise<AgentRuntimeRunResult>;
+}
+
+interface ClaimedRecurringTaskRun {
+  runId: number;
+  taskId: number;
+  prompt: string;
+  scheduledFor: string | null;
+  claimToken: string;
+  agentId: number | null;
+}
+
+interface RecurringTaskExecutionResult {
+  status: "success" | "error";
+  summary: string | null;
+  errorMessage: string | null;
+  runtimeMeta: JsonObject;
 }
 
 export interface AgentRuntimeProgramOptions {
@@ -92,6 +115,8 @@ export class AgentRuntimeProgram {
   private runtimeProvider: RuntimeProviderDescriptor | null = null;
   private agentProfile: AgentProfile | null = null;
   private heartbeatIntervalSeconds: number | null;
+  private readonly recurringTaskPollIntervalSeconds: number;
+  private readonly recurringTaskPollLimit: number;
   private cachedOpenClawTelemetryCommandArgs: string[] | null = null;
   private lastOpenClawTelemetryError: string | null = null;
 
@@ -101,6 +126,8 @@ export class AgentRuntimeProgram {
     this.statePath = resolve(options.statePath ?? resolve(this.workspaceDir, ".agentmc/state.json"));
     this.initialAgentId = toPositiveInt(options.agentId);
     this.heartbeatIntervalSeconds = toPositiveInt(options.heartbeatIntervalSeconds);
+    this.recurringTaskPollIntervalSeconds = DEFAULT_RECURRING_TASK_POLL_INTERVAL_SECONDS;
+    this.recurringTaskPollLimit = DEFAULT_RECURRING_TASK_POLL_LIMIT;
 
     if (options.client) {
       this.client = options.client;
@@ -202,41 +229,55 @@ export class AgentRuntimeProgram {
     this.agentProfile = await this.resolveAgentProfile(agentId);
 
     await this.startRealtimeRuntime(agentId, this.runtimeProvider);
-    let skipNextLoopHeartbeat = false;
+    const recurringPollIntervalMs = this.recurringTaskPollIntervalSeconds * 1000;
+    let nextRecurringPollAtMs = Date.now();
 
     try {
       const heartbeatBody = await this.buildHeartbeatBody();
       await this.sendHeartbeat(heartbeatBody);
-      skipNextLoopHeartbeat = true;
     } catch (error) {
       this.emitError(normalizeError(error), { source: "heartbeat.startup" });
     }
 
+    let nextHeartbeatAtMs = Date.now() + (this.heartbeatIntervalSeconds ?? 1) * 1000;
+
     while (!this.stopRequested) {
-      const cycleStartedAt = Date.now();
-      try {
-        const syncResult = await this.syncInstructionBundle();
-        if (syncResult.heartbeatIntervalSeconds !== null) {
-          this.heartbeatIntervalSeconds = syncResult.heartbeatIntervalSeconds;
-        }
+      const cycleNowMs = Date.now();
 
-        if (syncResult.changed) {
-          await this.restartRealtimeRuntime(agentId, this.runtimeProvider);
+      if (cycleNowMs >= nextRecurringPollAtMs) {
+        try {
+          await this.pollRecurringTaskRuns(agentId, this.runtimeProvider);
+        } catch (error) {
+          this.emitError(normalizeError(error), { source: "recurring.poll" });
+        } finally {
+          nextRecurringPollAtMs = Date.now() + recurringPollIntervalMs;
         }
-
-        if (skipNextLoopHeartbeat) {
-          skipNextLoopHeartbeat = false;
-        } else {
-          const heartbeatBody = await this.buildHeartbeatBody();
-          await this.sendHeartbeat(heartbeatBody);
-        }
-      } catch (error) {
-        this.emitError(normalizeError(error), { source: "heartbeat.cycle" });
       }
 
-      const elapsedMs = Date.now() - cycleStartedAt;
-      const heartbeatIntervalSeconds = this.heartbeatIntervalSeconds ?? 1;
-      const waitMs = Math.max(250, heartbeatIntervalSeconds * 1000 - elapsedMs);
+      if (cycleNowMs >= nextHeartbeatAtMs) {
+        try {
+          const syncResult = await this.syncInstructionBundle();
+          if (syncResult.heartbeatIntervalSeconds !== null) {
+            this.heartbeatIntervalSeconds = syncResult.heartbeatIntervalSeconds;
+          }
+
+          if (syncResult.changed) {
+            await this.restartRealtimeRuntime(agentId, this.runtimeProvider);
+          }
+
+          const heartbeatBody = await this.buildHeartbeatBody();
+          await this.sendHeartbeat(heartbeatBody);
+        } catch (error) {
+          this.emitError(normalizeError(error), { source: "heartbeat.cycle" });
+        } finally {
+          nextHeartbeatAtMs = Date.now() + (this.heartbeatIntervalSeconds ?? 1) * 1000;
+        }
+      }
+
+      const nowMs = Date.now();
+      const delayToHeartbeatMs = Math.max(0, nextHeartbeatAtMs - nowMs);
+      const delayToRecurringMs = Math.max(0, nextRecurringPollAtMs - nowMs);
+      const waitMs = Math.max(250, Math.min(delayToHeartbeatMs, delayToRecurringMs));
       await sleep(waitMs);
     }
   }
@@ -885,6 +926,293 @@ export class AgentRuntimeProgram {
     });
   }
 
+  private async pollRecurringTaskRuns(agentId: number, provider: RuntimeProviderDescriptor): Promise<void> {
+    const response = await this.client.operations.listDueRecurringTaskRuns({
+      params: {
+        query: {
+          limit: this.recurringTaskPollLimit
+        }
+      }
+    });
+
+    if (response.error) {
+      throw new Error(`listDueRecurringTaskRuns failed with status ${response.status}.`);
+    }
+
+    const payload = (response.data ?? { data: [] }) as DueRecurringTaskRunsResult;
+    const rows = Array.isArray(payload.data) ? payload.data : [];
+    if (rows.length === 0) {
+      return;
+    }
+
+    this.emitInfo("Claimed recurring task runs", {
+      count: rows.length,
+      limit: this.recurringTaskPollLimit
+    });
+
+    for (const row of rows) {
+      const claimed = parseClaimedRecurringTaskRun(row);
+      if (!claimed) {
+        this.emitError(new Error("Skipping malformed recurring task run payload."), {
+          source: "recurring.claim"
+        });
+        continue;
+      }
+
+      if (claimed.agentId !== null && claimed.agentId !== agentId) {
+        this.emitError(new Error("Skipping recurring task run for unexpected agent id."), {
+          source: "recurring.claim",
+          expected_agent_id: agentId,
+          actual_agent_id: claimed.agentId,
+          run_id: claimed.runId
+        });
+        continue;
+      }
+
+      try {
+        await this.executeRecurringTaskRun(provider, claimed);
+      } catch (error) {
+        this.emitError(normalizeError(error), {
+          source: "recurring.run",
+          run_id: claimed.runId,
+          task_id: claimed.taskId
+        });
+      }
+    }
+  }
+
+  private async executeRecurringTaskRun(
+    provider: RuntimeProviderDescriptor,
+    claimed: ClaimedRecurringTaskRun
+  ): Promise<void> {
+    const startedAtIso = new Date().toISOString();
+
+    let execution: RecurringTaskExecutionResult;
+    try {
+      execution = await this.runRecurringTaskPrompt(provider, claimed);
+    } catch (error) {
+      execution = {
+        status: "error",
+        summary: null,
+        errorMessage: normalizeError(error).message,
+        runtimeMeta: {
+          provider: provider.name,
+          provider_kind: provider.kind,
+          provider_version: provider.version
+        }
+      };
+    }
+
+    const body: CompleteRecurringTaskRunBody = {
+      status: execution.status,
+      claim_token: claimed.claimToken,
+      summary: execution.summary,
+      error_message: execution.errorMessage,
+      started_at: startedAtIso,
+      finished_at: new Date().toISOString(),
+      runtime_meta: execution.runtimeMeta
+    };
+
+    const response = await this.client.operations.completeRecurringTaskRun({
+      params: {
+        path: {
+          run: claimed.runId
+        }
+      },
+      body
+    });
+
+    if (response.error) {
+      throw new Error(`completeRecurringTaskRun failed with status ${response.status}.`);
+    }
+
+    this.emitInfo("Recurring task run completed", {
+      run_id: claimed.runId,
+      task_id: claimed.taskId,
+      status: execution.status
+    });
+  }
+
+  private async runRecurringTaskPrompt(
+    provider: RuntimeProviderDescriptor,
+    claimed: ClaimedRecurringTaskRun
+  ): Promise<RecurringTaskExecutionResult> {
+    const requestId = `recurring-${claimed.runId}-${Date.now().toString(36)}`;
+    const prompt = claimed.prompt.trim();
+
+    if (prompt === "") {
+      return {
+        status: "error",
+        summary: null,
+        errorMessage: "Recurring task prompt is empty.",
+        runtimeMeta: {
+          request_id: requestId,
+          provider: provider.name,
+          provider_kind: provider.kind
+        }
+      };
+    }
+
+    const runInput: AgentRuntimeRunInput = {
+      sessionId: claimed.taskId,
+      requestId,
+      userText: prompt
+    };
+
+    let runResult: AgentRuntimeRunResult;
+    if (provider.runAgent) {
+      runResult = await provider.runAgent(runInput);
+    } else if (provider.kind === "openclaw") {
+      runResult = await this.runOpenClawRecurringPrompt(runInput, claimed);
+    } else {
+      throw new Error(`Runtime provider ${provider.kind} does not support recurring task execution.`);
+    }
+
+    const runtimeMeta: JsonObject = {
+      request_id: requestId,
+      run_id: nonEmpty(runResult.runId) ?? `agentmc-recurring-${claimed.runId}`,
+      runtime_status: runResult.status,
+      text_source: runResult.textSource,
+      provider: provider.name,
+      provider_kind: provider.kind,
+      provider_version: provider.version,
+      scheduled_for: claimed.scheduledFor,
+      task_id: claimed.taskId
+    };
+
+    if (runResult.status === "ok") {
+      return {
+        status: "success",
+        summary: summarizeRecurringRunText(runResult.content),
+        errorMessage: null,
+        runtimeMeta
+      };
+    }
+
+    return {
+      status: "error",
+      summary: null,
+      errorMessage:
+        summarizeRecurringRunText(runResult.content) ??
+        `Runtime execution returned status "${runResult.status}".`,
+      runtimeMeta
+    };
+  }
+
+  private async runOpenClawRecurringPrompt(
+    input: AgentRuntimeRunInput,
+    claimed: ClaimedRecurringTaskRun
+  ): Promise<AgentRuntimeRunResult> {
+    const command = nonEmpty(this.options.openclawCommand) ?? "openclaw";
+    const openclawAgent = normalizeOpenClawAgentName(this.options.openclawAgent);
+    const recurringExecutionId = `agentmc-recurring-${claimed.runId}`;
+    const sessionKey = `agent:${openclawAgent}:agentmc:recurring:${claimed.taskId}`;
+
+    const submitResponse = await this.openclawGatewayCall(
+      command,
+      "agent",
+      {
+        idempotencyKey: recurringExecutionId,
+        sessionKey,
+        message: input.userText
+      },
+      OPENCLAW_RECURRING_SUBMIT_TIMEOUT_MS
+    );
+
+    const submittedRunId =
+      nonEmpty(submitResponse.runId) ??
+      nonEmpty(submitResponse.run_id) ??
+      nonEmpty(submitResponse.id) ??
+      recurringExecutionId;
+
+    const waitResponse = await this.openclawGatewayCall(
+      command,
+      "agent.wait",
+      {
+        runId: submittedRunId,
+        timeoutMs: OPENCLAW_RECURRING_WAIT_TIMEOUT_MS
+      },
+      OPENCLAW_RECURRING_GATEWAY_TIMEOUT_MS
+    );
+
+    const waitStatus = (nonEmpty(waitResponse.status) ?? "ok").toLowerCase();
+    if (waitStatus === "timeout") {
+      return {
+        requestId: input.requestId,
+        runId: submittedRunId,
+        status: "timeout",
+        textSource: "wait",
+        content: "Recurring task execution timed out while waiting for completion."
+      };
+    }
+
+    if (waitStatus !== "ok") {
+      return {
+        requestId: input.requestId,
+        runId: submittedRunId,
+        status: "error",
+        textSource: "error",
+        content:
+          extractFirstRuntimeText(waitResponse.error) ??
+          `OpenClaw recurring execution failed with status "${waitStatus}".`
+      };
+    }
+
+    const directText =
+      extractFirstRuntimeText(waitResponse.content) ??
+      extractFirstRuntimeText(waitResponse.output_text) ??
+      extractFirstRuntimeText(waitResponse.text) ??
+      extractFirstRuntimeText(waitResponse.message) ??
+      extractFirstRuntimeText(waitResponse.response) ??
+      "";
+
+    return {
+      requestId: input.requestId,
+      runId: submittedRunId,
+      status: "ok",
+      textSource: "wait",
+      content: directText
+    };
+  }
+
+  private async openclawGatewayCall(
+    command: string,
+    method: string,
+    params: JsonObject,
+    timeoutMs: number
+  ): Promise<JsonObject> {
+    const args = [
+      "gateway",
+      "call",
+      method,
+      "--json",
+      "--timeout",
+      String(timeoutMs),
+      "--params",
+      JSON.stringify(params)
+    ];
+
+    const output = await execCapture(command, args, {
+      timeoutMs: Math.max(timeoutMs, OPENCLAW_RECURRING_GATEWAY_TIMEOUT_MS)
+    });
+
+    const parsed = parseJsonUnknown(output.stdout) ?? parseJsonUnknown(output.stderr);
+    const object = valueAsObject(parsed);
+    if (!object) {
+      throw new Error(`openclaw gateway call ${method} returned non-object JSON.`);
+    }
+
+    const nestedResult = valueAsObject(object.result) ?? valueAsObject(object.data);
+    if (nestedResult) {
+      return {
+        ...object,
+        ...nestedResult
+      };
+    }
+
+    return object;
+  }
+
   private emitInfo(message: string, meta?: JsonObject): void {
     if (this.options.onInfo) {
       this.options.onInfo(message, meta);
@@ -922,6 +1250,78 @@ function normalizeRuntimeProvider(value: string | undefined): "auto" | RuntimePr
   }
 
   return "auto";
+}
+
+function normalizeOpenClawAgentName(value: unknown): string {
+  const resolved = nonEmpty(value) ?? "main";
+  if (!/^[A-Za-z0-9_.-]+$/.test(resolved)) {
+    throw new Error("OPENCLAW_AGENT may only include letters, numbers, underscore, dot, and hyphen.");
+  }
+
+  return resolved;
+}
+
+function summarizeRecurringRunText(value: unknown): string | null {
+  const normalized = String(value ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (normalized === "") {
+    return null;
+  }
+
+  const maxLength = 1000;
+  if (normalized.length <= maxLength) {
+    return normalized;
+  }
+
+  return `${normalized.slice(0, maxLength - 3)}...`;
+}
+
+function extractFirstRuntimeText(value: unknown): string | null {
+  const direct = nonEmpty(value);
+  if (direct) {
+    return direct;
+  }
+
+  const object = valueAsObject(value);
+  if (!object) {
+    return null;
+  }
+
+  return (
+    nonEmpty(object.content) ??
+    nonEmpty(object.output_text) ??
+    nonEmpty(object.text) ??
+    nonEmpty(object.message) ??
+    nonEmpty(object.response) ??
+    null
+  );
+}
+
+function parseClaimedRecurringTaskRun(value: unknown): ClaimedRecurringTaskRun | null {
+  const object = valueAsObject(value);
+  if (!object) {
+    return null;
+  }
+
+  const runId = toPositiveInt(object.run_id);
+  const taskId = toPositiveInt(object.task_id);
+  const claimToken = nonEmpty(object.claim_token);
+  const prompt = typeof object.prompt === "string" ? object.prompt : null;
+
+  if (!runId || !taskId || !claimToken || prompt === null) {
+    return null;
+  }
+
+  return {
+    runId,
+    taskId,
+    prompt,
+    scheduledFor: nonEmpty(object.scheduled_for),
+    claimToken,
+    agentId: toPositiveInt(object.agent_id)
+  };
 }
 
 function parseRuntimeCommandArgs(value: string | undefined): string[] {

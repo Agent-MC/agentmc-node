@@ -9,6 +9,7 @@ Generated from `spec/openapi.filtered.json`.
 | [claimAgentRealtimeSession](./claimAgentRealtimeSession.md) | POST | `/agents/realtime/sessions/{session}/claim` | Agents |
 | [closeAgentRealtimeSession](./closeAgentRealtimeSession.md) | POST | `/agents/realtime/sessions/{session}/close` | Agents |
 | [commentCalendarItem](./commentCalendarItem.md) | POST | `/calendar/items/{item}/comments` | Calendar |
+| [completeRecurringTaskRun](./completeRecurringTaskRun.md) | POST | `/agents/recurring-task-runs/{run}/complete` | - |
 | [createAgentBrief](./createAgentBrief.md) | POST | `/briefs` | Briefs |
 | [createAgentRealtimeSignal](./createAgentRealtimeSignal.md) | POST | `/agents/realtime/sessions/{session}/signals` | Agents |
 | [createBoard](./createBoard.md) | POST | `/boards` | Boards |
@@ -29,6 +30,7 @@ Generated from `spec/openapi.filtered.json`.
 | [listAgents](./listAgents.md) | GET | `/teams/agents` | Teams |
 | [listBoards](./listBoards.md) | GET | `/boards` | Boards |
 | [listCalendar](./listCalendar.md) | GET | `/calendar` | Calendar |
+| [listDueRecurringTaskRuns](./listDueRecurringTaskRuns.md) | GET | `/agents/recurring-task-runs/due` | - |
 | [listHosts](./listHosts.md) | GET | `/hosts` | Hosts |
 | [listLogs](./listLogs.md) | GET | `/logs` | Logs |
 | [listNotifications](./listNotifications.md) | GET | `/notifications` | Notifications |

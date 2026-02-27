@@ -513,6 +513,137 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/agents/recurring-task-runs/due": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    /**
+                     * @description Maximum number of records to return.
+                     * @example 20
+                     */
+                    limit?: number | null;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        /**
+                         * @example {
+                         *       "data": [
+                         *         {
+                         *           "run_id": 42,
+                         *           "task_id": 42,
+                         *           "prompt": "example",
+                         *           "scheduled_for": "2026-02-22T17:21:00Z",
+                         *           "claim_token": "example",
+                         *           "agent_id": 42
+                         *         }
+                         *       ]
+                         *     }
+                         */
+                        "application/json": components["schemas"]["AgentRecurringTaskDueRunsResponse"];
+                    };
+                };
+                401: components["responses"]["ApiError401"];
+                403: components["responses"]["ApiError403"];
+                404: components["responses"]["ApiError404"];
+                422: components["responses"]["ApiError422"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agents/recurring-task-runs/{run}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /**
+                     * @description Run.
+                     * @example 1
+                     */
+                    run: number;
+                };
+                cookie?: never;
+            };
+            requestBody: components["requestBodies"]["CompleteAgentRecurringTaskRunApiRequest"];
+            responses: {
+                /** @description Successful response. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        /**
+                         * @example {
+                         *       "data": {
+                         *         "id": 42,
+                         *         "team_id": 42,
+                         *         "agent_id": 42,
+                         *         "agent_recurring_task_id": 42,
+                         *         "scheduled_for": "2026-02-22T17:21:00Z",
+                         *         "status": "running",
+                         *         "claim_token": "example",
+                         *         "prompt_snapshot": "example",
+                         *         "schedule_snapshot": {
+                         *           "key": "value"
+                         *         },
+                         *         "started_at": "2026-02-22T17:21:00Z",
+                         *         "finished_at": "2026-02-22T17:21:00Z",
+                         *         "summary": "Morning operations handoff digest.",
+                         *         "error_message": "example",
+                         *         "runtime_meta": {
+                         *           "key": "value"
+                         *         },
+                         *         "created_at": "2026-02-22T17:21:00Z",
+                         *         "updated_at": "2026-02-22T17:21:00Z"
+                         *       }
+                         *     }
+                         */
+                        "application/json": components["schemas"]["AgentRecurringTaskRunResponse"];
+                    };
+                };
+                401: components["responses"]["ApiError401"];
+                403: components["responses"]["ApiError403"];
+                404: components["responses"]["ApiError404"];
+                409: components["responses"]["ApiError409"];
+                422: components["responses"]["ApiError422"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1274,6 +1405,257 @@ export interface components {
              *     }
              */
             host?: components["schemas"]["Host"] | null;
+        };
+        /**
+         * @description Agent Recurring Task Due Run schema.
+         * @example {
+         *       "run_id": 42,
+         *       "task_id": 42,
+         *       "prompt": "example",
+         *       "scheduled_for": "2026-02-22T17:21:00Z",
+         *       "claim_token": "example",
+         *       "agent_id": 42
+         *     }
+         */
+        AgentRecurringTaskDueRun: {
+            /**
+             * @description Identifier for run.
+             * @example 42
+             */
+            run_id: number;
+            /**
+             * @description Task identifier.
+             * @example 42
+             */
+            task_id: number;
+            /**
+             * @description Prompt.
+             * @example example
+             */
+            prompt: string;
+            /**
+             * Format: date-time
+             * @description Scheduled for.
+             * @example 2026-02-22T17:21:00Z
+             */
+            scheduled_for: string;
+            /**
+             * @description Claim token.
+             * @example example
+             */
+            claim_token: string;
+            /**
+             * @description Identifier for agent.
+             * @example 42
+             */
+            agent_id: number;
+        };
+        /**
+         * @description Agent Recurring Task Due Runs Response response schema.
+         * @example {
+         *       "data": [
+         *         {
+         *           "run_id": 42,
+         *           "task_id": 42,
+         *           "prompt": "example",
+         *           "scheduled_for": "2026-02-22T17:21:00Z",
+         *           "claim_token": "example",
+         *           "agent_id": 42
+         *         }
+         *       ]
+         *     }
+         */
+        AgentRecurringTaskDueRunsResponse: {
+            /**
+             * @description Data.
+             * @example [
+             *       {
+             *         "run_id": 42,
+             *         "task_id": 42,
+             *         "prompt": "example",
+             *         "scheduled_for": "2026-02-22T17:21:00Z",
+             *         "claim_token": "example",
+             *         "agent_id": 42
+             *       }
+             *     ]
+             */
+            data: components["schemas"]["AgentRecurringTaskDueRun"][];
+        };
+        /**
+         * @description Agent Recurring Task Run schema.
+         * @example {
+         *       "id": 42,
+         *       "team_id": 42,
+         *       "agent_id": 42,
+         *       "agent_recurring_task_id": 42,
+         *       "scheduled_for": "2026-02-22T17:21:00Z",
+         *       "status": "running",
+         *       "claim_token": "example",
+         *       "prompt_snapshot": "example",
+         *       "schedule_snapshot": {
+         *         "key": "value"
+         *       },
+         *       "started_at": "2026-02-22T17:21:00Z",
+         *       "finished_at": "2026-02-22T17:21:00Z",
+         *       "summary": "Morning operations handoff digest.",
+         *       "error_message": "example",
+         *       "runtime_meta": {
+         *         "key": "value"
+         *       },
+         *       "created_at": "2026-02-22T17:21:00Z",
+         *       "updated_at": "2026-02-22T17:21:00Z"
+         *     }
+         */
+        AgentRecurringTaskRun: {
+            /**
+             * @description Unique identifier for this record.
+             * @example 42
+             */
+            id: number;
+            /**
+             * @description Team identifier that owns this record.
+             * @example 42
+             */
+            team_id: number;
+            /**
+             * @description Identifier for agent.
+             * @example 42
+             */
+            agent_id: number;
+            /**
+             * @description Identifier for agent recurring task.
+             * @example 42
+             */
+            agent_recurring_task_id: number;
+            /**
+             * Format: date-time
+             * @description Scheduled for.
+             * @example 2026-02-22T17:21:00Z
+             */
+            scheduled_for: string;
+            /**
+             * @description Current lifecycle status for this record. Allowed values: running, success, error.
+             * @example running
+             * @enum {string}
+             */
+            status: "running" | "success" | "error";
+            /**
+             * @description Claim token.
+             * @example example
+             */
+            claim_token: string;
+            /**
+             * @description Prompt snapshot.
+             * @example example
+             */
+            prompt_snapshot: string;
+            /**
+             * @description Schedule snapshot.
+             * @example {
+             *       "key": "value"
+             *     }
+             */
+            schedule_snapshot: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Format: date-time
+             * @description ISO-8601 timestamp for started.
+             * @example 2026-02-22T17:21:00Z
+             */
+            started_at: string | null;
+            /**
+             * Format: date-time
+             * @description ISO-8601 timestamp for finished.
+             * @example 2026-02-22T17:21:00Z
+             */
+            finished_at: string | null;
+            /**
+             * @description Optional short summary.
+             * @example Morning operations handoff digest.
+             */
+            summary: string | null;
+            /**
+             * @description Error message.
+             * @example example
+             */
+            error_message: string | null;
+            /**
+             * @description Additional metadata for Agent Recurring Task Run.
+             * @example {
+             *       "key": "value"
+             *     }
+             */
+            runtime_meta: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Format: date-time
+             * @description ISO-8601 timestamp when this record was created.
+             * @example 2026-02-22T17:21:00Z
+             */
+            created_at: string | null;
+            /**
+             * Format: date-time
+             * @description ISO-8601 timestamp when this record was last updated.
+             * @example 2026-02-22T17:21:00Z
+             */
+            updated_at: string | null;
+        };
+        /**
+         * @description Agent Recurring Task Run Response response schema.
+         * @example {
+         *       "data": {
+         *         "id": 42,
+         *         "team_id": 42,
+         *         "agent_id": 42,
+         *         "agent_recurring_task_id": 42,
+         *         "scheduled_for": "2026-02-22T17:21:00Z",
+         *         "status": "running",
+         *         "claim_token": "example",
+         *         "prompt_snapshot": "example",
+         *         "schedule_snapshot": {
+         *           "key": "value"
+         *         },
+         *         "started_at": "2026-02-22T17:21:00Z",
+         *         "finished_at": "2026-02-22T17:21:00Z",
+         *         "summary": "Morning operations handoff digest.",
+         *         "error_message": "example",
+         *         "runtime_meta": {
+         *           "key": "value"
+         *         },
+         *         "created_at": "2026-02-22T17:21:00Z",
+         *         "updated_at": "2026-02-22T17:21:00Z"
+         *       }
+         *     }
+         */
+        AgentRecurringTaskRunResponse: {
+            /**
+             * @description Data.
+             * @example {
+             *       "id": 42,
+             *       "team_id": 42,
+             *       "agent_id": 42,
+             *       "agent_recurring_task_id": 42,
+             *       "scheduled_for": "2026-02-22T17:21:00Z",
+             *       "status": "running",
+             *       "claim_token": "example",
+             *       "prompt_snapshot": "example",
+             *       "schedule_snapshot": {
+             *         "key": "value"
+             *       },
+             *       "started_at": "2026-02-22T17:21:00Z",
+             *       "finished_at": "2026-02-22T17:21:00Z",
+             *       "summary": "Morning operations handoff digest.",
+             *       "error_message": "example",
+             *       "runtime_meta": {
+             *         "key": "value"
+             *       },
+             *       "created_at": "2026-02-22T17:21:00Z",
+             *       "updated_at": "2026-02-22T17:21:00Z"
+             *     }
+             */
+            data: components["schemas"]["AgentRecurringTaskRun"];
         };
         /**
          * @description Brief Entry Summary schema.
@@ -5181,6 +5563,61 @@ export interface components {
             }[]) | null;
         };
         /**
+         * @description Complete Agent Recurring Task Run Api Request request schema.
+         * @example {
+         *       "status": "success",
+         *       "claim_token": "example",
+         *       "summary": "Morning operations handoff digest.",
+         *       "error_message": "example"
+         *     }
+         */
+        CompleteAgentRecurringTaskRunApiRequest: {
+            /**
+             * @description Current lifecycle status for this record. Allowed values: success, error.
+             * @example success
+             * @enum {string}
+             */
+            status: "success" | "error";
+            /**
+             * @description Claim token.
+             * @example example
+             */
+            claim_token: string;
+            /**
+             * @description Optional short summary.
+             * @example Morning operations handoff digest.
+             */
+            summary?: string | null;
+            /**
+             * @description Error message.
+             * @example example
+             */
+            error_message?: string | null;
+            /**
+             * Format: date-time
+             * @description ISO-8601 timestamp for started.
+             * @example 2026-02-22T17:21:00Z
+             */
+            started_at?: string | null;
+            /**
+             * Format: date-time
+             * @description ISO-8601 timestamp for finished.
+             * @example 2026-02-22T17:21:00Z
+             */
+            finished_at?: string | null;
+            /**
+             * @description Additional metadata for Complete Agent Recurring Task Run Api Request.
+             * @example {
+             *       "key": "value"
+             *     }
+             */
+            runtime_meta?: ({
+                [key: string]: unknown;
+            } | {
+                [key: string]: unknown;
+            }[]) | null;
+        };
+        /**
          * @description Heartbeat payload that requires host telemetry and runtime agent state. Runtime clients should send `meta.models` on every heartbeat using current runtime model inventory.
          * @example {
          *       "meta": {
@@ -6538,6 +6975,64 @@ export interface components {
                 "application/json": components["schemas"]["AgentHeartbeatResponse"];
             };
         };
+        /** @description Due recurring task runs claimed. */
+        AgentRecurringTaskDueRunsResponse: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "data": [
+                 *         {
+                 *           "run_id": 42,
+                 *           "task_id": 42,
+                 *           "prompt": "example",
+                 *           "scheduled_for": "2026-02-22T17:21:00Z",
+                 *           "claim_token": "example",
+                 *           "agent_id": 42
+                 *         }
+                 *       ]
+                 *     }
+                 */
+                "application/json": components["schemas"]["AgentRecurringTaskDueRunsResponse"];
+            };
+        };
+        /** @description Recurring task run completion recorded. */
+        AgentRecurringTaskRunResponse: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "data": {
+                 *         "id": 42,
+                 *         "team_id": 42,
+                 *         "agent_id": 42,
+                 *         "agent_recurring_task_id": 42,
+                 *         "scheduled_for": "2026-02-22T17:21:00Z",
+                 *         "status": "running",
+                 *         "claim_token": "example",
+                 *         "prompt_snapshot": "example",
+                 *         "schedule_snapshot": {
+                 *           "key": "value"
+                 *         },
+                 *         "started_at": "2026-02-22T17:21:00Z",
+                 *         "finished_at": "2026-02-22T17:21:00Z",
+                 *         "summary": "Morning operations handoff digest.",
+                 *         "error_message": "example",
+                 *         "runtime_meta": {
+                 *           "key": "value"
+                 *         },
+                 *         "created_at": "2026-02-22T17:21:00Z",
+                 *         "updated_at": "2026-02-22T17:21:00Z"
+                 *       }
+                 *     }
+                 */
+                "application/json": components["schemas"]["AgentRecurringTaskRunResponse"];
+            };
+        };
         /** @description Brief upserted. */
         AgentBriefResponse: {
             headers: {
@@ -7195,6 +7690,22 @@ export interface components {
                  *     }
                  */
                 "application/json": components["schemas"]["CloseAgentRealtimeSessionApiRequest"];
+            };
+        };
+        CompleteAgentRecurringTaskRunApiRequest: {
+            content: {
+                /**
+                 * @example {
+                 *       "status": "success",
+                 *       "claim_token": "e3ec996c-c53f-4bfa-89e3-5d9cbf71397f",
+                 *       "summary": "Scheduled review completed and updated 2 tasks.",
+                 *       "runtime_meta": {
+                 *         "provider": "openclaw",
+                 *         "request_id": "req_01JBPXXRM6JYAVY82ECAQ7QNA4"
+                 *       }
+                 *     }
+                 */
+                "application/json": components["schemas"]["CompleteAgentRecurringTaskRunApiRequest"];
             };
         };
         StoreAgentHeartbeatApiRequest: {

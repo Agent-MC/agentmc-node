@@ -8,6 +8,14 @@ const SUCCESS_STATUS_PATTERN = /^2\d\d$/;
 const ERROR_STATUS_PATTERN = /^[45]\d\d$/;
 const EXCLUDED_OPERATION_IDS = new Set();
 const EXCLUDED_ENDPOINTS = new Set();
+const OPERATION_ID_OVERRIDES = new Map([
+  ["get /agents/recurring-task-runs/due", "listDueRecurringTaskRuns"],
+  ["post /agents/recurring-task-runs/{run}/complete", "completeRecurringTaskRun"]
+]);
+const SECURITY_OVERRIDES = new Map([
+  ["get /agents/recurring-task-runs/due", [["ApiKeyAuth"]]],
+  ["post /agents/recurring-task-runs/{run}/complete", [["ApiKeyAuth"]]]
+]);
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(scriptDir, "..");
@@ -54,6 +62,46 @@ function getOperationSecurity(spec, operation) {
 
 function endpointSignature(pathName, method) {
   return `${method.toLowerCase()} ${pathName}`;
+}
+
+function toPascalCase(value) {
+  return String(value ?? "")
+    .split(/[^A-Za-z0-9]+/)
+    .filter(Boolean)
+    .map((chunk) => chunk.charAt(0).toUpperCase() + chunk.slice(1))
+    .join("");
+}
+
+function inferOperationId(pathName, method) {
+  const override = OPERATION_ID_OVERRIDES.get(endpointSignature(pathName, method));
+  if (override) {
+    return override;
+  }
+
+  const methodPrefixMap = {
+    get: "get",
+    post: "create",
+    put: "update",
+    patch: "patch",
+    delete: "delete"
+  };
+
+  const segments = pathName
+    .split("/")
+    .filter(Boolean)
+    .map((segment) => segment.replace(/[{}]/g, "By"));
+
+  return `${methodPrefixMap[method] ?? "call"}${toPascalCase(segments.join("-"))}`;
+}
+
+function resolveSecurityRequirements(spec, pathName, method, operation) {
+  const override = SECURITY_OVERRIDES.get(endpointSignature(pathName, method));
+  if (override) {
+    return override;
+  }
+
+  const securityRequirements = getOperationSecurity(spec, operation);
+  return securityRequirements.map((requirement) => Object.keys(requirement));
 }
 
 function shouldExcludeOperation(pathName, method, operation) {
@@ -390,7 +438,6 @@ function isErrorStatus(status) {
 
 function buildOperationDefinition(spec, pathName, method, pathItem, operation) {
   const resolvedOperation = deref(spec, operation);
-  const securityRequirements = getOperationSecurity(spec, resolvedOperation);
   const combinedParameters = [
     ...(Array.isArray(pathItem.parameters) ? pathItem.parameters : []),
     ...(Array.isArray(resolvedOperation.parameters) ? resolvedOperation.parameters : [])
@@ -455,13 +502,13 @@ function buildOperationDefinition(spec, pathName, method, pathItem, operation) {
   }
 
   return {
-    operationId: resolvedOperation.operationId,
+    operationId: resolvedOperation.operationId ?? inferOperationId(pathName, method),
     method,
     path: pathName,
     summary: resolvedOperation.summary ?? "",
     description: resolvedOperation.description ?? "",
     tags: resolvedOperation.tags ?? [],
-    security: securityRequirements.map((requirement) => Object.keys(requirement)),
+    security: resolveSecurityRequirements(spec, pathName, method, resolvedOperation),
     parameters: Array.from(parameterByLocation.values()),
     requestBodyRequired: Boolean(requestBody?.required),
     requestExamples,

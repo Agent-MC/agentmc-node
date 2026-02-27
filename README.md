@@ -86,7 +86,7 @@ await client.request('listTasks', {
 ```ts
 import { operations, operationsById } from '@agentmc/api';
 
-console.log(operations.length); // 43
+console.log(operations.length); // 45
 console.log(operationsById.listTasks.path); // /tasks
 ```
 
@@ -150,6 +150,7 @@ Use `AgentRuntimeProgram` to run:
 -   realtime websocket handling (chat/files/notifications)
 -   instruction bundle sync (`getAgentInstructions`)
 -   immediate startup heartbeat plus recurring heartbeat updates (`agentHeartbeat`)
+-   recurring task polling + completion (`listDueRecurringTaskRuns`, `completeRecurringTaskRun`)
 -   runtime health/self-heal loop
 
 ```ts
