@@ -1162,11 +1162,7 @@ export class AgentRuntimeProgram {
     const waitStatus = (nonEmpty(waitResponse.status) ?? "ok").toLowerCase();
     if (waitStatus === "timeout") {
       const timeoutText =
-        extractFirstRuntimeText(waitResponse.content) ??
-        extractFirstRuntimeText(waitResponse.output_text) ??
-        extractFirstRuntimeText(waitResponse.text) ??
-        extractFirstRuntimeText(waitResponse.message) ??
-        extractFirstRuntimeText(waitResponse.response) ??
+        extractFirstRuntimeText(waitResponse) ??
         "Recurring task execution timed out while waiting for completion.";
       return {
         requestId: input.requestId,
@@ -1184,25 +1180,39 @@ export class AgentRuntimeProgram {
         status: "error",
         textSource: "error",
         content:
-          extractFirstRuntimeText(waitResponse.error) ??
+          extractFirstRuntimeText(waitResponse) ??
           `OpenClaw recurring execution failed with status "${waitStatus}".`
       };
     }
 
-    const directText =
-      extractFirstRuntimeText(waitResponse.content) ??
-      extractFirstRuntimeText(waitResponse.output_text) ??
-      extractFirstRuntimeText(waitResponse.text) ??
-      extractFirstRuntimeText(waitResponse.message) ??
-      extractFirstRuntimeText(waitResponse.response) ??
-      "";
+    const directText = extractFirstRuntimeText(waitResponse);
+    if (directText !== null) {
+      return {
+        requestId: input.requestId,
+        runId: submittedRunId,
+        status: "ok",
+        textSource: "wait",
+        content: directText
+      };
+    }
+
+    const historyText = await this.resolveRecurringAssistantTextFromSessionHistory(sessionKey);
+    if (historyText !== null) {
+      return {
+        requestId: input.requestId,
+        runId: submittedRunId,
+        status: "ok",
+        textSource: "session_history",
+        content: historyText
+      };
+    }
 
     return {
       requestId: input.requestId,
       runId: submittedRunId,
       status: "ok",
-      textSource: "wait",
-      content: directText
+      textSource: "fallback",
+      content: "Recurring task run completed, but no assistant response text was returned."
     };
   }
 
@@ -1242,6 +1252,33 @@ export class AgentRuntimeProgram {
     }
 
     return object;
+  }
+
+  private async resolveRecurringAssistantTextFromSessionHistory(sessionKey: string): Promise<string | null> {
+    const runtime = this.realtimeRuntime as
+      | { readLatestAssistantText?: (key: string) => Promise<string | null> }
+      | null;
+
+    if (!runtime || typeof runtime.readLatestAssistantText !== "function") {
+      return null;
+    }
+
+    try {
+      const text = await runtime.readLatestAssistantText(sessionKey);
+      const normalized = nonEmpty(text);
+      if (!normalized) {
+        return null;
+      }
+
+      const sanitized = sanitizeAssistantOutputText(normalized);
+      return sanitized === "" ? null : sanitized;
+    } catch (error) {
+      this.emitInfo("Unable to read recurring session history text", {
+        session_key: sessionKey,
+        reason: normalizeError(error).message
+      });
+      return null;
+    }
   }
 
   private emitInfo(message: string, meta?: JsonObject): void {
@@ -1380,9 +1417,34 @@ function truncateUtf8(
 }
 
 function extractFirstRuntimeText(value: unknown): string | null {
-  const direct = nonEmpty(value);
-  if (direct) {
-    return direct;
+  const extracted = extractRuntimeText(value, 0);
+  if (!extracted) {
+    return null;
+  }
+
+  const sanitized = sanitizeAssistantOutputText(extracted);
+  return sanitized === "" ? null : sanitized;
+}
+
+function extractRuntimeText(value: unknown, depth: number): string | null {
+  if (depth > 8 || value === null || value === undefined) {
+    return null;
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed === "" ? null : trimmed;
+  }
+
+  if (Array.isArray(value)) {
+    for (let index = value.length - 1; index >= 0; index -= 1) {
+      const nested = extractRuntimeText(value[index], depth + 1);
+      if (nested) {
+        return nested;
+      }
+    }
+
+    return null;
   }
 
   const object = valueAsObject(value);
@@ -1390,14 +1452,82 @@ function extractFirstRuntimeText(value: unknown): string | null {
     return null;
   }
 
-  return (
-    nonEmpty(object.content) ??
-    nonEmpty(object.output_text) ??
-    nonEmpty(object.text) ??
-    nonEmpty(object.message) ??
-    nonEmpty(object.response) ??
-    null
-  );
+  const preferredKeys = [
+    "content",
+    "output_text",
+    "final_text",
+    "text",
+    "message",
+    "response",
+    "output",
+    "delta",
+    "error",
+    "result",
+    "data",
+    "payload",
+    "item",
+    "entry",
+    "messages",
+    "history",
+    "events"
+  ] as const;
+
+  for (const key of preferredKeys) {
+    const nested = extractRuntimeText(object[key], depth + 1);
+    if (nested) {
+      return nested;
+    }
+  }
+
+  for (const nestedValue of Object.values(object)) {
+    if (!Array.isArray(nestedValue) && !valueAsObject(nestedValue)) {
+      continue;
+    }
+
+    const nested = extractRuntimeText(nestedValue, depth + 1);
+    if (nested) {
+      return nested;
+    }
+  }
+
+  return null;
+}
+
+function sanitizeAssistantOutputText(value: string): string {
+  let text = value.trim();
+  if (text === "") {
+    return "";
+  }
+
+  const replyToCurrentPattern = /^\s*\[\[\s*reply_to_current\s*\]\]\s*/i;
+  const replyToPattern = /^\s*\[\[\s*reply_to\s*:\s*[^\]]+\]\]\s*/i;
+
+  while (true) {
+    const stripped = text
+      .replace(replyToCurrentPattern, "")
+      .replace(replyToPattern, "");
+    if (stripped === text) {
+      break;
+    }
+    text = stripped;
+  }
+
+  return sanitizeAssistantReply(text);
+}
+
+function sanitizeAssistantReply(value: string): string {
+  let text = value.trim();
+  if (text === "") {
+    return "";
+  }
+
+  text = text
+    .replace(/^```(?:assistant|response|reply)?\s*/i, "")
+    .replace(/\s*```$/i, "")
+    .replace(/^(assistant|response|reply)\s*[:>\-]\s*/i, "")
+    .replace(/^`+\s*/, "");
+
+  return text.trim();
 }
 
 function parseClaimedRecurringTaskRun(value: unknown): ClaimedRecurringTaskRun | null {
