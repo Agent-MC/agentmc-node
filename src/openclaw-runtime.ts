@@ -18,7 +18,7 @@ import type {
 const execFileAsync = promisify(execFile);
 
 const DEFAULT_REQUESTED_SESSION_LIMIT = 20;
-const DEFAULT_REQUEST_POLL_MS = 1_200;
+const DEFAULT_REQUEST_POLL_MS = 250;
 const DEFAULT_FALLBACK_SIGNAL_POLL_MS = 1_000;
 const DEFAULT_CATCHUP_SIGNAL_POLL_MS = 15_000;
 const DEFAULT_SIGNAL_POLL_LIMIT = 100;
@@ -326,6 +326,16 @@ export class OpenClawAgentRuntime {
   }
 
   private async runLoop(): Promise<void> {
+    try {
+      await this.options.client.prewarmRealtimeTransport();
+    } catch (error) {
+      await this.emitError(
+        new Error(
+          `Realtime transport prewarm failed; continuing without prewarm. ${normalizeError(error).message}`
+        )
+      );
+    }
+
     while (!this.stopRequested) {
       const nowMs = Date.now();
       if (this.options.realtimeSessionsEnabled && nowMs >= this.nextRequestedPollAtMs) {

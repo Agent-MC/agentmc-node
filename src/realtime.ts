@@ -39,6 +39,8 @@ interface PusherOptions {
 }
 
 type PusherConstructor = new (key: string, options: PusherOptions) => PusherClient;
+let pusherConstructorPromise: Promise<PusherConstructor> | null = null;
+
 const DEFAULT_REALTIME_SIGNAL_TYPE = "message";
 const DEFAULT_REALTIME_MAX_PAYLOAD_BYTES = 9_000;
 const DEFAULT_REALTIME_MAX_ENVELOPE_BYTES = 10_000;
@@ -122,6 +124,10 @@ export interface AgentRealtimePublishMessageResult {
   chunkId: string | null;
   signalType: string;
   channelType: string;
+}
+
+export async function prewarmRealtimeTransport(): Promise<void> {
+  await loadPusherConstructor();
 }
 
 class RealtimeNotificationsSubscription implements AgentRealtimeNotificationsSubscription {
@@ -646,19 +652,31 @@ async function resolveAndClaimSession(
 }
 
 async function loadPusherConstructor(): Promise<PusherConstructor> {
-  const fromNode = await import("pusher-js/node").catch(() => null);
-  const pusherFromNode = maybePusherConstructor(fromNode);
-  if (pusherFromNode) {
-    return pusherFromNode;
+  if (pusherConstructorPromise) {
+    return pusherConstructorPromise;
   }
 
-  const fromRoot = await import("pusher-js");
-  const pusherFromRoot = maybePusherConstructor(fromRoot);
-  if (pusherFromRoot) {
-    return pusherFromRoot;
-  }
+  pusherConstructorPromise = (async () => {
+    const fromNode = await import("pusher-js/node").catch(() => null);
+    const pusherFromNode = maybePusherConstructor(fromNode);
+    if (pusherFromNode) {
+      return pusherFromNode;
+    }
 
-  throw new Error("Unable to load pusher-js runtime. Ensure pusher-js is installed.");
+    const fromRoot = await import("pusher-js");
+    const pusherFromRoot = maybePusherConstructor(fromRoot);
+    if (pusherFromRoot) {
+      return pusherFromRoot;
+    }
+
+    throw new Error("Unable to load pusher-js runtime. Ensure pusher-js is installed.");
+  })();
+
+  pusherConstructorPromise.catch(() => {
+    pusherConstructorPromise = null;
+  });
+
+  return pusherConstructorPromise;
 }
 
 function maybePusherConstructor(moduleValue: unknown): PusherConstructor | null {

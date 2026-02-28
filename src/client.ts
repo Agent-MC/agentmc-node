@@ -2,6 +2,7 @@ import createClient from "openapi-fetch";
 
 import { operations, operationsById, type OperationDefinition, type OperationId } from "./generated/operations";
 import {
+  prewarmRealtimeTransport,
   publishRealtimeMessage,
   type AgentRealtimePublishMessageOptions,
   type AgentRealtimePublishMessageResult,
@@ -87,6 +88,10 @@ export class AgentMCApi {
 
   async publishRealtimeMessage(options: AgentRealtimePublishMessageOptions): Promise<AgentRealtimePublishMessageResult> {
     return publishRealtimeMessage(this, options);
+  }
+
+  async prewarmRealtimeTransport(): Promise<void> {
+    await prewarmRealtimeTransport();
   }
 
   async request<Id extends OperationId>(operationId: Id, options?: RequestOptionsById<Id>): Promise<ResultById<Id>> {

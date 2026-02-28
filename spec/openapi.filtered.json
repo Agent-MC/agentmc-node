@@ -11489,6 +11489,7 @@
           "mime_type": {
             "type": "string",
             "maxLength": 255,
+            "pattern": "^[a-z0-9!#$&^_.+-]+\\/[a-z0-9!#$&^_.+-]+$",
             "description": "Mime type.",
             "example": "example"
           },
