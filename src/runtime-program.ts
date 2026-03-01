@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { mkdir, readFile, statfs, writeFile } from "node:fs/promises";
 import { arch, cpus, hostname, networkInterfaces, platform, release, totalmem, uptime } from "node:os";
-import { basename, dirname, resolve } from "node:path";
+import { basename, delimiter, dirname, join, resolve } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { promisify } from "node:util";
 
@@ -30,6 +30,13 @@ const RECURRING_TASK_GATEWAY_TIMEOUT_BUFFER_MS = 30_000;
 const RECURRING_TASK_SUMMARY_MAX_LENGTH = 4_000;
 const RECURRING_TASK_AGENT_RESPONSE_MAX_BYTES = 24_000;
 const DEFAULT_AGENT_PROFILE_TYPE = "runtime";
+const DEFAULT_OPENCLAW_COMMAND = "openclaw";
+const OPENCLAW_COMMAND_FALLBACK_PATHS: readonly string[] = [
+  "/usr/bin/openclaw",
+  "/usr/local/bin/openclaw",
+  "/opt/homebrew/bin/openclaw",
+  "/bin/openclaw"
+];
 
 type JsonObject = Record<string, unknown>;
 
@@ -143,6 +150,7 @@ export class AgentRuntimeProgram {
   private cachedOpenClawTelemetryCommandArgs: string[] | null = null;
   private lastOpenClawTelemetryError: string | null = null;
   private lastOpenClawIdentityError: string | null = null;
+  private resolvedOpenClawCommand: string | null = null;
 
   constructor(options: AgentRuntimeProgramOptions = {}) {
     this.options = options;
@@ -381,11 +389,9 @@ export class AgentRuntimeProgram {
   }
 
   private async resolveOpenClawProvider(strict: boolean): Promise<RuntimeProviderDescriptor> {
-    const command = nonEmpty(this.options.openclawCommand) ?? "openclaw";
-    const commandExists = await canExecute(command, ["--version"]);
-
-    if (!commandExists) {
-      throw new Error(`OpenClaw command is not available: ${command}`);
+    const command = await this.resolveOpenClawCommand({ strict: true });
+    if (!command) {
+      throw new Error("OpenClaw command resolution returned no executable command.");
     }
 
     const versionOutput = await execCapture(command, ["--version"]);
@@ -414,6 +420,39 @@ export class AgentRuntimeProgram {
       machineIdentityResolver: (fallbackName, fallbackIdentity) =>
         this.resolveOpenClawMachineIdentitySnapshot(fallbackName, fallbackIdentity)
     };
+  }
+
+  private async resolveOpenClawCommand(options: { strict?: boolean } = {}): Promise<string | null> {
+    if (this.resolvedOpenClawCommand) {
+      return this.resolvedOpenClawCommand;
+    }
+
+    const configured = nonEmpty(this.options.openclawCommand);
+    const candidates = resolveOpenClawCommandCandidates(configured);
+
+    for (const candidate of candidates) {
+      if (!(await canExecute(candidate, ["--version"]))) {
+        continue;
+      }
+
+      this.resolvedOpenClawCommand = candidate;
+      if (configured && candidate !== configured) {
+        this.emitInfo("Configured OPENCLAW_CMD is unavailable; using discovered OpenClaw command", {
+          configured_command: configured,
+          resolved_command: candidate
+        });
+      }
+      return candidate;
+    }
+
+    const checked = candidates.length > 0 ? candidates.join(", ") : "(none)";
+    if (options.strict) {
+      throw new Error(
+        `OpenClaw command is not available. Checked: ${checked}. Set OPENCLAW_CMD to an executable path if needed.`
+      );
+    }
+
+    return null;
   }
 
   private async resolveOpenClawModels(command: string): Promise<string[]> {
@@ -588,10 +627,14 @@ export class AgentRuntimeProgram {
     fallbackName: string,
     fallbackIdentity: JsonObject | string
   ): Promise<RuntimeMachineIdentitySnapshot | null> {
-    const command = nonEmpty(this.options.openclawCommand) ?? "openclaw";
     const openclawAgent = normalizeOpenClawAgentName(this.options.openclawAgent);
 
     try {
+      const command = await this.resolveOpenClawCommand();
+      if (!command) {
+        return null;
+      }
+
       const output = await execCapture(command, ["agents", "list", "--json"], {
         timeoutMs: OPENCLAW_TELEMETRY_TIMEOUT_MS
       });
@@ -780,8 +823,8 @@ export class AgentRuntimeProgram {
   }
 
   private async resolveOpenClawHeartbeatTelemetry(provider: RuntimeProviderDescriptor): Promise<JsonObject> {
-    const command = nonEmpty(this.options.openclawCommand) ?? "openclaw";
-    const snapshots = await this.loadOpenClawTelemetrySnapshots(command);
+    const command = await this.resolveOpenClawCommand();
+    const snapshots = await this.loadOpenClawTelemetrySnapshots(command ?? DEFAULT_OPENCLAW_COMMAND);
     if (snapshots.length === 0) {
       return {};
     }
@@ -1224,7 +1267,10 @@ export class AgentRuntimeProgram {
     input: AgentRuntimeRunInput,
     claimed: ClaimedRecurringTaskRun
   ): Promise<AgentRuntimeRunResult> {
-    const command = nonEmpty(this.options.openclawCommand) ?? "openclaw";
+    const command = await this.resolveOpenClawCommand({ strict: true });
+    if (!command) {
+      throw new Error("OpenClaw command resolution returned no executable command.");
+    }
     const openclawAgent = normalizeOpenClawAgentName(this.options.openclawAgent);
     const recurringExecutionId = `agentmc-recurring-${claimed.runId}`;
     const sessionKey = `agent:${openclawAgent}:agentmc:recurring:${claimed.taskId}`;
@@ -1679,6 +1725,89 @@ async function canExecute(command: string, args: string[]): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+function resolveOpenClawCommandCandidates(configured: string | null): string[] {
+  const candidates = new Set<string>();
+
+  const add = (value: string | null): void => {
+    const command = nonEmpty(value);
+    if (!command) {
+      return;
+    }
+    candidates.add(command);
+  };
+
+  add(configured);
+
+  for (const command of resolveExecutablePathsFromEnvPath(DEFAULT_OPENCLAW_COMMAND)) {
+    add(command);
+  }
+
+  add(DEFAULT_OPENCLAW_COMMAND);
+
+  for (const command of OPENCLAW_COMMAND_FALLBACK_PATHS) {
+    add(command);
+  }
+
+  return Array.from(candidates);
+}
+
+function resolveExecutablePathsFromEnvPath(commandName: string): string[] {
+  const pathValue = nonEmpty(process.env.PATH);
+  if (!pathValue) {
+    return [];
+  }
+
+  const candidates = new Set<string>();
+  const executableNames = resolveExecutableNameVariants(commandName);
+
+  for (const rawDir of pathValue.split(delimiter)) {
+    const dir = rawDir.trim();
+    if (!dir) {
+      continue;
+    }
+
+    for (const executableName of executableNames) {
+      const fullPath = join(dir, executableName);
+      if (existsSync(fullPath)) {
+        candidates.add(fullPath);
+      }
+    }
+  }
+
+  return Array.from(candidates);
+}
+
+function resolveExecutableNameVariants(commandName: string): string[] {
+  const normalized = nonEmpty(commandName);
+  if (!normalized) {
+    return [];
+  }
+
+  if (process.platform !== "win32") {
+    return [normalized];
+  }
+
+  const candidates = new Set<string>([normalized]);
+  const pathExt = nonEmpty(process.env.PATHEXT) ?? ".EXE;.CMD;.BAT;.COM";
+
+  for (const ext of pathExt.split(";")) {
+    const suffix = ext.trim();
+    if (!suffix) {
+      continue;
+    }
+
+    const lowerSuffix = suffix.toLowerCase();
+    if (normalized.toLowerCase().endsWith(lowerSuffix)) {
+      candidates.add(normalized);
+      continue;
+    }
+
+    candidates.add(`${normalized}${lowerSuffix}`);
+  }
+
+  return Array.from(candidates);
 }
 
 async function execCapture(

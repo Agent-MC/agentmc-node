@@ -188,6 +188,8 @@ Required env:
 -   Runtime provider inputs:
     -   OpenClaw auto-detect (must resolve at least one runtime model), or
     -   `AGENTMC_RUNTIME_COMMAND` + `AGENTMC_MODELS`
+-   Optional OpenClaw command override: `OPENCLAW_CMD`
+    -   If unset (or invalid), runtime checks `openclaw` on `PATH`, then common absolute paths (`/usr/bin/openclaw`, `/usr/local/bin/openclaw`, `/opt/homebrew/bin/openclaw`, `/bin/openclaw`).
 -   `AGENTMC_MODELS` (comma-separated, for example `openai/gpt-5-codex`) is required whenever model auto-detection is unavailable. Heartbeats require at least one runtime model in `meta.models`.
 -   Optional agent profile overrides: `AGENTMC_AGENT_NAME`, `AGENTMC_AGENT_TYPE`, `AGENTMC_AGENT_EMOJI`
     -   If these values are unset, OpenClaw runtimes attempt `openclaw agents list --json` for name/identity first, then fall back to `name=agent-<AGENTMC_AGENT_ID>` and `type=runtime`.
