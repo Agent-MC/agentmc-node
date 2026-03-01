@@ -28,11 +28,11 @@ test("resolveAgentProfile falls back when API lookup and configured profile are 
 
   assert.equal(profile.id, 42);
   assert.equal(profile.name, "agent-42");
-  assert.equal(profile.type, "runtime");
+  assert.equal(profile.type, "codex");
   assert.deepEqual(profile.identity, { name: "agent-42" });
 });
 
-test("resolveAgentProfile keeps configured name and falls back type when options.agentType is missing", async () => {
+test("resolveAgentProfile keeps configured name and resolves type from provider when options.agentType is missing", async () => {
   const runtime = new AgentRuntimeProgram({
     client: { operations: {} },
     agentName: "worker-alpha"
@@ -41,7 +41,7 @@ test("resolveAgentProfile keeps configured name and falls back type when options
 
   assert.equal(profile.id, 7);
   assert.equal(profile.name, "worker-alpha");
-  assert.equal(profile.type, "runtime");
+  assert.equal(profile.type, "codex");
   assert.deepEqual(profile.identity, { name: "worker-alpha" });
 });
 
@@ -75,7 +75,7 @@ test("resolveAgentProfile prefers OpenClaw machine snapshot name before syntheti
 
   assert.equal(profile.id, 9);
   assert.equal(profile.name, "openclaw-alpha");
-  assert.equal(profile.type, "runtime");
+  assert.equal(profile.type, "openclaw");
   assert.equal(profile.emoji, "🦞");
   assert.deepEqual(profile.identity, { name: "openclaw-alpha", emoji: "🦞" });
 });

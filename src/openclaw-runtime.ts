@@ -101,6 +101,12 @@ export interface OpenClawRuntimeConnectionStateEvent {
   state: AgentRealtimeConnectionState;
 }
 
+export interface OpenClawRuntimeDebugEvent {
+  event: string;
+  at: string;
+  details: JsonObject;
+}
+
 export interface AgentRuntimeRunInput {
   sessionId: number;
   requestId: string;
@@ -156,6 +162,7 @@ export interface OpenClawAgentRuntimeOptions {
   onNotificationBridge?: (event: OpenClawRuntimeNotificationBridgeEvent) => MaybePromise;
   onConnectionStateChange?: (event: OpenClawRuntimeConnectionStateEvent) => MaybePromise;
   onUnhandledMessage?: (event: OpenClawRuntimeUnhandledMessageEvent) => MaybePromise;
+  onDebug?: (event: OpenClawRuntimeDebugEvent) => MaybePromise;
   onError?: (error: Error) => MaybePromise;
 }
 
@@ -216,6 +223,7 @@ interface ResolvedOptions {
   onNotificationBridge?: (event: OpenClawRuntimeNotificationBridgeEvent) => MaybePromise;
   onConnectionStateChange?: (event: OpenClawRuntimeConnectionStateEvent) => MaybePromise;
   onUnhandledMessage?: (event: OpenClawRuntimeUnhandledMessageEvent) => MaybePromise;
+  onDebug?: (event: OpenClawRuntimeDebugEvent) => MaybePromise;
   onError?: (error: Error) => MaybePromise;
 }
 
@@ -694,6 +702,15 @@ export class OpenClawAgentRuntime {
     }
 
     if (channelType === "agent.profile.update") {
+      await this.emitDebug("agent.profile.update.signal", {
+        session_id: state.sessionId,
+        source,
+        request_id:
+          valueAsString(channelPayload.request_id)?.trim() ||
+          valueAsString(payload.request_id)?.trim() ||
+          null,
+        payload_keys: Object.keys(channelPayload).slice(0, 12)
+      });
       await this.handleAgentProfileUpdate(state, payload, channelPayload);
       return;
     }
@@ -1363,11 +1380,30 @@ export class OpenClawAgentRuntime {
     const emoji = normalizeAgentProfileEmoji(rawEmoji);
     const dedupeKey = `agent.profile.update:${requestId}`;
 
+    await this.emitDebug("agent.profile.update.received", {
+      session_id: state.sessionId,
+      request_id: requestIdFromPayload || null,
+      generated_request_id: requestIdFromPayload ? null : requestId,
+      has_name: hasName,
+      has_emoji: hasEmoji,
+      normalized_name: name,
+      normalized_emoji: emoji
+    });
+
     if (!shouldProcessInboundKey(state, dedupeKey, this.options.duplicateTtlMs)) {
+      await this.emitDebug("agent.profile.update.deduped", {
+        session_id: state.sessionId,
+        request_id: requestId
+      });
       return;
     }
 
     if (!requestIdFromPayload) {
+      await this.emitDebug("agent.profile.update.rejected", {
+        session_id: state.sessionId,
+        request_id: requestId,
+        reason: "request_id_missing"
+      });
       await this.publishChannelMessage(state.sessionId, "agent.profile.error", requestId, {
         code: "invalid_request",
         error: "request_id is required"
@@ -1376,6 +1412,11 @@ export class OpenClawAgentRuntime {
     }
 
     if (!hasName && !hasEmoji) {
+      await this.emitDebug("agent.profile.update.rejected", {
+        session_id: state.sessionId,
+        request_id: requestId,
+        reason: "name_or_emoji_required"
+      });
       await this.publishChannelMessage(state.sessionId, "agent.profile.error", requestId, {
         code: "invalid_request",
         error: "name or emoji is required"
@@ -1384,6 +1425,11 @@ export class OpenClawAgentRuntime {
     }
 
     if (hasName && !name) {
+      await this.emitDebug("agent.profile.update.rejected", {
+        session_id: state.sessionId,
+        request_id: requestId,
+        reason: "name_invalid"
+      });
       await this.publishChannelMessage(state.sessionId, "agent.profile.error", requestId, {
         code: "invalid_request",
         error: "name must be a non-empty string when provided"
@@ -1392,6 +1438,11 @@ export class OpenClawAgentRuntime {
     }
 
     if (hasEmoji && rawEmoji === null) {
+      await this.emitDebug("agent.profile.update.rejected", {
+        session_id: state.sessionId,
+        request_id: requestId,
+        reason: "emoji_invalid"
+      });
       await this.publishChannelMessage(state.sessionId, "agent.profile.error", requestId, {
         code: "invalid_request",
         error: "emoji must be a string when provided"
@@ -1400,10 +1451,16 @@ export class OpenClawAgentRuntime {
     }
 
     try {
+      await this.emitDebug("agent.profile.update.exec.start", {
+        session_id: state.sessionId,
+        request_id: requestId,
+        openclaw_command: this.options.openclawCommand,
+        openclaw_agent: this.options.openclawAgent
+      });
       const updatedProfile = await this.updateOpenClawAgentIdentity({
         ...(hasName ? { name: name ?? null } : {}),
         ...(hasEmoji ? { emoji } : {})
-      });
+      }, requestId);
 
       await this.publishChannelMessage(state.sessionId, "agent.profile.updated", requestId, {
         provider: "openclaw",
@@ -1414,10 +1471,26 @@ export class OpenClawAgentRuntime {
         },
         message: "Profile updated on runtime. Heartbeat sync pending."
       });
+      await this.emitDebug("agent.profile.update.ack.sent", {
+        session_id: state.sessionId,
+        request_id: requestId,
+        channel_type: "agent.profile.updated"
+      });
     } catch (error) {
       const normalized = normalizeError(error);
+      await this.emitDebug("agent.profile.update.exec.failed", {
+        session_id: state.sessionId,
+        request_id: requestId,
+        error: normalized.message
+      });
       await this.publishChannelMessage(state.sessionId, "agent.profile.error", requestId, {
         code: "command_failed",
+        error: normalized.message
+      });
+      await this.emitDebug("agent.profile.update.ack.sent", {
+        session_id: state.sessionId,
+        request_id: requestId,
+        channel_type: "agent.profile.error",
         error: normalized.message
       });
       await this.emitError(normalized);
@@ -1427,7 +1500,7 @@ export class OpenClawAgentRuntime {
   private async updateOpenClawAgentIdentity(input: {
     name?: string | null;
     emoji?: string | null;
-  }): Promise<{ name: string | null; emoji: string | null }> {
+  }, requestId: string): Promise<{ name: string | null; emoji: string | null }> {
     const args = ["agents", "set-identity", "--agent", this.options.openclawAgent];
 
     if (typeof input.name === "string" && input.name.trim() !== "") {
@@ -1442,10 +1515,33 @@ export class OpenClawAgentRuntime {
       throw new Error("agent profile update requires at least one field.");
     }
 
-    await execFileAsync(this.options.openclawCommand, args, {
-      timeout: this.options.openclawGatewayTimeoutMs,
-      maxBuffer: this.options.openclawMaxBufferBytes
+    const startedAtMs = Date.now();
+    await this.emitDebug("agent.profile.update.exec.command", {
+      request_id: requestId,
+      command: this.options.openclawCommand,
+      args
     });
+
+    try {
+      const result = await execFileAsync(this.options.openclawCommand, args, {
+        timeout: this.options.openclawGatewayTimeoutMs,
+        maxBuffer: this.options.openclawMaxBufferBytes
+      });
+      await this.emitDebug("agent.profile.update.exec.command_result", {
+        request_id: requestId,
+        duration_ms: Date.now() - startedAtMs,
+        stdout_preview: previewText(result.stdout),
+        stderr_preview: previewText(result.stderr)
+      });
+    } catch (error) {
+      const normalized = normalizeError(error);
+      await this.emitDebug("agent.profile.update.exec.command_failed", {
+        request_id: requestId,
+        duration_ms: Date.now() - startedAtMs,
+        error: normalized.message
+      });
+      throw error;
+    }
 
     return {
       name: typeof input.name === "string" && input.name.trim() !== "" ? input.name : null,
@@ -1624,6 +1720,18 @@ export class OpenClawAgentRuntime {
     await callErrorHandler(this.options.onError, error);
   }
 
+  private async emitDebug(event: string, details: JsonObject = {}): Promise<void> {
+    await callOptionalHandler(
+      this.options.onDebug,
+      {
+        event,
+        at: new Date().toISOString(),
+        details
+      },
+      this.options.onError
+    );
+  }
+
   private shouldProcessNotificationKey(key: string): boolean {
     return shouldProcessCacheKey(this.processedNotificationKeys, key, this.options.duplicateTtlMs);
   }
@@ -1638,6 +1746,7 @@ export type AgentRuntimeNotificationBridgeEvent = OpenClawRuntimeNotificationBri
 export type AgentRuntimeNotificationBridgeRunResult = OpenClawRuntimeNotificationBridgeRunResult;
 export type AgentRuntimeUnhandledMessageEvent = OpenClawRuntimeUnhandledMessageEvent;
 export type AgentRuntimeConnectionStateEvent = OpenClawRuntimeConnectionStateEvent;
+export type AgentRuntimeDebugEvent = OpenClawRuntimeDebugEvent;
 
 export class AgentRuntime extends OpenClawAgentRuntime {}
 
@@ -1732,6 +1841,7 @@ function resolveOptions(options: OpenClawAgentRuntimeOptions): ResolvedOptions {
     onNotificationBridge: options.onNotificationBridge,
     onConnectionStateChange: options.onConnectionStateChange,
     onUnhandledMessage: options.onUnhandledMessage,
+    onDebug: options.onDebug,
     onError: options.onError
   };
 }
@@ -1864,6 +1974,23 @@ function normalizePositiveInt(value: number | undefined, fallback: number): numb
 
 function normalizeLowercase(value: unknown): string {
   return valueAsString(value)?.trim().toLowerCase() || "";
+}
+
+function previewText(value: unknown, max = 220): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (trimmed === "") {
+    return null;
+  }
+
+  if (trimmed.length <= max) {
+    return trimmed;
+  }
+
+  return `${trimmed.slice(0, Math.max(1, max - 3))}...`;
 }
 
 function parseGatewayJson(stdout: string): JsonObject {

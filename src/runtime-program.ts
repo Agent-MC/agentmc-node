@@ -30,7 +30,6 @@ const OPENCLAW_GATEWAY_EXEC_TIMEOUT_FLOOR_MS = 120_000;
 const RECURRING_TASK_GATEWAY_TIMEOUT_BUFFER_MS = 30_000;
 const RECURRING_TASK_SUMMARY_MAX_LENGTH = 4_000;
 const RECURRING_TASK_AGENT_RESPONSE_MAX_BYTES = 24_000;
-const DEFAULT_AGENT_PROFILE_TYPE = "runtime";
 const DEFAULT_OPENCLAW_COMMAND = "openclaw";
 const DEFAULT_PUBLIC_IP_ENDPOINT_CANDIDATES: readonly string[] = [
   "https://api.ipify.org?format=json",
@@ -557,7 +556,7 @@ export class AgentRuntimeProgram {
     );
 
     const profileName = nonEmpty(machineSnapshot?.name) ?? fallbackName;
-    const resolvedType = configuredType ?? DEFAULT_AGENT_PROFILE_TYPE;
+    const resolvedType = configuredType ?? resolveAgentTypeFromProvider(provider);
     const fallbackEmoji = configuredEmoji ?? extractIdentityEmoji(fallbackIdentity);
     const identityCandidate = machineSnapshot?.identity ?? fallbackIdentity;
     const profileEmoji = machineSnapshot?.emoji ?? fallbackEmoji ?? extractIdentityEmoji(identityCandidate);
@@ -569,7 +568,7 @@ export class AgentRuntimeProgram {
       this.emitInfo("Agent profile fallback metadata applied", {
         fallback_name: usingFallbackName ? profileName : null,
         fallback_type: usingFallbackType ? resolvedType : null,
-        guidance: "Pass options.agentName and options.agentType to override defaults."
+        guidance: "Pass options.agentName and options.agentType to override resolved profile values."
       });
     }
 
@@ -2519,6 +2518,14 @@ function normalizePathToken(value: unknown): string {
     .replace(/\\/g, "/")
     .replace(/\/+$/, "")
     .toLowerCase();
+}
+
+function resolveAgentTypeFromProvider(provider: RuntimeProviderDescriptor): string {
+  if (provider.kind === "openclaw") {
+    return "openclaw";
+  }
+
+  return provider.name;
 }
 
 function normalizeAgentLookupToken(value: unknown): string {

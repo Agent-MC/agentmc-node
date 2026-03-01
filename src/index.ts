@@ -29,12 +29,14 @@ export {
   type OpenClawAgentRuntimeOptions,
   type OpenClawAgentRuntimeStatus,
   type OpenClawRuntimeConnectionStateEvent,
+  type OpenClawRuntimeDebugEvent,
   type OpenClawRuntimeDocRecord,
   type OpenClawRuntimeNotificationEvent,
   type OpenClawRuntimeNotificationBridgeEvent,
   type OpenClawRuntimeNotificationBridgeRunResult,
   type OpenClawRuntimeSignalEvent,
-  type OpenClawRuntimeUnhandledMessageEvent
+  type OpenClawRuntimeUnhandledMessageEvent,
+  type AgentRuntimeDebugEvent
 } from "./openclaw-runtime";
 export { AgentRuntimeProgram, type AgentRuntimeProgramOptions } from "./runtime-program";
 export type {
