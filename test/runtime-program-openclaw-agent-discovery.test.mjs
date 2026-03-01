@@ -119,3 +119,62 @@ exit 2
     }
   });
 });
+
+test("OpenClaw machine identity can resolve from OPENCLAW_CONFIG_PATH when command is unavailable", async () => {
+  await withTempDir(async (dir) => {
+    const configPath = join(dir, "openclaw.json");
+    const previousConfigPath = process.env.OPENCLAW_CONFIG_PATH;
+    const previousPath = process.env.PATH;
+
+    await writeFile(
+      configPath,
+      JSON.stringify(
+        {
+          agents: {
+            list: [
+              {
+                id: "main",
+                name: "Config Only Main",
+                identity: {
+                  name: "Config Only Main",
+                  emoji: "🛰️"
+                }
+              }
+            ]
+          }
+        },
+        null,
+        2
+      ),
+      "utf8"
+    );
+
+    try {
+      process.env.OPENCLAW_CONFIG_PATH = configPath;
+      process.env.PATH = "";
+
+      const runtime = new AgentRuntimeProgram({
+        client: { operations: {} },
+        openclawCommand: "/not/available/openclaw"
+      });
+
+      const snapshot = await runtime.resolveOpenClawMachineIdentitySnapshot("", { name: "fallback" });
+
+      assert.equal(snapshot?.name, "Config Only Main");
+      assert.equal(snapshot?.emoji, "🛰️");
+      assert.deepEqual(snapshot?.identity, { name: "Config Only Main", emoji: "🛰️" });
+    } finally {
+      if (typeof previousConfigPath === "string") {
+        process.env.OPENCLAW_CONFIG_PATH = previousConfigPath;
+      } else {
+        delete process.env.OPENCLAW_CONFIG_PATH;
+      }
+
+      if (typeof previousPath === "string") {
+        process.env.PATH = previousPath;
+      } else {
+        delete process.env.PATH;
+      }
+    }
+  });
+});

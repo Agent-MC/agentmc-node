@@ -632,10 +632,6 @@ export class AgentRuntimeProgram {
 
     try {
       const command = await this.resolveOpenClawCommand();
-      if (!command) {
-        return null;
-      }
-
       const rows = await this.resolveOpenClawAgentRows(command);
       if (rows.length === 0) {
         return null;
@@ -681,7 +677,7 @@ export class AgentRuntimeProgram {
     }
   }
 
-  private async resolveOpenClawAgentRows(command: string): Promise<JsonObject[]> {
+  private async resolveOpenClawAgentRows(command: string | null): Promise<JsonObject[]> {
     const discoveryCommands: Array<{ args: string[]; label: string }> = [
       { args: ["agents", "list", "--json"], label: "agents list --json" },
       { args: ["gateway", "call", "agents.list", "--json"], label: "gateway call agents.list --json" },
@@ -693,27 +689,31 @@ export class AgentRuntimeProgram {
     ];
     const errors: string[] = [];
 
-    for (const candidate of discoveryCommands) {
-      try {
-        const output = await execCapture(command, candidate.args, {
-          timeoutMs: OPENCLAW_AGENT_DISCOVERY_TIMEOUT_MS
-        });
-        const parsed = parseJsonUnknown(output.stdout) ?? parseJsonUnknown(output.stderr);
-        const payload = valueAsObject(parsed);
-        if (!payload) {
-          errors.push(`${candidate.label}: command output did not contain a JSON object.`);
-          continue;
-        }
+    if (command) {
+      for (const candidate of discoveryCommands) {
+        try {
+          const output = await execCapture(command, candidate.args, {
+            timeoutMs: OPENCLAW_AGENT_DISCOVERY_TIMEOUT_MS
+          });
+          const parsed = parseJsonUnknown(output.stdout) ?? parseJsonUnknown(output.stderr);
+          const payload = valueAsObject(parsed);
+          if (!payload) {
+            errors.push(`${candidate.label}: command output did not contain a JSON object.`);
+            continue;
+          }
 
-        const rows = extractOpenClawAgentRows(payload);
-        if (rows.length > 0) {
-          return rows;
-        }
+          const rows = extractOpenClawAgentRows(payload);
+          if (rows.length > 0) {
+            return rows;
+          }
 
-        errors.push(`${candidate.label}: no agent rows found in JSON output.`);
-      } catch (error) {
-        errors.push(`${candidate.label}: ${normalizeError(error).message}`);
+          errors.push(`${candidate.label}: no agent rows found in JSON output.`);
+        } catch (error) {
+          errors.push(`${candidate.label}: ${normalizeError(error).message}`);
+        }
       }
+    } else {
+      errors.push("openclaw command was not executable in runtime environment; skipping command-based discovery.");
     }
 
     const configPathCandidates = resolveOpenClawConfigPathCandidates(this.options.openclawSessionsPath, this.workspaceDir);
