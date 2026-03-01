@@ -505,13 +505,12 @@ export class AgentRuntimeProgram {
   }
 
   private async resolveAgentProfile(agentId: number, provider: RuntimeProviderDescriptor): Promise<AgentProfile> {
-    const listed = await this.resolveAgentProfileFromApi(agentId);
     const envName = nonEmpty(process.env.AGENTMC_AGENT_NAME);
     const envType = nonEmpty(process.env.AGENTMC_AGENT_TYPE);
     const envEmoji = nonEmpty(process.env.AGENTMC_AGENT_EMOJI);
 
-    const nameHint = listed?.name ?? envName;
-    const fallbackIdentity = listed?.identity ?? this.resolveIdentityFromWorkspace(nameHint ?? `agent-${agentId}`);
+    const nameHint = envName;
+    const fallbackIdentity = this.resolveIdentityFromWorkspace(nameHint ?? `agent-${agentId}`);
     const machineSnapshot = await this.resolveMachineIdentitySnapshot(
       provider,
       nameHint ?? "",
@@ -519,20 +518,19 @@ export class AgentRuntimeProgram {
     );
 
     const profileName = nonEmpty(machineSnapshot?.name) ?? nameHint ?? `agent-${agentId}`;
-    const resolvedType = listed?.type ?? envType ?? DEFAULT_AGENT_PROFILE_TYPE;
-    const fallbackEmoji = envEmoji ?? listed?.emoji ?? extractIdentityEmoji(fallbackIdentity);
+    const resolvedType = envType ?? DEFAULT_AGENT_PROFILE_TYPE;
+    const fallbackEmoji = envEmoji ?? extractIdentityEmoji(fallbackIdentity);
     const identityCandidate = machineSnapshot?.identity ?? fallbackIdentity;
     const profileEmoji = machineSnapshot?.emoji ?? fallbackEmoji ?? extractIdentityEmoji(identityCandidate);
     const profileIdentity = ensureIdentityPayload(identityCandidate, profileName, profileEmoji);
 
-    const usingFallbackName = !listed?.name && !envName && !nonEmpty(machineSnapshot?.name);
-    const usingFallbackType = !listed?.type && !envType;
+    const usingFallbackName = !envName && !nonEmpty(machineSnapshot?.name);
+    const usingFallbackType = !envType;
     if (usingFallbackName || usingFallbackType) {
       this.emitInfo("Agent profile fallback metadata applied", {
         fallback_name: usingFallbackName ? profileName : null,
         fallback_type: usingFallbackType ? resolvedType : null,
-        guidance:
-          "Set AGENTMC_AGENT_NAME and AGENTMC_AGENT_TYPE to override defaults when listAgents is unavailable."
+        guidance: "Set AGENTMC_AGENT_NAME and AGENTMC_AGENT_TYPE to override defaults."
       });
     }
 
@@ -543,48 +541,6 @@ export class AgentRuntimeProgram {
       identity: profileIdentity,
       emoji: profileEmoji
     };
-  }
-
-  private async resolveAgentProfileFromApi(agentId: number): Promise<AgentProfile | null> {
-    try {
-      const response = await this.client.operations.listAgents({
-        params: {
-          query: {
-            per_page: 200
-          }
-        }
-      });
-
-      if (response.error) {
-        return null;
-      }
-
-      const items = Array.isArray(response.data?.data) ? response.data.data : [];
-      const matched = items.find((entry) => toPositiveInt((entry as JsonObject)?.id) === agentId) as JsonObject | undefined;
-      if (!matched) {
-        return null;
-      }
-
-      const name = nonEmpty(matched.name) ?? null;
-      const type = nonEmpty(matched.type) ?? null;
-
-      if (!name || !type) {
-        return null;
-      }
-
-      const identityFromMeta = valueAsObject((matched.meta as JsonObject | undefined)?.identity);
-      const identity = identityFromMeta ?? this.resolveIdentityFromWorkspace(name);
-
-      return {
-        id: agentId,
-        name,
-        type,
-        identity,
-        emoji: extractIdentityEmoji(identity)
-      };
-    } catch {
-      return null;
-    }
   }
 
   private async refreshAgentProfileFromMachine(): Promise<void> {

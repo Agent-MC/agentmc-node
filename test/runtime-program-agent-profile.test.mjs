@@ -72,35 +72,14 @@ test("resolveAgentProfile keeps env name and falls back type when AGENTMC_AGENT_
   });
 });
 
-test("resolveAgentProfile prefers listAgents metadata when available", async () => {
+test("resolveAgentProfile uses AGENTMC_AGENT_NAME and AGENTMC_AGENT_TYPE overrides when provided", async () => {
   await withAgentEnv({ AGENTMC_AGENT_NAME: "env-name", AGENTMC_AGENT_TYPE: "env-type" }, async () => {
-    const runtime = createRuntimeProgram({
-      listAgents: async () => ({
-        error: false,
-        data: {
-          data: [
-            {
-              id: 42,
-              name: "api-name",
-              type: "api-type",
-              meta: {
-                identity: {
-                  name: "api-name",
-                  emoji: "🤖"
-                }
-              }
-            }
-          ]
-        }
-      })
-    });
-
+    const runtime = createRuntimeProgram();
     const profile = await runtime.resolveAgentProfile(42, PROVIDER);
 
-    assert.equal(profile.name, "api-name");
-    assert.equal(profile.type, "api-type");
-    assert.equal(profile.emoji, "🤖");
-    assert.deepEqual(profile.identity, { name: "api-name", emoji: "🤖" });
+    assert.equal(profile.name, "env-name");
+    assert.equal(profile.type, "env-type");
+    assert.deepEqual(profile.identity, { name: "env-name" });
   });
 });
 
