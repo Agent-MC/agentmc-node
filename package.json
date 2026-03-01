@@ -38,7 +38,8 @@
     "LICENSE"
   ],
   "scripts": {
-    "sync:spec": "node scripts/sync-openapi.mjs",
+    "sync:spec": "AGENTMC_OPENAPI_DISABLE_LOCAL_FALLBACK=1 node scripts/sync-openapi.mjs",
+    "sync:spec:local": "node scripts/sync-openapi.mjs",
     "generate": "node scripts/generate-from-openapi.mjs",
     "precommit:artifacts": "npm run sync:spec && npm run generate",
     "hooks:install": "git config core.hooksPath .githooks",
