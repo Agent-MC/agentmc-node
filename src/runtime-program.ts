@@ -29,6 +29,7 @@ const OPENCLAW_GATEWAY_EXEC_TIMEOUT_FLOOR_MS = 120_000;
 const RECURRING_TASK_GATEWAY_TIMEOUT_BUFFER_MS = 30_000;
 const RECURRING_TASK_SUMMARY_MAX_LENGTH = 4_000;
 const RECURRING_TASK_AGENT_RESPONSE_MAX_BYTES = 24_000;
+const DEFAULT_AGENT_PROFILE_TYPE = "runtime";
 
 type JsonObject = Record<string, unknown>;
 
@@ -509,27 +510,31 @@ export class AgentRuntimeProgram {
     const envType = nonEmpty(process.env.AGENTMC_AGENT_TYPE);
     const envEmoji = nonEmpty(process.env.AGENTMC_AGENT_EMOJI);
 
-    const resolvedName = listed?.name ?? envName;
-    const resolvedType = listed?.type ?? envType;
-
-    if (!resolvedName || !resolvedType) {
-      throw new Error(
-        "Unable to resolve agent profile. Ensure listAgents is accessible or set AGENTMC_AGENT_NAME and AGENTMC_AGENT_TYPE."
-      );
-    }
-
-    const fallbackIdentity = listed?.identity ?? this.resolveIdentityFromWorkspace(resolvedName);
-    const fallbackEmoji = envEmoji ?? listed?.emoji ?? extractIdentityEmoji(fallbackIdentity);
+    const nameHint = listed?.name ?? envName;
+    const fallbackIdentity = listed?.identity ?? this.resolveIdentityFromWorkspace(nameHint ?? `agent-${agentId}`);
     const machineSnapshot = await this.resolveMachineIdentitySnapshot(
       provider,
-      resolvedName,
+      nameHint ?? "",
       fallbackIdentity
     );
 
-    const profileName = nonEmpty(machineSnapshot?.name) ?? resolvedName;
+    const profileName = nonEmpty(machineSnapshot?.name) ?? nameHint ?? `agent-${agentId}`;
+    const resolvedType = listed?.type ?? envType ?? DEFAULT_AGENT_PROFILE_TYPE;
+    const fallbackEmoji = envEmoji ?? listed?.emoji ?? extractIdentityEmoji(fallbackIdentity);
     const identityCandidate = machineSnapshot?.identity ?? fallbackIdentity;
     const profileEmoji = machineSnapshot?.emoji ?? fallbackEmoji ?? extractIdentityEmoji(identityCandidate);
     const profileIdentity = ensureIdentityPayload(identityCandidate, profileName, profileEmoji);
+
+    const usingFallbackName = !listed?.name && !envName && !nonEmpty(machineSnapshot?.name);
+    const usingFallbackType = !listed?.type && !envType;
+    if (usingFallbackName || usingFallbackType) {
+      this.emitInfo("Agent profile fallback metadata applied", {
+        fallback_name: usingFallbackName ? profileName : null,
+        fallback_type: usingFallbackType ? resolvedType : null,
+        guidance:
+          "Set AGENTMC_AGENT_NAME and AGENTMC_AGENT_TYPE to override defaults when listAgents is unavailable."
+      });
+    }
 
     return {
       id: agentId,
