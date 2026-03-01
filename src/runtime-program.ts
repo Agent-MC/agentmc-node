@@ -366,11 +366,11 @@ export class AgentRuntimeProgram {
     }
 
     if (configured === "openclaw") {
-      return this.resolveOpenClawProvider(true);
+      return this.resolveOpenClawProvider();
     }
 
     try {
-      return await this.resolveOpenClawProvider(false);
+      return await this.resolveOpenClawProvider();
     } catch (openclawError) {
       this.emitInfo("OpenClaw auto-detect skipped", {
         reason: normalizeError(openclawError).message
@@ -386,7 +386,7 @@ export class AgentRuntimeProgram {
     return this.resolveExternalProvider(true);
   }
 
-  private async resolveOpenClawProvider(strict: boolean): Promise<RuntimeProviderDescriptor> {
+  private async resolveOpenClawProvider(): Promise<RuntimeProviderDescriptor> {
     const command = await this.resolveOpenClawCommand({ strict: true });
     if (!command) {
       throw new Error("OpenClaw command resolution returned no executable command.");

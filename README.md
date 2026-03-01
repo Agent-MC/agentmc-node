@@ -86,7 +86,7 @@ await client.request('listTasks', {
 ```ts
 import { operations, operationsById } from '@agentmc/api';
 
-console.log(operations.length); // 45
+console.log(operations.length); // total available operations
 console.log(operationsById.listTasks.path); // /tasks
 ```
 
