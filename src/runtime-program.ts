@@ -429,7 +429,8 @@ export class AgentRuntimeProgram {
     }
 
     const configured = nonEmpty(this.options.openclawCommand);
-    const candidates = resolveOpenClawCommandCandidates(configured);
+    const runtimeCommandHint = nonEmpty(this.options.runtimeCommand);
+    const candidates = resolveOpenClawCommandCandidates(configured, runtimeCommandHint);
 
     for (const candidate of candidates) {
       if (!(await canExecute(candidate, ["--version"]))) {
@@ -1791,7 +1792,7 @@ async function canExecute(command: string, args: string[]): Promise<boolean> {
   }
 }
 
-function resolveOpenClawCommandCandidates(configured: string | null): string[] {
+function resolveOpenClawCommandCandidates(configured: string | null, runtimeCommandHint: string | null): string[] {
   const candidates = new Set<string>();
 
   const add = (value: string | null): void => {
@@ -1803,6 +1804,9 @@ function resolveOpenClawCommandCandidates(configured: string | null): string[] {
   };
 
   add(configured);
+  if (looksLikeOpenClawCommand(runtimeCommandHint)) {
+    add(runtimeCommandHint);
+  }
 
   for (const command of resolveExecutablePathsFromEnvPath(DEFAULT_OPENCLAW_COMMAND)) {
     add(command);
@@ -1815,6 +1819,20 @@ function resolveOpenClawCommandCandidates(configured: string | null): string[] {
   }
 
   return Array.from(candidates);
+}
+
+function looksLikeOpenClawCommand(value: string | null): boolean {
+  const command = nonEmpty(value);
+  if (!command) {
+    return false;
+  }
+
+  if (command.toLowerCase() === DEFAULT_OPENCLAW_COMMAND) {
+    return true;
+  }
+
+  const normalizedBaseName = basename(command).replace(/\.[^.]+$/, "").toLowerCase();
+  return normalizedBaseName.includes("openclaw");
 }
 
 function resolveExecutablePathsFromEnvPath(commandName: string): string[] {
@@ -2249,10 +2267,26 @@ function normalizeAgentLookupToken(value: unknown): string {
 
 function normalizeModelList(models: readonly string[]): string[] {
   const normalized = models
-    .map((entry) => String(entry ?? "").trim())
+    .map((entry) => normalizeModelToken(entry))
     .filter((entry) => entry !== "");
 
   return Array.from(new Set(normalized));
+}
+
+function normalizeModelToken(value: unknown): string {
+  const trimmed = String(value ?? "").trim();
+  if (trimmed === "") {
+    return "";
+  }
+
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    return trimmed.slice(1, -1).trim();
+  }
+
+  return trimmed;
 }
 
 function normalizeHeartbeatModels(value: unknown): (string | JsonObject)[] {
@@ -2958,7 +2992,7 @@ function parseCsv(raw: string | undefined): string[] {
 
   return text
     .split(",")
-    .map((part) => part.trim())
+    .map((part) => normalizeModelToken(part))
     .filter((part) => part !== "");
 }
 

@@ -107,3 +107,47 @@ test("resolveOpenClawProvider parses models inventory when JSON is emitted on st
     modelsToStderr: true
   });
 });
+
+test("resolveRuntimeProvider auto-detects OpenClaw and pulls models without forcing provider env", async () => {
+  await withStubOpenClaw(async ({ commandPath }) => {
+    const runtime = AgentRuntimeProgram.fromEnv({
+      AGENTMC_API_KEY: "mca_test_key",
+      AGENTMC_BASE_URL: "https://agentmc.ai/api/v1",
+      OPENCLAW_CMD: commandPath,
+      AGENTMC_MODELS: "\"\""
+    });
+
+    const provider = await runtime.resolveRuntimeProvider();
+
+    assert.equal(provider.kind, "openclaw");
+    assert.equal(provider.mode, "openclaw");
+    assert.deepEqual(provider.models, ["openai-codex/gpt-5.3-codex"]);
+  }, {
+    modelsStatusJson: `{
+  "defaultModel": "openai-codex/gpt-5.3-codex",
+  "resolvedDefault": "openai-codex/gpt-5.3-codex",
+  "allowed": ["openai-codex/gpt-5.3-codex"]
+}`
+  });
+});
+
+test("resolveRuntimeProvider treats AGENTMC_RUNTIME_COMMAND=openclaw path as OpenClaw candidate in auto mode", async () => {
+  await withStubOpenClaw(async ({ commandPath }) => {
+    const runtime = AgentRuntimeProgram.fromEnv({
+      AGENTMC_API_KEY: "mca_test_key",
+      AGENTMC_BASE_URL: "https://agentmc.ai/api/v1",
+      AGENTMC_RUNTIME_COMMAND: commandPath
+    });
+
+    const provider = await runtime.resolveRuntimeProvider();
+
+    assert.equal(provider.kind, "openclaw");
+    assert.equal(provider.mode, "openclaw");
+    assert.deepEqual(provider.models, ["openai-codex/gpt-5.3-codex"]);
+  }, {
+    modelsStatusJson: `{
+  "defaultModel": "openai-codex/gpt-5.3-codex",
+  "allowed": ["openai-codex/gpt-5.3-codex"]
+}`
+  });
+});
