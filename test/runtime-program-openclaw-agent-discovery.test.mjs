@@ -92,6 +92,38 @@ echo "{}"
   });
 });
 
+test("OpenClaw machine identity selects the array row matching runtime workspace path", async () => {
+  await withTempDir(async (dir) => {
+    const commandPath = join(dir, "openclaw");
+
+    await writeExecutable(
+      commandPath,
+      `#!/bin/sh
+if [ "$1" = "--version" ]; then
+  echo "OpenClaw 2026.3.1"
+  exit 0
+fi
+if [ "$1" = "agents" ] && [ "$2" = "list" ] && [ "$3" = "--json" ]; then
+  echo '[{"id":"main","identityName":"Jarvis","workspace":"/root/.openclaw/workspace","agentDir":"/root/.openclaw/agents/main/agent","isDefault":true},{"id":"beta","identityName":"Friday","workspace":"/srv/openclaw/workspace","agentDir":"/srv/openclaw/agents/beta/agent"}]'
+  exit 0
+fi
+echo "{}"
+`
+    );
+
+    const runtime = new AgentRuntimeProgram({
+      client: { operations: {} },
+      openclawCommand: commandPath,
+      workspaceDir: "/srv/openclaw/agents/beta/agent"
+    });
+
+    const snapshot = await runtime.resolveOpenClawMachineIdentitySnapshot("", { name: "fallback" });
+
+    assert.equal(snapshot?.name, "Friday");
+    assert.deepEqual(snapshot?.identity, { name: "Friday" });
+  });
+});
+
 test("OpenClaw machine identity falls back to OPENCLAW_CONFIG_PATH when CLI discovery commands fail", async () => {
   await withTempDir(async (dir) => {
     const commandPath = join(dir, "openclaw");

@@ -629,7 +629,9 @@ export class AgentRuntimeProgram {
     fallbackName: string,
     fallbackIdentity: JsonObject | string
   ): Promise<RuntimeMachineIdentitySnapshot | null> {
-    const openclawAgent = normalizeOpenClawAgentName(this.options.openclawAgent);
+    const configuredOpenClawAgent = nonEmpty(this.options.openclawAgent);
+    const openclawAgent = normalizeOpenClawAgentName(configuredOpenClawAgent);
+    const preferredPaths = resolveOpenClawAgentSelectionPaths(this.workspaceDir, this.options.openclawSessionsPath);
 
     try {
       const command = await this.resolveOpenClawCommand();
@@ -638,7 +640,12 @@ export class AgentRuntimeProgram {
         return null;
       }
 
-      const matched = findOpenClawAgentRow(rows, openclawAgent, fallbackName);
+      const matched = findOpenClawAgentRow(rows, {
+        agentKey: openclawAgent,
+        fallbackName,
+        preferredPaths,
+        preferPathMatch: !configuredOpenClawAgent
+      });
       if (!matched) {
         return null;
       }
@@ -646,14 +653,27 @@ export class AgentRuntimeProgram {
       const identityFromRow = valueAsObject(matched.identity) ?? null;
       const resolvedName =
         nonEmpty(matched.name) ??
+        nonEmpty(matched.identityName) ??
+        nonEmpty(matched.identity_name) ??
+        nonEmpty(matched.display_name) ??
+        nonEmpty(matched.displayName) ??
         nonEmpty(identityFromRow?.name) ??
         fallbackName;
+      const hasNameFromRow =
+        nonEmpty(matched.name) ??
+        nonEmpty(matched.identityName) ??
+        nonEmpty(matched.identity_name) ??
+        nonEmpty(matched.display_name) ??
+        nonEmpty(matched.displayName);
       const resolvedEmoji =
         extractIdentityEmoji(matched) ??
         extractIdentityEmoji(identityFromRow) ??
         extractIdentityEmoji(fallbackIdentity);
+      const identitySource =
+        identityFromRow ??
+        (hasNameFromRow ? ({ name: resolvedName } satisfies JsonObject) : fallbackIdentity);
       const resolvedIdentity = ensureIdentityPayload(
-        identityFromRow ?? fallbackIdentity,
+        identitySource,
         resolvedName,
         resolvedEmoji
       );
@@ -697,13 +717,12 @@ export class AgentRuntimeProgram {
             timeoutMs: OPENCLAW_AGENT_DISCOVERY_TIMEOUT_MS
           });
           const parsed = parseJsonUnknown(output.stdout) ?? parseJsonUnknown(output.stderr);
-          const payload = valueAsObject(parsed);
-          if (!payload) {
-            errors.push(`${candidate.label}: command output did not contain a JSON object.`);
+          if (parsed === null) {
+            errors.push(`${candidate.label}: command output did not contain parseable JSON.`);
             continue;
           }
 
-          const rows = extractOpenClawAgentRows(payload);
+          const rows = extractOpenClawAgentRows(parsed);
           if (rows.length > 0) {
             return rows;
           }
@@ -722,13 +741,12 @@ export class AgentRuntimeProgram {
       try {
         const raw = await readFile(configPath, "utf8");
         const parsed = parseJsonUnknown(raw);
-        const payload = valueAsObject(parsed);
-        if (!payload) {
-          errors.push(`${configPath}: file did not contain a JSON object.`);
+        if (parsed === null) {
+          errors.push(`${configPath}: file did not contain parseable JSON.`);
           continue;
         }
 
-        const rows = extractOpenClawAgentRows(payload);
+        const rows = extractOpenClawAgentRows(parsed);
         if (rows.length > 0) {
           return rows;
         }
@@ -2151,9 +2169,11 @@ function extractIdentityEmoji(value: unknown): string | null {
   );
 }
 
-function extractOpenClawAgentRows(payload: JsonObject): JsonObject[] {
+function extractOpenClawAgentRows(payload: unknown): JsonObject[] {
   const visited = new Set<JsonObject>();
+  const visitedArrays = new Set<unknown[]>();
   const queue: JsonObject[] = [];
+  const arrayQueue: unknown[][] = [];
   const coerceRows = (candidate: unknown): JsonObject[] => {
     if (Array.isArray(candidate)) {
       const rows = candidate
@@ -2184,6 +2204,10 @@ function extractOpenClawAgentRows(payload: JsonObject): JsonObject[] {
           return objectEntry;
         }
 
+        if (!isLikelyOpenClawAgentRow(objectEntry)) {
+          return null;
+        }
+
         return {
           key: mapKey,
           ...objectEntry
@@ -2196,6 +2220,15 @@ function extractOpenClawAgentRows(payload: JsonObject): JsonObject[] {
   };
 
   const enqueue = (value: unknown): void => {
+    if (Array.isArray(value)) {
+      if (visitedArrays.has(value)) {
+        return;
+      }
+      visitedArrays.add(value);
+      arrayQueue.push(value);
+      return;
+    }
+
     const object = valueAsObject(value);
     if (!object || visited.has(object)) {
       return;
@@ -2206,7 +2239,23 @@ function extractOpenClawAgentRows(payload: JsonObject): JsonObject[] {
 
   enqueue(payload);
 
-  while (queue.length > 0) {
+  while (queue.length > 0 || arrayQueue.length > 0) {
+    if (arrayQueue.length > 0) {
+      const currentArray = arrayQueue.shift() as unknown[];
+      const rows = coerceRows(currentArray);
+      if (rows.length > 0) {
+        return rows;
+      }
+
+      for (const item of currentArray) {
+        enqueue(item);
+      }
+    }
+
+    if (queue.length === 0) {
+      continue;
+    }
+
     const current = queue.shift() as JsonObject;
     const directCandidates: unknown[] = [
       current.list,
@@ -2243,13 +2292,20 @@ function extractOpenClawAgentRows(payload: JsonObject): JsonObject[] {
 
 function isLikelyOpenClawAgentRow(row: JsonObject): boolean {
   return (
-    nonEmpty(row.key) ??
     nonEmpty(row.id) ??
     nonEmpty(row.agent_key) ??
     nonEmpty(row.agentKey) ??
     nonEmpty(row.name) ??
+    nonEmpty(row.identityName) ??
+    nonEmpty(row.identity_name) ??
     nonEmpty(row.display_name) ??
     nonEmpty(row.displayName) ??
+    nonEmpty(row.workspace) ??
+    nonEmpty(row.workspace_path) ??
+    nonEmpty(row.workspacePath) ??
+    nonEmpty(row.agentDir) ??
+    nonEmpty(row.agent_dir) ??
+    nonEmpty(row.agentPath) ??
     valueAsObject(row.identity)
   ) !== null;
 }
@@ -2278,13 +2334,22 @@ function resolveOpenClawConfigPathCandidates(openclawSessionsPath: string | unde
   return Array.from(candidates);
 }
 
-function findOpenClawAgentRow(
-  rows: readonly JsonObject[],
-  agentKey: string,
-  fallbackName: string
-): JsonObject | null {
+interface OpenClawAgentRowSelectionOptions {
+  agentKey: string;
+  fallbackName: string;
+  preferredPaths?: readonly string[];
+  preferPathMatch?: boolean;
+}
+
+function findOpenClawAgentRow(rows: readonly JsonObject[], options: OpenClawAgentRowSelectionOptions): JsonObject | null {
+  const { agentKey, fallbackName, preferredPaths = [], preferPathMatch = false } = options;
   if (rows.length === 0) {
     return null;
+  }
+
+  const pathMatch = findOpenClawAgentRowByPath(rows, preferredPaths);
+  if (preferPathMatch && pathMatch) {
+    return pathMatch;
   }
 
   const normalizedTargetKey = normalizeAgentLookupToken(agentKey);
@@ -2305,11 +2370,17 @@ function findOpenClawAgentRow(
     }
   }
 
+  if (pathMatch) {
+    return pathMatch;
+  }
+
   const normalizedFallbackName = normalizeAgentLookupToken(fallbackName);
   if (normalizedFallbackName) {
     const byName = rows.find((row) => {
       const rowName = normalizeAgentLookupToken(
         nonEmpty(row.name) ??
+          nonEmpty(row.identityName) ??
+          nonEmpty(row.identity_name) ??
           nonEmpty(row.display_name) ??
           nonEmpty(row.displayName) ??
           ""
@@ -2323,6 +2394,91 @@ function findOpenClawAgentRow(
   }
 
   return rows[0] ?? null;
+}
+
+function findOpenClawAgentRowByPath(rows: readonly JsonObject[], preferredPaths: readonly string[]): JsonObject | null {
+  const normalizedPaths = preferredPaths
+    .map((entry) => normalizePathToken(entry))
+    .filter((entry) => entry !== "");
+  if (normalizedPaths.length === 0) {
+    return null;
+  }
+
+  let bestRow: JsonObject | null = null;
+  let bestScore = 0;
+
+  for (const row of rows) {
+    const rowAgentDir = normalizePathToken(nonEmpty(row.agentDir) ?? nonEmpty(row.agent_dir) ?? nonEmpty(row.agentPath));
+    const rowWorkspace = normalizePathToken(
+      nonEmpty(row.workspace) ?? nonEmpty(row.workspace_path) ?? nonEmpty(row.workspacePath)
+    );
+
+    let rowScore = 0;
+    for (const candidatePath of normalizedPaths) {
+      rowScore = Math.max(rowScore, scorePathRelationship(candidatePath, rowAgentDir, 6, 5, 4));
+      rowScore = Math.max(rowScore, scorePathRelationship(candidatePath, rowWorkspace, 3, 2, 1));
+    }
+
+    if (rowScore > bestScore) {
+      bestScore = rowScore;
+      bestRow = row;
+    }
+  }
+
+  return bestScore > 0 ? bestRow : null;
+}
+
+function scorePathRelationship(
+  candidatePath: string,
+  rowPath: string,
+  exactScore: number,
+  candidateWithinRowScore: number,
+  rowWithinCandidateScore: number
+): number {
+  if (candidatePath === "" || rowPath === "") {
+    return 0;
+  }
+
+  if (candidatePath === rowPath) {
+    return exactScore;
+  }
+
+  if (candidatePath.startsWith(`${rowPath}/`)) {
+    return candidateWithinRowScore;
+  }
+
+  if (rowPath.startsWith(`${candidatePath}/`)) {
+    return rowWithinCandidateScore;
+  }
+
+  return 0;
+}
+
+function resolveOpenClawAgentSelectionPaths(workspaceDir: string, openclawSessionsPath: string | undefined): string[] {
+  const paths = new Set<string>();
+  paths.add(workspaceDir);
+  paths.add(process.cwd());
+
+  const sessionsPath = nonEmpty(openclawSessionsPath);
+  if (sessionsPath) {
+    const sessionsDir = dirname(sessionsPath);
+    paths.add(sessionsDir);
+    paths.add(dirname(sessionsDir));
+  }
+
+  return Array.from(paths);
+}
+
+function normalizePathToken(value: unknown): string {
+  const text = nonEmpty(value);
+  if (!text) {
+    return "";
+  }
+
+  return text
+    .replace(/\\/g, "/")
+    .replace(/\/+$/, "")
+    .toLowerCase();
 }
 
 function normalizeAgentLookupToken(value: unknown): string {
