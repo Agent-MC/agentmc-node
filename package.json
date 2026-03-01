@@ -40,6 +40,8 @@
   "scripts": {
     "sync:spec": "node scripts/sync-openapi.mjs",
     "generate": "node scripts/generate-from-openapi.mjs",
+    "precommit:artifacts": "npm run sync:spec && npm run generate",
+    "hooks:install": "git config core.hooksPath .githooks",
     "build": "npm run generate && tsup",
     "typecheck": "tsc --noEmit",
     "test": "node --test test/*.test.mjs",

@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "pre-commit: syncing OpenAPI and regenerating artifacts"
+npm run precommit:artifacts
+
+git add spec/openapi.filtered.json src/generated docs/operations examples/http
+
+echo "pre-commit: staged generated artifacts"

@@ -861,13 +861,19 @@ function generateExampleSource(operation) {
 function main() {
   ensureDirectories();
 
-  if (!existsSync(sourceSpecPath)) {
+  const inputSpecPath = existsSync(sourceSpecPath)
+    ? sourceSpecPath
+    : existsSync(filteredSpecPath)
+      ? filteredSpecPath
+      : null;
+
+  if (!inputSpecPath) {
     throw new Error(
-      `Source spec missing at ${sourceSpecPath}. Run \"npm run sync:spec\" before \"npm run generate\".`
+      `Source spec missing at ${sourceSpecPath} (fallback ${filteredSpecPath} also missing). Run \"npm run sync:spec\" before \"npm run generate\".`
     );
   }
 
-  const sourceSpec = readJson(sourceSpecPath);
+  const sourceSpec = readJson(inputSpecPath);
   const { filteredSpec, removedCount } = filterExcludedOperations(sourceSpec);
   writeJson(filteredSpecPath, filteredSpec);
 
