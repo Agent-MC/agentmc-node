@@ -2154,6 +2154,47 @@ function extractIdentityEmoji(value: unknown): string | null {
 function extractOpenClawAgentRows(payload: JsonObject): JsonObject[] {
   const visited = new Set<JsonObject>();
   const queue: JsonObject[] = [];
+  const coerceRows = (candidate: unknown): JsonObject[] => {
+    if (Array.isArray(candidate)) {
+      const rows = candidate
+        .map((entry) => valueAsObject(entry))
+        .filter((entry): entry is JsonObject => entry !== null)
+        .filter((entry) => isLikelyOpenClawAgentRow(entry));
+      return rows;
+    }
+
+    const objectCandidate = valueAsObject(candidate);
+    if (!objectCandidate) {
+      return [];
+    }
+
+    const rows = Object.entries(objectCandidate)
+      .map(([mapKey, entry]) => {
+        const objectEntry = valueAsObject(entry);
+        if (!objectEntry) {
+          return null;
+        }
+
+        if (
+          nonEmpty(objectEntry.key) ??
+          nonEmpty(objectEntry.id) ??
+          nonEmpty(objectEntry.agent_key) ??
+          nonEmpty(objectEntry.agentKey)
+        ) {
+          return objectEntry;
+        }
+
+        return {
+          key: mapKey,
+          ...objectEntry
+        } satisfies JsonObject;
+      })
+      .filter((entry): entry is JsonObject => entry !== null)
+      .filter((entry) => isLikelyOpenClawAgentRow(entry));
+
+    return rows;
+  };
+
   const enqueue = (value: unknown): void => {
     const object = valueAsObject(value);
     if (!object || visited.has(object)) {
@@ -2172,6 +2213,8 @@ function extractOpenClawAgentRows(payload: JsonObject): JsonObject[] {
       current.agents,
       current.data,
       current.items,
+      valueAsObject(current.list)?.agents,
+      valueAsObject(current.agents)?.agents,
       valueAsObject(current.agents)?.list,
       valueAsObject(current.config)?.agents,
       valueAsObject(valueAsObject(current.config)?.agents)?.list,
@@ -2180,13 +2223,7 @@ function extractOpenClawAgentRows(payload: JsonObject): JsonObject[] {
     ];
 
     for (const candidate of directCandidates) {
-      if (!Array.isArray(candidate)) {
-        continue;
-      }
-
-      const rows = candidate
-        .map((entry) => valueAsObject(entry))
-        .filter((entry): entry is JsonObject => entry !== null);
+      const rows = coerceRows(candidate);
       if (rows.length > 0) {
         return rows;
       }
@@ -2202,6 +2239,19 @@ function extractOpenClawAgentRows(payload: JsonObject): JsonObject[] {
   }
 
   return [];
+}
+
+function isLikelyOpenClawAgentRow(row: JsonObject): boolean {
+  return (
+    nonEmpty(row.key) ??
+    nonEmpty(row.id) ??
+    nonEmpty(row.agent_key) ??
+    nonEmpty(row.agentKey) ??
+    nonEmpty(row.name) ??
+    nonEmpty(row.display_name) ??
+    nonEmpty(row.displayName) ??
+    valueAsObject(row.identity)
+  ) !== null;
 }
 
 function resolveOpenClawConfigPathCandidates(openclawSessionsPath: string | undefined, workspaceDir: string): string[] {

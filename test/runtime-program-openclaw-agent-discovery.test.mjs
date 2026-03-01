@@ -56,6 +56,42 @@ echo "{}"
   });
 });
 
+test("OpenClaw machine identity resolves agent name from agents list --json object maps", async () => {
+  await withTempDir(async (dir) => {
+    const commandPath = join(dir, "openclaw");
+
+    await writeExecutable(
+      commandPath,
+      `#!/bin/sh
+if [ "$1" = "--version" ]; then
+  echo "OpenClaw 2026.3.1"
+  exit 0
+fi
+if [ "$1" = "agents" ] && [ "$2" = "list" ] && [ "$3" = "--json" ]; then
+  echo '{"agents":{"main":{"name":"Agents List Main","identity":{"emoji":"🦞"}}}}'
+  exit 0
+fi
+if [ "$1" = "gateway" ] && [ "$2" = "call" ] && [ "$3" = "agents.list" ]; then
+  echo '{"payload":{"agents":[{"id":"main","name":"Gateway Main","identity":{"name":"Gateway Main","emoji":"🤖"}}]}}'
+  exit 0
+fi
+echo "{}"
+`
+    );
+
+    const runtime = new AgentRuntimeProgram({
+      client: { operations: {} },
+      openclawCommand: commandPath
+    });
+
+    const snapshot = await runtime.resolveOpenClawMachineIdentitySnapshot("", { name: "fallback" });
+
+    assert.equal(snapshot?.name, "Agents List Main");
+    assert.equal(snapshot?.emoji, "🦞");
+    assert.deepEqual(snapshot?.identity, { name: "Agents List Main", emoji: "🦞" });
+  });
+});
+
 test("OpenClaw machine identity falls back to OPENCLAW_CONFIG_PATH when CLI discovery commands fail", async () => {
   await withTempDir(async (dir) => {
     const commandPath = join(dir, "openclaw");
