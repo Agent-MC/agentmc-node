@@ -192,7 +192,12 @@ Required env:
     -   If unset (or invalid), runtime checks `openclaw` on `PATH`, then common absolute paths (`/usr/bin/openclaw`, `/usr/local/bin/openclaw`, `/opt/homebrew/bin/openclaw`, `/bin/openclaw`).
 -   `AGENTMC_MODELS` (comma-separated, for example `openai/gpt-5-codex`) is required whenever model auto-detection is unavailable. Heartbeats require at least one runtime model in `meta.models`.
 -   Optional agent profile overrides: `AGENTMC_AGENT_NAME`, `AGENTMC_AGENT_TYPE`, `AGENTMC_AGENT_EMOJI`
-    -   If these values are unset, OpenClaw runtimes attempt `openclaw agents list --json` for name/identity first, then fall back to `name=agent-<AGENTMC_AGENT_ID>` and `type=runtime`.
+    -   If these values are unset, OpenClaw runtimes attempt agent discovery in this order:
+        1. `openclaw agents list --json`
+        2. `openclaw gateway call agents.list --json` (and `--params {}` variant)
+        3. `openclaw gateway call config.get --json` (`parsed.agents.list`)
+        4. local `openclaw.json` (`OPENCLAW_CONFIG_PATH`, `~/.openclaw/openclaw.json`, related fallbacks)
+    -   If no source returns a profile, runtime falls back to `name=agent-<AGENTMC_AGENT_ID>` and `type=runtime`.
 -   Optional recurring execution tuning:
     -   `AGENTMC_RECURRING_WAIT_TIMEOUT_MS` (default `600000` / 10 minutes)
     -   `AGENTMC_RECURRING_GATEWAY_TIMEOUT_MS` (default `720000` / 12 minutes; always coerced to at least wait timeout + 30 seconds)

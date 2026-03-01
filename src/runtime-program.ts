@@ -2,7 +2,7 @@ import { execFile, execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { mkdir, readFile, statfs, writeFile } from "node:fs/promises";
-import { arch, cpus, hostname, networkInterfaces, platform, release, totalmem, uptime } from "node:os";
+import { arch, cpus, homedir, hostname, networkInterfaces, platform, release, totalmem, uptime } from "node:os";
 import { basename, delimiter, dirname, join, resolve } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { promisify } from "node:util";
@@ -19,6 +19,7 @@ const OPENCLAW_TELEMETRY_COMMAND_CANDIDATES: readonly string[][] = [
 ];
 const OPENCLAW_MODELS_TELEMETRY_COMMAND: readonly string[] = ["models", "status", "--json"];
 const OPENCLAW_TELEMETRY_TIMEOUT_MS = 4_000;
+const OPENCLAW_AGENT_DISCOVERY_TIMEOUT_MS = 10_000;
 const DEFAULT_AGENTMC_API_BASE_URL = "https://agentmc.ai/api/v1";
 const DEFAULT_RECURRING_TASK_POLL_INTERVAL_SECONDS = 30;
 const DEFAULT_RECURRING_TASK_POLL_LIMIT = 5;
@@ -635,16 +636,11 @@ export class AgentRuntimeProgram {
         return null;
       }
 
-      const output = await execCapture(command, ["agents", "list", "--json"], {
-        timeoutMs: OPENCLAW_TELEMETRY_TIMEOUT_MS
-      });
-      const parsed = parseJsonUnknown(output.stdout) ?? parseJsonUnknown(output.stderr);
-      const payload = valueAsObject(parsed);
-      if (!payload) {
+      const rows = await this.resolveOpenClawAgentRows(command);
+      if (rows.length === 0) {
         return null;
       }
 
-      const rows = extractOpenClawAgentRows(payload);
       const matched = findOpenClawAgentRow(rows, openclawAgent, fallbackName);
       if (!matched) {
         return null;
@@ -683,6 +679,74 @@ export class AgentRuntimeProgram {
 
       return null;
     }
+  }
+
+  private async resolveOpenClawAgentRows(command: string): Promise<JsonObject[]> {
+    const discoveryCommands: Array<{ args: string[]; label: string }> = [
+      { args: ["agents", "list", "--json"], label: "agents list --json" },
+      { args: ["gateway", "call", "agents.list", "--json"], label: "gateway call agents.list --json" },
+      {
+        args: ["gateway", "call", "agents.list", "--json", "--params", "{}"],
+        label: "gateway call agents.list --json --params {}"
+      },
+      { args: ["gateway", "call", "config.get", "--json"], label: "gateway call config.get --json" }
+    ];
+    const errors: string[] = [];
+
+    for (const candidate of discoveryCommands) {
+      try {
+        const output = await execCapture(command, candidate.args, {
+          timeoutMs: OPENCLAW_AGENT_DISCOVERY_TIMEOUT_MS
+        });
+        const parsed = parseJsonUnknown(output.stdout) ?? parseJsonUnknown(output.stderr);
+        const payload = valueAsObject(parsed);
+        if (!payload) {
+          errors.push(`${candidate.label}: command output did not contain a JSON object.`);
+          continue;
+        }
+
+        const rows = extractOpenClawAgentRows(payload);
+        if (rows.length > 0) {
+          return rows;
+        }
+
+        errors.push(`${candidate.label}: no agent rows found in JSON output.`);
+      } catch (error) {
+        errors.push(`${candidate.label}: ${normalizeError(error).message}`);
+      }
+    }
+
+    const configPathCandidates = resolveOpenClawConfigPathCandidates(this.options.openclawSessionsPath, this.workspaceDir);
+    for (const configPath of configPathCandidates) {
+      try {
+        const raw = await readFile(configPath, "utf8");
+        const parsed = parseJsonUnknown(raw);
+        const payload = valueAsObject(parsed);
+        if (!payload) {
+          errors.push(`${configPath}: file did not contain a JSON object.`);
+          continue;
+        }
+
+        const rows = extractOpenClawAgentRows(payload);
+        if (rows.length > 0) {
+          return rows;
+        }
+
+        errors.push(`${configPath}: no agent rows found in config JSON.`);
+      } catch (error) {
+        const normalized = normalizeError(error);
+        if ((normalized as NodeJS.ErrnoException).code === "ENOENT") {
+          continue;
+        }
+        errors.push(`${configPath}: ${normalized.message}`);
+      }
+    }
+
+    const reason =
+      errors.length > 0
+        ? errors.join(" | ")
+        : "No supported OpenClaw discovery command returned agent rows.";
+    throw new Error(reason);
   }
 
   private resolveIdentityFromWorkspace(agentName: string): JsonObject {
@@ -2054,19 +2118,80 @@ function extractIdentityEmoji(value: unknown): string | null {
 }
 
 function extractOpenClawAgentRows(payload: JsonObject): JsonObject[] {
-  const candidates = [payload.list, payload.agents, payload.data];
+  const visited = new Set<JsonObject>();
+  const queue: JsonObject[] = [];
+  const enqueue = (value: unknown): void => {
+    const object = valueAsObject(value);
+    if (!object || visited.has(object)) {
+      return;
+    }
+    visited.add(object);
+    queue.push(object);
+  };
 
-  for (const candidate of candidates) {
-    if (!Array.isArray(candidate)) {
-      continue;
+  enqueue(payload);
+
+  while (queue.length > 0) {
+    const current = queue.shift() as JsonObject;
+    const directCandidates: unknown[] = [
+      current.list,
+      current.agents,
+      current.data,
+      current.items,
+      valueAsObject(current.agents)?.list,
+      valueAsObject(current.config)?.agents,
+      valueAsObject(valueAsObject(current.config)?.agents)?.list,
+      valueAsObject(current.parsed)?.agents,
+      valueAsObject(valueAsObject(current.parsed)?.agents)?.list
+    ];
+
+    for (const candidate of directCandidates) {
+      if (!Array.isArray(candidate)) {
+        continue;
+      }
+
+      const rows = candidate
+        .map((entry) => valueAsObject(entry))
+        .filter((entry): entry is JsonObject => entry !== null);
+      if (rows.length > 0) {
+        return rows;
+      }
     }
 
-    return candidate
-      .map((entry) => valueAsObject(entry))
-      .filter((entry): entry is JsonObject => entry !== null);
+    enqueue(current.payload);
+    enqueue(current.result);
+    enqueue(current.response);
+    enqueue(current.data);
+    enqueue(current.config);
+    enqueue(current.parsed);
+    enqueue(current.agents);
   }
 
   return [];
+}
+
+function resolveOpenClawConfigPathCandidates(openclawSessionsPath: string | undefined, workspaceDir: string): string[] {
+  const candidates = new Set<string>();
+  const add = (value: string | null): void => {
+    const path = nonEmpty(value);
+    if (!path) {
+      return;
+    }
+    candidates.add(path);
+  };
+
+  add(nonEmpty(process.env.OPENCLAW_CONFIG_PATH));
+  add(`${homedir()}/.openclaw/openclaw.json`);
+  add("/root/.openclaw/openclaw.json");
+  add(`${workspaceDir}/.openclaw/openclaw.json`);
+
+  const sessions = nonEmpty(openclawSessionsPath);
+  if (sessions) {
+    const sessionsDirectory = dirname(sessions);
+    add(`${sessionsDirectory}/openclaw.json`);
+  }
+
+  return Array.from(candidates);
 }
 
 function findOpenClawAgentRow(
