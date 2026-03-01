@@ -190,3 +190,27 @@ test("buildHeartbeatBody applies machine identity emoji/name into heartbeat payl
   assert.equal(body.agent.identity.emoji, "🤖");
   assert.equal(meta.emoji, "🤖");
 });
+
+test("buildHeartbeatBody keeps OpenClaw version/build from provider --version output", async () => {
+  const runtime = createRuntimeProgram([
+    {
+      openclaw_version: "0.0.1",
+      openclaw_build: "stale-build",
+      runtime: {
+        name: "openclaw",
+        version: "0.0.1",
+        build: "stale-build",
+        mode: "direct"
+      }
+    }
+  ]);
+
+  const body = await runtime.buildHeartbeatBody();
+  const meta = body.meta;
+
+  assert.equal(meta.openclaw_version, "2026.2.26");
+  assert.equal(meta.openclaw_build, "bc50708");
+  assert.equal(meta.runtime?.version, "2026.2.26");
+  assert.equal(meta.runtime?.build, "bc50708");
+  assert.equal(meta.runtime?.mode, "direct");
+});

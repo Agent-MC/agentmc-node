@@ -1077,6 +1077,22 @@ export class AgentRuntimeProgram {
       if (key === "models" || key === "type") {
         continue;
       }
+      if (key === "runtime") {
+        const incomingRuntime = valueAsObject(value);
+        if (!incomingRuntime) {
+          continue;
+        }
+
+        const existingRuntime = valueAsObject(heartbeatMeta.runtime) ?? {};
+        heartbeatMeta.runtime = {
+          ...incomingRuntime,
+          ...existingRuntime
+        };
+        continue;
+      }
+      if (provider.kind === "openclaw" && (key === "openclaw_version" || key === "openclaw_build")) {
+        continue;
+      }
       heartbeatMeta[key] = value;
     }
 
