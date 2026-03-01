@@ -1,6 +1,6 @@
 {
   "name": "@agentmc/api",
-  "version": "0.3.52",
+  "version": "0.3.53",
   "description": "AgentMC API SDK, docs, and CLI for AI agents",
   "type": "module",
   "license": "MIT",
