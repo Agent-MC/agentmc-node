@@ -22,87 +22,60 @@ function createRuntimeProgram(clientOverrides = {}) {
   });
 }
 
-async function withAgentEnv(values, callback) {
-  const keys = ["AGENTMC_AGENT_NAME", "AGENTMC_AGENT_TYPE", "AGENTMC_AGENT_EMOJI"];
-  const previous = new Map(keys.map((key) => [key, process.env[key]]));
+test("resolveAgentProfile falls back when API lookup and configured profile are unavailable", async () => {
+  const runtime = createRuntimeProgram();
+  const profile = await runtime.resolveAgentProfile(42, PROVIDER);
 
-  try {
-    for (const key of keys) {
-      const value = values[key];
-      if (typeof value === "string") {
-        process.env[key] = value;
-      } else {
-        delete process.env[key];
-      }
-    }
-    await callback();
-  } finally {
-    for (const key of keys) {
-      const value = previous.get(key);
-      if (typeof value === "string") {
-        process.env[key] = value;
-      } else {
-        delete process.env[key];
-      }
-    }
-  }
-}
-
-test("resolveAgentProfile falls back when API lookup and env profile are unavailable", async () => {
-  await withAgentEnv({}, async () => {
-    const runtime = createRuntimeProgram();
-    const profile = await runtime.resolveAgentProfile(42, PROVIDER);
-
-    assert.equal(profile.id, 42);
-    assert.equal(profile.name, "agent-42");
-    assert.equal(profile.type, "runtime");
-    assert.deepEqual(profile.identity, { name: "agent-42" });
-  });
+  assert.equal(profile.id, 42);
+  assert.equal(profile.name, "agent-42");
+  assert.equal(profile.type, "runtime");
+  assert.deepEqual(profile.identity, { name: "agent-42" });
 });
 
-test("resolveAgentProfile keeps env name and falls back type when AGENTMC_AGENT_TYPE is missing", async () => {
-  await withAgentEnv({ AGENTMC_AGENT_NAME: "worker-alpha" }, async () => {
-    const runtime = createRuntimeProgram();
-    const profile = await runtime.resolveAgentProfile(7, PROVIDER);
-
-    assert.equal(profile.id, 7);
-    assert.equal(profile.name, "worker-alpha");
-    assert.equal(profile.type, "runtime");
-    assert.deepEqual(profile.identity, { name: "worker-alpha" });
+test("resolveAgentProfile keeps configured name and falls back type when options.agentType is missing", async () => {
+  const runtime = new AgentRuntimeProgram({
+    client: { operations: {} },
+    agentName: "worker-alpha"
   });
+  const profile = await runtime.resolveAgentProfile(7, PROVIDER);
+
+  assert.equal(profile.id, 7);
+  assert.equal(profile.name, "worker-alpha");
+  assert.equal(profile.type, "runtime");
+  assert.deepEqual(profile.identity, { name: "worker-alpha" });
 });
 
-test("resolveAgentProfile uses AGENTMC_AGENT_NAME and AGENTMC_AGENT_TYPE overrides when provided", async () => {
-  await withAgentEnv({ AGENTMC_AGENT_NAME: "env-name", AGENTMC_AGENT_TYPE: "env-type" }, async () => {
-    const runtime = createRuntimeProgram();
-    const profile = await runtime.resolveAgentProfile(42, PROVIDER);
-
-    assert.equal(profile.name, "env-name");
-    assert.equal(profile.type, "env-type");
-    assert.deepEqual(profile.identity, { name: "env-name" });
+test("resolveAgentProfile uses options.agentName and options.agentType overrides when provided", async () => {
+  const runtime = new AgentRuntimeProgram({
+    client: { operations: {} },
+    agentName: "configured-name",
+    agentType: "configured-type"
   });
+  const profile = await runtime.resolveAgentProfile(42, PROVIDER);
+
+  assert.equal(profile.name, "configured-name");
+  assert.equal(profile.type, "configured-type");
+  assert.deepEqual(profile.identity, { name: "configured-name" });
 });
 
 test("resolveAgentProfile prefers OpenClaw machine snapshot name before synthetic fallback", async () => {
-  await withAgentEnv({}, async () => {
-    const runtime = createRuntimeProgram();
-    const profile = await runtime.resolveAgentProfile(9, {
-      ...PROVIDER,
-      kind: "openclaw",
-      machineIdentityResolver: async () => ({
+  const runtime = createRuntimeProgram();
+  const profile = await runtime.resolveAgentProfile(9, {
+    ...PROVIDER,
+    kind: "openclaw",
+    machineIdentityResolver: async () => ({
+      name: "openclaw-alpha",
+      identity: {
         name: "openclaw-alpha",
-        identity: {
-          name: "openclaw-alpha",
-          emoji: "🦞"
-        },
         emoji: "🦞"
-      })
-    });
-
-    assert.equal(profile.id, 9);
-    assert.equal(profile.name, "openclaw-alpha");
-    assert.equal(profile.type, "runtime");
-    assert.equal(profile.emoji, "🦞");
-    assert.deepEqual(profile.identity, { name: "openclaw-alpha", emoji: "🦞" });
+      },
+      emoji: "🦞"
+    })
   });
+
+  assert.equal(profile.id, 9);
+  assert.equal(profile.name, "openclaw-alpha");
+  assert.equal(profile.type, "runtime");
+  assert.equal(profile.emoji, "🦞");
+  assert.deepEqual(profile.identity, { name: "openclaw-alpha", emoji: "🦞" });
 });

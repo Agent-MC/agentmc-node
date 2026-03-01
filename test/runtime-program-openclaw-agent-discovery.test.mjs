@@ -124,11 +124,42 @@ echo "{}"
   });
 });
 
-test("OpenClaw machine identity falls back to OPENCLAW_CONFIG_PATH when CLI discovery commands fail", async () => {
+test("OpenClaw machine identity prefers exact workspace match and identityName before name", async () => {
+  await withTempDir(async (dir) => {
+    const commandPath = join(dir, "openclaw");
+
+    await writeExecutable(
+      commandPath,
+      `#!/bin/sh
+if [ "$1" = "--version" ]; then
+  echo "OpenClaw 2026.3.1"
+  exit 0
+fi
+if [ "$1" = "agents" ] && [ "$2" = "list" ] && [ "$3" = "--json" ]; then
+  echo '[{"id":"main","name":"Main Name","workspace":"/srv/openclaw/workspace","agentDir":"/srv/openclaw"},{"id":"beta","name":"Beta Name","identityName":"Friday","workspace":"/srv/openclaw/agents/beta/agent","agentDir":"/var/other/path"}]'
+  exit 0
+fi
+echo "{}"
+`
+    );
+
+    const runtime = new AgentRuntimeProgram({
+      client: { operations: {} },
+      openclawCommand: commandPath,
+      workspaceDir: "/srv/openclaw/agents/beta/agent"
+    });
+
+    const snapshot = await runtime.resolveOpenClawMachineIdentitySnapshot("", { name: "fallback" });
+
+    assert.equal(snapshot?.name, "Friday");
+    assert.deepEqual(snapshot?.identity, { name: "Friday" });
+  });
+});
+
+test("OpenClaw machine identity falls back to options.openclawConfigPath when CLI discovery commands fail", async () => {
   await withTempDir(async (dir) => {
     const commandPath = join(dir, "openclaw");
     const configPath = join(dir, "openclaw.json");
-    const previousConfigPath = process.env.OPENCLAW_CONFIG_PATH;
 
     await writeExecutable(
       commandPath,
@@ -165,33 +196,23 @@ exit 2
       "utf8"
     );
 
-    try {
-      process.env.OPENCLAW_CONFIG_PATH = configPath;
+    const runtime = new AgentRuntimeProgram({
+      client: { operations: {} },
+      openclawCommand: commandPath,
+      openclawConfigPath: configPath
+    });
 
-      const runtime = new AgentRuntimeProgram({
-        client: { operations: {} },
-        openclawCommand: commandPath
-      });
+    const snapshot = await runtime.resolveOpenClawMachineIdentitySnapshot("", { name: "fallback" });
 
-      const snapshot = await runtime.resolveOpenClawMachineIdentitySnapshot("", { name: "fallback" });
-
-      assert.equal(snapshot?.name, "Config Main");
-      assert.equal(snapshot?.emoji, "🤖");
-      assert.deepEqual(snapshot?.identity, { name: "Config Main", emoji: "🤖" });
-    } finally {
-      if (typeof previousConfigPath === "string") {
-        process.env.OPENCLAW_CONFIG_PATH = previousConfigPath;
-      } else {
-        delete process.env.OPENCLAW_CONFIG_PATH;
-      }
-    }
+    assert.equal(snapshot?.name, "Config Main");
+    assert.equal(snapshot?.emoji, "🤖");
+    assert.deepEqual(snapshot?.identity, { name: "Config Main", emoji: "🤖" });
   });
 });
 
-test("OpenClaw machine identity can resolve from OPENCLAW_CONFIG_PATH when command is unavailable", async () => {
+test("OpenClaw machine identity can resolve from options.openclawConfigPath when command is unavailable", async () => {
   await withTempDir(async (dir) => {
     const configPath = join(dir, "openclaw.json");
-    const previousConfigPath = process.env.OPENCLAW_CONFIG_PATH;
     const previousPath = process.env.PATH;
 
     await writeFile(
@@ -218,12 +239,12 @@ test("OpenClaw machine identity can resolve from OPENCLAW_CONFIG_PATH when comma
     );
 
     try {
-      process.env.OPENCLAW_CONFIG_PATH = configPath;
       process.env.PATH = "";
 
       const runtime = new AgentRuntimeProgram({
         client: { operations: {} },
-        openclawCommand: "/not/available/openclaw"
+        openclawCommand: "/not/available/openclaw",
+        openclawConfigPath: configPath
       });
 
       const snapshot = await runtime.resolveOpenClawMachineIdentitySnapshot("", { name: "fallback" });
@@ -232,12 +253,6 @@ test("OpenClaw machine identity can resolve from OPENCLAW_CONFIG_PATH when comma
       assert.equal(snapshot?.emoji, "🛰️");
       assert.deepEqual(snapshot?.identity, { name: "Config Only Main", emoji: "🛰️" });
     } finally {
-      if (typeof previousConfigPath === "string") {
-        process.env.OPENCLAW_CONFIG_PATH = previousConfigPath;
-      } else {
-        delete process.env.OPENCLAW_CONFIG_PATH;
-      }
-
       if (typeof previousPath === "string") {
         process.env.PATH = previousPath;
       } else {

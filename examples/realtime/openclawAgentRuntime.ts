@@ -9,7 +9,7 @@ function requireEnv(name: string): string {
 }
 
 async function main(): Promise<void> {
-  const baseUrl = requireEnv("AGENTMC_BASE_URL");
+  const baseUrl = String(process.env.AGENTMC_BASE_URL ?? "https://agentmc.ai/api/v1").trim();
   const agentId = Number.parseInt(requireEnv("AGENTMC_AGENT_ID"), 10);
   const apiKey = String(process.env.AGENTMC_API_KEY ?? "").trim();
 
@@ -22,7 +22,7 @@ async function main(): Promise<void> {
   }
 
   const client = new AgentMCApi({
-    baseUrl: `${baseUrl.replace(/\/+$/, "")}/api/v1`,
+    baseUrl: baseUrl.endsWith("/api/v1") ? baseUrl : `${baseUrl.replace(/\/+$/, "")}/api/v1`,
     apiKey
   });
 

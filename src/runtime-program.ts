@@ -32,6 +32,10 @@ const RECURRING_TASK_SUMMARY_MAX_LENGTH = 4_000;
 const RECURRING_TASK_AGENT_RESPONSE_MAX_BYTES = 24_000;
 const DEFAULT_AGENT_PROFILE_TYPE = "runtime";
 const DEFAULT_OPENCLAW_COMMAND = "openclaw";
+const DEFAULT_PUBLIC_IP_ENDPOINT_CANDIDATES: readonly string[] = [
+  "https://api.ipify.org?format=json",
+  "https://ifconfig.me/ip"
+];
 const OPENCLAW_COMMAND_FALLBACK_PATHS: readonly string[] = [
   "/usr/bin/openclaw",
   "/usr/local/bin/openclaw",
@@ -97,10 +101,17 @@ export interface AgentRuntimeProgramOptions {
   runtimeCommand?: string;
   runtimeCommandArgs?: readonly string[];
   runtimeVersionCommand?: string;
+  runtimeName?: string;
+  runtimeVersion?: string;
+  runtimeBuild?: string;
   runtimeModels?: readonly string[];
   openclawCommand?: string;
+  openclawConfigPath?: string;
   openclawAgent?: string;
   openclawSessionsPath?: string;
+  agentName?: string;
+  agentType?: string;
+  agentEmoji?: string;
   publicIp?: string;
   publicIpEndpoint?: string;
   hostFingerprint?: string;
@@ -182,32 +193,12 @@ export class AgentRuntimeProgram {
   }
 
   static fromEnv(env: NodeJS.ProcessEnv = process.env): AgentRuntimeProgram {
-    const baseUrl = nonEmpty(env.AGENTMC_BASE_URL) ?? DEFAULT_AGENTMC_API_BASE_URL;
     const apiKey = requireNonEmpty(env.AGENTMC_API_KEY, "AGENTMC_API_KEY");
-
-    const runtimeCommandArgs = parseRuntimeCommandArgs(env.AGENTMC_RUNTIME_COMMAND_ARGS);
+    const baseUrl = nonEmpty(env.AGENTMC_BASE_URL) ?? DEFAULT_AGENTMC_API_BASE_URL;
 
     return new AgentRuntimeProgram({
-      baseUrl,
       apiKey,
-      workspaceDir: env.AGENTMC_WORKSPACE_DIR,
-      statePath: env.AGENTMC_STATE_PATH,
-      agentId: toPositiveInt(env.AGENTMC_AGENT_ID) ?? undefined,
-      heartbeatIntervalSeconds: toPositiveInt(env.AGENTMC_HEARTBEAT_INTERVAL_SECONDS) ?? undefined,
-      runtimeProvider: normalizeRuntimeProvider(env.AGENTMC_RUNTIME_PROVIDER),
-      runtimeCommand: nonEmpty(env.AGENTMC_RUNTIME_COMMAND) ?? undefined,
-      runtimeCommandArgs,
-      runtimeVersionCommand: nonEmpty(env.AGENTMC_RUNTIME_VERSION_COMMAND) ?? undefined,
-      runtimeModels: parseCsv(env.AGENTMC_MODELS),
-      openclawCommand: nonEmpty(env.OPENCLAW_CMD) ?? undefined,
-      openclawAgent: nonEmpty(env.OPENCLAW_AGENT) ?? undefined,
-      openclawSessionsPath: nonEmpty(env.OPENCLAW_SESSIONS_PATH) ?? undefined,
-      publicIp: nonEmpty(env.AGENTMC_PUBLIC_IP) ?? undefined,
-      publicIpEndpoint: nonEmpty(env.AGENTMC_PUBLIC_IP_ENDPOINT) ?? undefined,
-      hostFingerprint: nonEmpty(env.AGENTMC_HOST_FINGERPRINT) ?? undefined,
-      hostName: nonEmpty(env.AGENTMC_HOSTNAME) ?? undefined,
-      recurringTaskWaitTimeoutMs: toPositiveInt(env.AGENTMC_RECURRING_WAIT_TIMEOUT_MS) ?? undefined,
-      recurringTaskGatewayTimeoutMs: toPositiveInt(env.AGENTMC_RECURRING_GATEWAY_TIMEOUT_MS) ?? undefined
+      baseUrl
     });
   }
 
@@ -262,7 +253,7 @@ export class AgentRuntimeProgram {
     }
     if (!this.heartbeatIntervalSeconds || this.heartbeatIntervalSeconds < 1) {
       throw new Error(
-        "Heartbeat interval is missing. Set AGENTMC_HEARTBEAT_INTERVAL_SECONDS or ensure instructions defaults.heartbeat_interval_seconds is provided."
+        "Heartbeat interval is missing. Ensure getAgentInstructions returns defaults.heartbeat_interval_seconds."
       );
     }
 
@@ -356,7 +347,7 @@ export class AgentRuntimeProgram {
 
     if (!resolved || resolved < 1) {
       throw new Error(
-        `Agent id is missing. Set AGENTMC_AGENT_ID or ensure ${this.statePath} includes a valid agent_id.`
+        `Agent id is missing. Ensure getAgentInstructions returns agent.id or ${this.statePath} includes a valid agent_id.`
       );
     }
 
@@ -386,6 +377,12 @@ export class AgentRuntimeProgram {
       });
     }
 
+    if (!nonEmpty(this.options.runtimeCommand)) {
+      throw new Error(
+        "Unable to resolve runtime provider automatically. Install OpenClaw or pass options.runtimeCommand (and options.runtimeModels) for external mode."
+      );
+    }
+
     return this.resolveExternalProvider(true);
   }
 
@@ -407,8 +404,8 @@ export class AgentRuntimeProgram {
 
     const models = await this.resolveOpenClawModels(command);
 
-    if (strict && models.length === 0) {
-      throw new Error("OpenClaw model inventory is empty. Set AGENTMC_MODELS or configure models in OpenClaw.");
+    if (models.length === 0) {
+      throw new Error("OpenClaw model inventory is empty. Configure at least one OpenClaw model.");
     }
 
     return {
@@ -439,7 +436,7 @@ export class AgentRuntimeProgram {
 
       this.resolvedOpenClawCommand = candidate;
       if (configured && candidate !== configured) {
-        this.emitInfo("Configured OPENCLAW_CMD is unavailable; using discovered OpenClaw command", {
+        this.emitInfo("Configured options.openclawCommand is unavailable; using discovered OpenClaw command", {
           configured_command: configured,
           resolved_command: candidate
         });
@@ -450,7 +447,7 @@ export class AgentRuntimeProgram {
     const checked = candidates.length > 0 ? candidates.join(", ") : "(none)";
     if (options.strict) {
       throw new Error(
-        `OpenClaw command is not available. Checked: ${checked}. Set OPENCLAW_CMD to an executable path if needed.`
+        `OpenClaw command is not available. Checked: ${checked}. Install OpenClaw or pass options.openclawCommand with an executable path.`
       );
     }
 
@@ -475,26 +472,26 @@ export class AgentRuntimeProgram {
   private resolveExternalProvider(strict: boolean): RuntimeProviderDescriptor {
     const runtimeCommand = nonEmpty(this.options.runtimeCommand);
     if (!runtimeCommand) {
-      throw new Error("External runtime mode requires AGENTMC_RUNTIME_COMMAND.");
+      throw new Error("External runtime mode requires options.runtimeCommand.");
     }
 
     const versionCommand = nonEmpty(this.options.runtimeVersionCommand) ?? runtimeCommand;
     const versionArgs = versionCommand === runtimeCommand ? ["--version"] : [];
 
     const versionText = this.readCommandVersion(versionCommand, versionArgs);
-    const runtimeName = nonEmpty(process.env.AGENTMC_RUNTIME_NAME) ?? basename(runtimeCommand);
-    const runtimeVersion = versionText ?? nonEmpty(process.env.AGENTMC_RUNTIME_VERSION);
-    const runtimeBuild = nonEmpty(process.env.AGENTMC_RUNTIME_BUILD);
+    const runtimeName = nonEmpty(this.options.runtimeName) ?? basename(runtimeCommand);
+    const runtimeVersion = versionText ?? nonEmpty(this.options.runtimeVersion);
+    const runtimeBuild = nonEmpty(this.options.runtimeBuild);
 
     if (!runtimeVersion) {
       throw new Error(
-        "Unable to resolve runtime version for external provider. Set AGENTMC_RUNTIME_VERSION or provide a runnable --version command."
+        "Unable to resolve runtime version for external provider. Provide a runnable --version command or set options.runtimeVersion."
       );
     }
 
     const models = normalizeModelList(this.options.runtimeModels ?? []);
     if (strict && models.length === 0) {
-      throw new Error("External runtime mode requires AGENTMC_MODELS with at least one model identifier.");
+      throw new Error("External runtime mode requires options.runtimeModels with at least one model identifier.");
     }
 
     const runtimeArgs = [...(this.options.runtimeCommandArgs ?? [])];
@@ -546,32 +543,33 @@ export class AgentRuntimeProgram {
   }
 
   private async resolveAgentProfile(agentId: number, provider: RuntimeProviderDescriptor): Promise<AgentProfile> {
-    const envName = nonEmpty(process.env.AGENTMC_AGENT_NAME);
-    const envType = nonEmpty(process.env.AGENTMC_AGENT_TYPE);
-    const envEmoji = nonEmpty(process.env.AGENTMC_AGENT_EMOJI);
+    const configuredName = nonEmpty(this.options.agentName);
+    const configuredType = nonEmpty(this.options.agentType);
+    const configuredEmoji = nonEmpty(this.options.agentEmoji);
 
-    const nameHint = envName;
-    const fallbackIdentity = this.resolveIdentityFromWorkspace(nameHint ?? `agent-${agentId}`);
+    const nameHint = configuredName;
+    const fallbackName = nameHint ?? `agent-${agentId}`;
+    const fallbackIdentity = this.resolveIdentityFromWorkspace(fallbackName);
     const machineSnapshot = await this.resolveMachineIdentitySnapshot(
       provider,
-      nameHint ?? "",
+      fallbackName,
       fallbackIdentity
     );
 
-    const profileName = nonEmpty(machineSnapshot?.name) ?? nameHint ?? `agent-${agentId}`;
-    const resolvedType = envType ?? DEFAULT_AGENT_PROFILE_TYPE;
-    const fallbackEmoji = envEmoji ?? extractIdentityEmoji(fallbackIdentity);
+    const profileName = nonEmpty(machineSnapshot?.name) ?? fallbackName;
+    const resolvedType = configuredType ?? DEFAULT_AGENT_PROFILE_TYPE;
+    const fallbackEmoji = configuredEmoji ?? extractIdentityEmoji(fallbackIdentity);
     const identityCandidate = machineSnapshot?.identity ?? fallbackIdentity;
     const profileEmoji = machineSnapshot?.emoji ?? fallbackEmoji ?? extractIdentityEmoji(identityCandidate);
     const profileIdentity = ensureIdentityPayload(identityCandidate, profileName, profileEmoji);
 
-    const usingFallbackName = !envName && !nonEmpty(machineSnapshot?.name);
-    const usingFallbackType = !envType;
+    const usingFallbackName = !configuredName && !nonEmpty(machineSnapshot?.name);
+    const usingFallbackType = !configuredType;
     if (usingFallbackName || usingFallbackType) {
       this.emitInfo("Agent profile fallback metadata applied", {
         fallback_name: usingFallbackName ? profileName : null,
         fallback_type: usingFallbackType ? resolvedType : null,
-        guidance: "Set AGENTMC_AGENT_NAME and AGENTMC_AGENT_TYPE to override defaults."
+        guidance: "Pass options.agentName and options.agentType to override defaults."
       });
     }
 
@@ -629,8 +627,7 @@ export class AgentRuntimeProgram {
     fallbackName: string,
     fallbackIdentity: JsonObject | string
   ): Promise<RuntimeMachineIdentitySnapshot | null> {
-    const configuredOpenClawAgent = nonEmpty(this.options.openclawAgent);
-    const openclawAgent = normalizeOpenClawAgentName(configuredOpenClawAgent);
+    const configuredOpenClawAgent = normalizeOpenClawAgentName(this.options.openclawAgent);
     const preferredPaths = resolveOpenClawAgentSelectionPaths(this.workspaceDir, this.options.openclawSessionsPath);
 
     try {
@@ -641,7 +638,7 @@ export class AgentRuntimeProgram {
       }
 
       const matched = findOpenClawAgentRow(rows, {
-        agentKey: openclawAgent,
+        agentKey: configuredOpenClawAgent,
         fallbackName,
         preferredPaths,
         preferPathMatch: !configuredOpenClawAgent
@@ -651,20 +648,9 @@ export class AgentRuntimeProgram {
       }
 
       const identityFromRow = valueAsObject(matched.identity) ?? null;
-      const resolvedName =
-        nonEmpty(matched.name) ??
-        nonEmpty(matched.identityName) ??
-        nonEmpty(matched.identity_name) ??
-        nonEmpty(matched.display_name) ??
-        nonEmpty(matched.displayName) ??
-        nonEmpty(identityFromRow?.name) ??
-        fallbackName;
-      const hasNameFromRow =
-        nonEmpty(matched.name) ??
-        nonEmpty(matched.identityName) ??
-        nonEmpty(matched.identity_name) ??
-        nonEmpty(matched.display_name) ??
-        nonEmpty(matched.displayName);
+      const resolvedNameFromRow = resolveOpenClawAgentRowName(matched, identityFromRow);
+      const resolvedName = resolvedNameFromRow ?? fallbackName;
+      const hasNameFromRow = resolvedNameFromRow !== null;
       const resolvedEmoji =
         extractIdentityEmoji(matched) ??
         extractIdentityEmoji(identityFromRow) ??
@@ -736,7 +722,11 @@ export class AgentRuntimeProgram {
       errors.push("openclaw command was not executable in runtime environment; skipping command-based discovery.");
     }
 
-    const configPathCandidates = resolveOpenClawConfigPathCandidates(this.options.openclawSessionsPath, this.workspaceDir);
+    const configPathCandidates = resolveOpenClawConfigPathCandidates(
+      this.options.openclawConfigPath,
+      this.options.openclawSessionsPath,
+      this.workspaceDir
+    );
     for (const configPath of configPathCandidates) {
       try {
         const raw = await readFile(configPath, "utf8");
@@ -1047,16 +1037,13 @@ export class AgentRuntimeProgram {
     const runtimeBuild = provider.build;
     const runtimeTelemetry = await this.resolveRuntimeHeartbeatTelemetry(provider);
 
-    const fallbackModels = provider.models.length > 0
-      ? provider.models
-      : normalizeModelList(this.options.runtimeModels ?? []);
     const runtimeModels = normalizeHeartbeatModels(runtimeTelemetry.models);
-    const models = runtimeModels.length > 0 ? runtimeModels : fallbackModels;
+    const models = runtimeModels.length > 0 ? runtimeModels : provider.models;
 
     if (models.length === 0) {
       const guidance = provider.kind === "openclaw"
-        ? "Set AGENTMC_MODELS (comma-separated) or configure OpenClaw models so `openclaw models status --json` returns at least one model."
-        : "Set AGENTMC_MODELS (comma-separated) with at least one runtime model identifier.";
+        ? "Configure OpenClaw models so `openclaw models status --json` returns at least one model."
+        : "Provide options.runtimeModels with at least one runtime model identifier.";
       throw new Error(`Heartbeat requires runtime model inventory in meta.models. ${guidance}`);
     }
 
@@ -1370,9 +1357,9 @@ export class AgentRuntimeProgram {
     if (!command) {
       throw new Error("OpenClaw command resolution returned no executable command.");
     }
-    const openclawAgent = normalizeOpenClawAgentName(this.options.openclawAgent);
+    const sessionAgentToken = String(this.agentProfile?.id ?? claimed.agentId ?? "unknown");
     const recurringExecutionId = `agentmc-recurring-${claimed.runId}`;
-    const sessionKey = `agent:${openclawAgent}:agentmc:recurring:${claimed.taskId}`;
+    const sessionKey = `agent:${sessionAgentToken}:agentmc:recurring:${claimed.taskId}`;
 
     const submitResponse = await this.openclawGatewayCall(
       command,
@@ -1553,19 +1540,14 @@ function normalizeApiBaseUrl(raw: string): string {
   return `${trimmed}/api/v1`;
 }
 
-function normalizeRuntimeProvider(value: string | undefined): "auto" | RuntimeProviderKind {
-  const normalized = String(value ?? "").trim().toLowerCase();
-  if (normalized === "openclaw" || normalized === "external") {
-    return normalized;
+function normalizeOpenClawAgentName(value: unknown): string | null {
+  const resolved = nonEmpty(value);
+  if (!resolved) {
+    return null;
   }
 
-  return "auto";
-}
-
-function normalizeOpenClawAgentName(value: unknown): string {
-  const resolved = nonEmpty(value) ?? "main";
   if (!/^[A-Za-z0-9_.-]+$/.test(resolved)) {
-    throw new Error("OPENCLAW_AGENT may only include letters, numbers, underscore, dot, and hyphen.");
+    throw new Error("options.openclawAgent may only include letters, numbers, underscore, dot, and hyphen.");
   }
 
   return resolved;
@@ -1797,26 +1779,6 @@ function parseClaimedRecurringTaskRun(value: unknown): ClaimedRecurringTaskRun |
   };
 }
 
-function parseRuntimeCommandArgs(value: string | undefined): string[] {
-  const raw = String(value ?? "").trim();
-  if (!raw) {
-    return [];
-  }
-
-  if (raw.startsWith("[")) {
-    try {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
-        return parsed.map((entry) => String(entry));
-      }
-    } catch {
-      // Fall through to whitespace splitting.
-    }
-  }
-
-  return raw.split(/\s+/).filter(Boolean);
-}
-
 async function canExecute(command: string, args: string[]): Promise<boolean> {
   try {
     await execCapture(command, args);
@@ -2039,39 +2001,50 @@ async function resolvePublicIp(explicit: string | undefined, endpoint: string | 
     }
   }
 
-  if (endpoint) {
-    const response = await fetch(endpoint, {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
-      }
-    });
+  const endpointCandidates = endpoint
+    ? [endpoint]
+    : [...DEFAULT_PUBLIC_IP_ENDPOINT_CANDIDATES];
+  const endpointErrors: string[] = [];
 
-    if (!response.ok) {
-      throw new Error(`Unable to resolve public IP from ${endpoint}: HTTP ${response.status}`);
-    }
-
-    const text = (await response.text()).trim();
-    if (isIpv4(text)) {
-      return text;
-    }
-
+  for (const candidateEndpoint of endpointCandidates) {
     try {
-      const parsed = JSON.parse(text);
-      const candidate = nonEmpty((parsed as JsonObject).ip) ?? nonEmpty((parsed as JsonObject).public_ip);
-      if (candidate && isIpv4(candidate)) {
-        return candidate;
-      }
-    } catch {
-      // Keep parse fallback.
-    }
+      const response = await fetch(candidateEndpoint, {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
+        },
+        signal: AbortSignal.timeout(4_000)
+      });
 
-    throw new Error(`Unable to parse public IP response from ${endpoint}.`);
+      if (!response.ok) {
+        endpointErrors.push(`${candidateEndpoint}: HTTP ${response.status}`);
+        continue;
+      }
+
+      const text = (await response.text()).trim();
+      if (isIpv4(text)) {
+        return text;
+      }
+
+      try {
+        const parsed = JSON.parse(text);
+        const parsedObject = valueAsObject(parsed);
+        const ipCandidate = nonEmpty(parsedObject?.ip) ?? nonEmpty(parsedObject?.public_ip);
+        if (ipCandidate && isIpv4(ipCandidate)) {
+          return ipCandidate;
+        }
+      } catch {
+        // Keep parse fallback.
+      }
+
+      endpointErrors.push(`${candidateEndpoint}: response did not include a valid IPv4 address.`);
+    } catch (error) {
+      endpointErrors.push(`${candidateEndpoint}: ${normalizeError(error).message}`);
+    }
   }
 
-  throw new Error(
-    `Unable to resolve public IP address. Set AGENTMC_PUBLIC_IP or AGENTMC_PUBLIC_IP_ENDPOINT. Private IP was ${privateIp}.`
-  );
+  const endpointSummary = endpointErrors.length > 0 ? ` Endpoint checks: ${endpointErrors.join(" | ")}` : "";
+  throw new Error(`Unable to resolve public IP address. Private IP was ${privateIp}.${endpointSummary}`);
 }
 
 function isPrivateIpv4(value: string): boolean {
@@ -2293,9 +2266,14 @@ function extractOpenClawAgentRows(payload: unknown): JsonObject[] {
 function isLikelyOpenClawAgentRow(row: JsonObject): boolean {
   return (
     nonEmpty(row.id) ??
+    nonEmpty(row.key) ??
+    nonEmpty(row.agent) ??
+    nonEmpty(row.slug) ??
     nonEmpty(row.agent_key) ??
     nonEmpty(row.agentKey) ??
     nonEmpty(row.name) ??
+    nonEmpty(row.agent_name) ??
+    nonEmpty(row.agentName) ??
     nonEmpty(row.identityName) ??
     nonEmpty(row.identity_name) ??
     nonEmpty(row.display_name) ??
@@ -2306,11 +2284,18 @@ function isLikelyOpenClawAgentRow(row: JsonObject): boolean {
     nonEmpty(row.agentDir) ??
     nonEmpty(row.agent_dir) ??
     nonEmpty(row.agentPath) ??
+    valueAsObject(row.agent) ??
+    valueAsObject(row.profile) ??
+    valueAsObject(row.meta) ??
     valueAsObject(row.identity)
   ) !== null;
 }
 
-function resolveOpenClawConfigPathCandidates(openclawSessionsPath: string | undefined, workspaceDir: string): string[] {
+function resolveOpenClawConfigPathCandidates(
+  configuredConfigPath: string | undefined,
+  openclawSessionsPath: string | undefined,
+  workspaceDir: string
+): string[] {
   const candidates = new Set<string>();
   const add = (value: string | null): void => {
     const path = nonEmpty(value);
@@ -2320,7 +2305,7 @@ function resolveOpenClawConfigPathCandidates(openclawSessionsPath: string | unde
     candidates.add(path);
   };
 
-  add(nonEmpty(process.env.OPENCLAW_CONFIG_PATH));
+  add(nonEmpty(configuredConfigPath));
   add(`${homedir()}/.openclaw/openclaw.json`);
   add("/root/.openclaw/openclaw.json");
   add(`${workspaceDir}/.openclaw/openclaw.json`);
@@ -2335,7 +2320,7 @@ function resolveOpenClawConfigPathCandidates(openclawSessionsPath: string | unde
 }
 
 interface OpenClawAgentRowSelectionOptions {
-  agentKey: string;
+  agentKey?: string | null;
   fallbackName: string;
   preferredPaths?: readonly string[];
   preferPathMatch?: boolean;
@@ -2345,6 +2330,11 @@ function findOpenClawAgentRow(rows: readonly JsonObject[], options: OpenClawAgen
   const { agentKey, fallbackName, preferredPaths = [], preferPathMatch = false } = options;
   if (rows.length === 0) {
     return null;
+  }
+
+  const exactWorkspaceMatch = findOpenClawAgentRowByExactWorkspace(rows, preferredPaths);
+  if (preferPathMatch && exactWorkspaceMatch) {
+    return exactWorkspaceMatch;
   }
 
   const pathMatch = findOpenClawAgentRowByPath(rows, preferredPaths);
@@ -2358,8 +2348,10 @@ function findOpenClawAgentRow(rows: readonly JsonObject[], options: OpenClawAgen
       const rowKey = normalizeAgentLookupToken(
         nonEmpty(row.key) ??
           nonEmpty(row.id) ??
+          nonEmpty(row.agent) ??
           nonEmpty(row.agent_key) ??
           nonEmpty(row.agentKey) ??
+          nonEmpty(row.slug) ??
           ""
       );
 
@@ -2377,14 +2369,7 @@ function findOpenClawAgentRow(rows: readonly JsonObject[], options: OpenClawAgen
   const normalizedFallbackName = normalizeAgentLookupToken(fallbackName);
   if (normalizedFallbackName) {
     const byName = rows.find((row) => {
-      const rowName = normalizeAgentLookupToken(
-        nonEmpty(row.name) ??
-          nonEmpty(row.identityName) ??
-          nonEmpty(row.identity_name) ??
-          nonEmpty(row.display_name) ??
-          nonEmpty(row.displayName) ??
-          ""
-      );
+      const rowName = normalizeAgentLookupToken(resolveOpenClawAgentRowName(row, valueAsObject(row.identity)) ?? "");
 
       return rowName !== "" && rowName === normalizedFallbackName;
     });
@@ -2393,7 +2378,11 @@ function findOpenClawAgentRow(rows: readonly JsonObject[], options: OpenClawAgen
     }
   }
 
-  return rows[0] ?? null;
+  if (rows.length === 1) {
+    return rows[0] ?? null;
+  }
+
+  return null;
 }
 
 function findOpenClawAgentRowByPath(rows: readonly JsonObject[], preferredPaths: readonly string[]): JsonObject | null {
@@ -2416,7 +2405,7 @@ function findOpenClawAgentRowByPath(rows: readonly JsonObject[], preferredPaths:
     let rowScore = 0;
     for (const candidatePath of normalizedPaths) {
       rowScore = Math.max(rowScore, scorePathRelationship(candidatePath, rowAgentDir, 6, 5, 4));
-      rowScore = Math.max(rowScore, scorePathRelationship(candidatePath, rowWorkspace, 3, 2, 1));
+      rowScore = Math.max(rowScore, scorePathRelationship(candidatePath, rowWorkspace, 12, 3, 2));
     }
 
     if (rowScore > bestScore) {
@@ -2426,6 +2415,32 @@ function findOpenClawAgentRowByPath(rows: readonly JsonObject[], preferredPaths:
   }
 
   return bestScore > 0 ? bestRow : null;
+}
+
+function findOpenClawAgentRowByExactWorkspace(rows: readonly JsonObject[], preferredPaths: readonly string[]): JsonObject | null {
+  const normalizedPaths = preferredPaths
+    .map((entry) => normalizePathToken(entry))
+    .filter((entry) => entry !== "");
+  if (normalizedPaths.length === 0) {
+    return null;
+  }
+
+  for (const row of rows) {
+    const rowWorkspace = normalizePathToken(
+      nonEmpty(row.workspace) ?? nonEmpty(row.workspace_path) ?? nonEmpty(row.workspacePath)
+    );
+    if (rowWorkspace === "") {
+      continue;
+    }
+
+    for (const candidatePath of normalizedPaths) {
+      if (candidatePath === rowWorkspace) {
+        return row;
+      }
+    }
+  }
+
+  return null;
 }
 
 function scorePathRelationship(
@@ -2467,6 +2482,31 @@ function resolveOpenClawAgentSelectionPaths(workspaceDir: string, openclawSessio
   }
 
   return Array.from(paths);
+}
+
+function resolveOpenClawAgentRowName(row: JsonObject, identityFromRow: JsonObject | null): string | null {
+  const rowAgent = valueAsObject(row.agent);
+  const rowProfile = valueAsObject(row.profile);
+  const rowMeta = valueAsObject(row.meta);
+  const identity = identityFromRow ?? valueAsObject(row.identity);
+  const identityRaw = nonEmpty(row.identity);
+  const identityNameFromMarkdown = identityRaw ? parseIdentityField(identityRaw, "Name") : null;
+
+  return (
+    nonEmpty(row.identityName) ??
+    nonEmpty(row.identity_name) ??
+    nonEmpty(row.name) ??
+    nonEmpty(row.agent_name) ??
+    nonEmpty(row.agentName) ??
+    nonEmpty(row.display_name) ??
+    nonEmpty(row.displayName) ??
+    nonEmpty(rowProfile?.name) ??
+    nonEmpty(rowAgent?.name) ??
+    nonEmpty(rowMeta?.name) ??
+    nonEmpty(identity?.name) ??
+    identityNameFromMarkdown ??
+    null
+  );
 }
 
 function normalizePathToken(value: unknown): string {
@@ -3204,18 +3244,6 @@ function walk(value: unknown, visit: (value: unknown, key: string | number | nul
       walk(childValue, visit, childKey);
     }
   }
-}
-
-function parseCsv(raw: string | undefined): string[] {
-  const text = String(raw ?? "").trim();
-  if (!text) {
-    return [];
-  }
-
-  return text
-    .split(",")
-    .map((part) => normalizeModelToken(part))
-    .filter((part) => part !== "");
 }
 
 function parseJsonUnknown(value: string): unknown | null {
