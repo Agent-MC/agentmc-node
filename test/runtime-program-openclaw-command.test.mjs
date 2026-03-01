@@ -6,16 +6,26 @@ import test from "node:test";
 
 import { AgentRuntimeProgram } from "../dist/index.js";
 
-async function withStubOpenClaw(callback) {
+async function withStubOpenClaw(callback, options = {}) {
   const dir = await mkdtemp(join(tmpdir(), "agentmc-openclaw-cmd-test-"));
   const commandPath = join(dir, "openclaw");
-  const script = `#!/bin/sh
-if [ "$1" = "--version" ]; then
-  echo "OpenClaw 2026.3.1"
-  exit 0
-fi
-echo "{}"
-`;
+  const modelsStatusJson = String(options.modelsStatusJson ?? "{}");
+  const modelsStatusRedirect = options.modelsToStderr ? " 1>&2" : "";
+  const script = [
+    "#!/bin/sh",
+    'if [ "$1" = "--version" ]; then',
+    '  echo "OpenClaw 2026.3.1"',
+    "  exit 0",
+    "fi",
+    'if [ "$1" = "models" ] && [ "$2" = "status" ] && [ "$3" = "--json" ]; then',
+    `  cat <<'JSON'${modelsStatusRedirect}`,
+    modelsStatusJson,
+    "JSON",
+    "  exit 0",
+    "fi",
+    'echo "{}"',
+    ""
+  ].join("\n");
 
   await writeFile(commandPath, script, "utf8");
   await chmod(commandPath, 0o755);
@@ -56,5 +66,44 @@ test("resolveOpenClawProvider falls back to discovered PATH command when OPENCLA
         delete process.env.PATH;
       }
     }
+  });
+});
+
+test("resolveOpenClawProvider reads models from defaultModel/resolvedDefault/allowed inventory", async () => {
+  await withStubOpenClaw(async ({ commandPath }) => {
+    const runtime = new AgentRuntimeProgram({
+      client: { operations: {} },
+      openclawCommand: commandPath
+    });
+
+    const provider = await runtime.resolveOpenClawProvider(true);
+
+    assert.equal(provider.kind, "openclaw");
+    assert.deepEqual(provider.models, ["openai-codex/gpt-5.3-codex"]);
+  }, {
+    modelsStatusJson: `{
+  "defaultModel": "openai-codex/gpt-5.3-codex",
+  "resolvedDefault": "openai-codex/gpt-5.3-codex",
+  "allowed": ["openai-codex/gpt-5.3-codex"]
+}`
+  });
+});
+
+test("resolveOpenClawProvider parses models inventory when JSON is emitted on stderr", async () => {
+  await withStubOpenClaw(async ({ commandPath }) => {
+    const runtime = new AgentRuntimeProgram({
+      client: { operations: {} },
+      openclawCommand: commandPath
+    });
+
+    const provider = await runtime.resolveOpenClawProvider(true);
+
+    assert.equal(provider.kind, "openclaw");
+    assert.deepEqual(provider.models, ["openai-codex/gpt-5.3-codex"]);
+  }, {
+    modelsStatusJson: `{
+  "allowed": ["openai-codex/gpt-5.3-codex"]
+}`,
+    modelsToStderr: true
   });
 });

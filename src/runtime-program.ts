@@ -464,7 +464,7 @@ export class AgentRuntimeProgram {
 
     try {
       const output = await execCapture(command, ["models", "status", "--json"]);
-      const parsed = parseJsonObject(output.stdout);
+      const parsed = parseJsonUnknown(output.stdout) ?? parseJsonUnknown(output.stderr);
       return normalizeModelList(extractModelStrings(parsed));
     } catch {
       return [];
@@ -2839,26 +2839,96 @@ function assignBooleanTelemetryField(
 
 function extractModelStrings(value: unknown): string[] {
   const found = new Set<string>();
+  const modelScalarKeys = new Set([
+    "model",
+    "modelid",
+    "model_id",
+    "modelname",
+    "model_name",
+    "primary",
+    "default",
+    "defaultmodel",
+    "resolveddefault"
+  ]);
+  const modelCollectionKeys = new Set([
+    "allowed",
+    "models",
+    "fallbacks",
+    "availablemodels",
+    "modelinventory",
+    "runtime_models",
+    "runtimemodels"
+  ]);
+  const modelCollectionFieldKeys = new Set([
+    "id",
+    "model",
+    "modelid",
+    "model_id",
+    "name",
+    "key",
+    "slug",
+    "identifier"
+  ]);
 
-  walk(value, (entry, key) => {
-    if (typeof entry !== "string") {
+  const addCandidate = (candidate: string): void => {
+    const trimmed = candidate.trim();
+    if (trimmed !== "") {
+      found.add(trimmed);
+    }
+  };
+
+  const isLikelyModelIdentifier = (candidate: string): boolean => {
+    const text = candidate.trim();
+    if (text === "" || text.length > 200 || /\s/.test(text)) {
+      return false;
+    }
+
+    if (text.includes("/")) {
+      return true;
+    }
+
+    return /(?:gpt|claude|gemini|llama|mistral|qwen|deepseek|sonnet|haiku|opus|o[134])/.test(text.toLowerCase());
+  };
+
+  const visit = (node: unknown, path: string[]): void => {
+    if (typeof node === "string") {
+      const normalizedKey = normalizeLookupKey(path[path.length - 1] ?? "");
+      const inModelCollection = path
+        .slice(0, -1)
+        .some((segment) => modelCollectionKeys.has(normalizeLookupKey(segment)));
+
+      if (modelScalarKeys.has(normalizedKey)) {
+        addCandidate(node);
+        return;
+      }
+
+      if (
+        inModelCollection &&
+        (modelCollectionFieldKeys.has(normalizedKey) || isLikelyModelIdentifier(node))
+      ) {
+        addCandidate(node);
+      }
       return;
     }
 
-    const normalizedKey = String(key ?? "").toLowerCase();
-    if (
-      normalizedKey === "model" ||
-      normalizedKey === "model_id" ||
-      normalizedKey === "id" ||
-      normalizedKey === "primary" ||
-      normalizedKey === "default"
-    ) {
-      const trimmed = entry.trim();
-      if (trimmed !== "") {
-        found.add(trimmed);
-      }
+    if (Array.isArray(node)) {
+      node.forEach((item, index) => {
+        visit(item, [...path, String(index)]);
+      });
+      return;
     }
-  });
+
+    const object = valueAsObject(node);
+    if (!object) {
+      return;
+    }
+
+    for (const [key, child] of Object.entries(object)) {
+      visit(child, [...path, key]);
+    }
+  };
+
+  visit(value, []);
 
   return Array.from(found);
 }
@@ -2890,15 +2960,6 @@ function parseCsv(raw: string | undefined): string[] {
     .split(",")
     .map((part) => part.trim())
     .filter((part) => part !== "");
-}
-
-function parseJsonObject(value: string): JsonObject {
-  const parsed = JSON.parse(value);
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    return {};
-  }
-
-  return parsed as JsonObject;
 }
 
 function parseJsonUnknown(value: string): unknown | null {
