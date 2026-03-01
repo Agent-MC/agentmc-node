@@ -4331,7 +4331,7 @@ export interface components {
              */
             title: string;
             /**
-             * @description Optional long-form description.
+             * @description Long-form description. Supports Markdown formatting.
              * @example Example description text.
              */
             description: string | null;
@@ -7072,7 +7072,7 @@ export interface components {
              */
             title: string;
             /**
-             * @description Optional long-form description.
+             * @description Long-form description. Supports Markdown formatting.
              * @example Example description text.
              */
             description?: string | null;
@@ -7520,7 +7520,7 @@ export interface components {
              */
             title?: string;
             /**
-             * @description Optional long-form description.
+             * @description Long-form description. Supports Markdown formatting.
              * @example Example description text.
              */
             description?: string | null;

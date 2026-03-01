@@ -9259,7 +9259,7 @@
           "description": {
             "type": "string",
             "nullable": true,
-            "description": "Optional long-form description.",
+            "description": "Long-form description. Supports Markdown formatting.",
             "example": "Example description text."
           },
           "start_at": {
@@ -12572,7 +12572,7 @@
           "description": {
             "nullable": true,
             "type": "string",
-            "description": "Optional long-form description.",
+            "description": "Long-form description. Supports Markdown formatting.",
             "example": "Example description text."
           },
           "start_at": {
@@ -13228,7 +13228,7 @@
           "description": {
             "nullable": true,
             "type": "string",
-            "description": "Optional long-form description.",
+            "description": "Long-form description. Supports Markdown formatting.",
             "example": "Example description text."
           },
           "start_at": {
