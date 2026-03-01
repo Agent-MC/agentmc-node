@@ -779,6 +779,95 @@ test("docs handling can be disabled independently from realtime chat/notificatio
   });
 });
 
+test("agent profile update messages execute OpenClaw set-identity and ack success", async () => {
+  await withFixture(async ({ dir, sessionsPath }) => {
+    const openclawStubPath = join(dir, "openclaw-profile-stub.mjs");
+    await writeFile(
+      openclawStubPath,
+      `#!/usr/bin/env node
+const args = process.argv.slice(2);
+if (args[0] === "agents" && args[1] === "set-identity") {
+  process.stdout.write("ok");
+  process.exit(0);
+}
+process.stderr.write("Unexpected command: " + args.join(" "));
+process.exit(1);
+`,
+      "utf8"
+    );
+    await chmod(openclawStubPath, 0o755);
+
+    const runtime = createRuntime(sessionsPath, dir, {
+      openclawCommand: openclawStubPath
+    });
+    const published = [];
+    runtime.publishChannelMessage = async (_sessionId, channelType, requestId, payload) => {
+      published.push({ channelType, requestId, payload });
+    };
+
+    await runtime.handleSignal(
+      createSessionState(),
+      {
+        id: 701,
+        session_id: 114,
+        sender: "browser",
+        type: "message",
+        payload: {
+          type: "agent.profile.update",
+          payload: {
+            request_id: "profile-update-1",
+            name: "OpenClaw Agent",
+            emoji: "🦞"
+          }
+        },
+        created_at: null
+      },
+      "websocket"
+    );
+
+    assert.equal(published.length, 1);
+    assert.equal(published[0]?.channelType, "agent.profile.updated");
+    assert.equal(published[0]?.requestId, "profile-update-1");
+    assert.equal(published[0]?.payload?.provider, "openclaw");
+    assert.equal(published[0]?.payload?.agent_key, "main");
+    assert.equal(published[0]?.payload?.profile?.name, "OpenClaw Agent");
+    assert.equal(published[0]?.payload?.profile?.emoji, "🦞");
+  });
+});
+
+test("agent profile update requires request_id", async () => {
+  await withFixture(async ({ dir, sessionsPath }) => {
+    const runtime = createRuntime(sessionsPath, dir);
+    const published = [];
+    runtime.publishChannelMessage = async (_sessionId, channelType, requestId, payload) => {
+      published.push({ channelType, requestId, payload });
+    };
+
+    await runtime.handleSignal(
+      createSessionState(),
+      {
+        id: 702,
+        session_id: 114,
+        sender: "browser",
+        type: "message",
+        payload: {
+          type: "agent.profile.update",
+          payload: {
+            name: "Missing RequestId"
+          }
+        },
+        created_at: null
+      },
+      "websocket"
+    );
+
+    assert.equal(published.length, 1);
+    assert.equal(published[0]?.channelType, "agent.profile.error");
+    assert.equal(published[0]?.payload?.code, "invalid_request");
+    assert.equal(published[0]?.payload?.error, "request_id is required");
+  });
+});
+
 test("chat bridge errors do not leak raw exception details to chat output", async () => {
   await withFixture(async ({ dir, sessionsPath }) => {
     const secret = "mc_backend_secret_token";

@@ -19,6 +19,7 @@ const OPENCLAW_TELEMETRY_COMMAND_CANDIDATES: readonly string[][] = [
 ];
 const OPENCLAW_MODELS_TELEMETRY_COMMAND: readonly string[] = ["models", "status", "--json"];
 const OPENCLAW_TELEMETRY_TIMEOUT_MS = 4_000;
+const DEFAULT_AGENTMC_API_BASE_URL = "https://agentmc.ai/api/v1";
 const DEFAULT_RECURRING_TASK_POLL_INTERVAL_SECONDS = 30;
 const DEFAULT_RECURRING_TASK_POLL_LIMIT = 5;
 const OPENCLAW_RECURRING_SUBMIT_TIMEOUT_MS = 30_000;
@@ -37,6 +38,17 @@ type HeartbeatBody = NonNullable<RequestOptionsById<"agentHeartbeat">["body"]>;
 type CompleteRecurringTaskRunBody = NonNullable<RequestOptionsById<"completeRecurringTaskRun">["body"]>;
 type DueRecurringTaskRunsResult = NonNullable<ResultById<"listDueRecurringTaskRuns">["data"]>;
 
+interface RuntimeMachineIdentitySnapshot {
+  name: string | null;
+  identity: JsonObject | string | null;
+  emoji: string | null;
+}
+
+type RuntimeMachineIdentityResolver = (
+  fallbackName: string,
+  fallbackIdentity: JsonObject | string
+) => Promise<RuntimeMachineIdentitySnapshot | null>;
+
 interface RuntimeProviderDescriptor {
   kind: RuntimeProviderKind;
   name: string;
@@ -44,6 +56,7 @@ interface RuntimeProviderDescriptor {
   build: string | null;
   mode: string;
   models: string[];
+  machineIdentityResolver?: RuntimeMachineIdentityResolver;
   runAgent?: (input: AgentRuntimeRunInput) => Promise<AgentRuntimeRunResult>;
 }
 
@@ -102,6 +115,7 @@ interface AgentProfile {
   name: string;
   type: string;
   identity: JsonObject | string;
+  emoji?: string | null;
 }
 
 export class AgentRuntimeProgram {
@@ -127,6 +141,7 @@ export class AgentRuntimeProgram {
   private readonly recurringTaskGatewayTimeoutMs: number;
   private cachedOpenClawTelemetryCommandArgs: string[] | null = null;
   private lastOpenClawTelemetryError: string | null = null;
+  private lastOpenClawIdentityError: string | null = null;
 
   constructor(options: AgentRuntimeProgramOptions = {}) {
     this.options = options;
@@ -148,7 +163,7 @@ export class AgentRuntimeProgram {
       this.client = options.client;
     } else {
       const apiKey = requireNonEmpty(options.apiKey, "options.apiKey");
-      const baseUrl = normalizeApiBaseUrl(requireNonEmpty(options.baseUrl, "options.baseUrl"));
+      const baseUrl = normalizeApiBaseUrl(nonEmpty(options.baseUrl) ?? DEFAULT_AGENTMC_API_BASE_URL);
       this.client = new AgentMCApi({
         baseUrl,
         apiKey
@@ -157,7 +172,7 @@ export class AgentRuntimeProgram {
   }
 
   static fromEnv(env: NodeJS.ProcessEnv = process.env): AgentRuntimeProgram {
-    const baseUrl = requireNonEmpty(env.AGENTMC_BASE_URL, "AGENTMC_BASE_URL");
+    const baseUrl = nonEmpty(env.AGENTMC_BASE_URL) ?? DEFAULT_AGENTMC_API_BASE_URL;
     const apiKey = requireNonEmpty(env.AGENTMC_API_KEY, "AGENTMC_API_KEY");
 
     const runtimeCommandArgs = parseRuntimeCommandArgs(env.AGENTMC_RUNTIME_COMMAND_ARGS);
@@ -243,7 +258,7 @@ export class AgentRuntimeProgram {
 
     const agentId = this.resolveAgentId(bootstrapSync.agentId);
     this.runtimeProvider = await this.resolveRuntimeProvider();
-    this.agentProfile = await this.resolveAgentProfile(agentId);
+    this.agentProfile = await this.resolveAgentProfile(agentId, this.runtimeProvider);
 
     await this.startRealtimeRuntime(agentId, this.runtimeProvider);
     const recurringPollIntervalMs = this.recurringTaskPollIntervalSeconds * 1000;
@@ -394,7 +409,9 @@ export class AgentRuntimeProgram {
       version,
       build,
       mode: "openclaw",
-      models
+      models,
+      machineIdentityResolver: (fallbackName, fallbackIdentity) =>
+        this.resolveOpenClawMachineIdentitySnapshot(fallbackName, fallbackIdentity)
     };
   }
 
@@ -486,28 +503,40 @@ export class AgentRuntimeProgram {
     }
   }
 
-  private async resolveAgentProfile(agentId: number): Promise<AgentProfile> {
+  private async resolveAgentProfile(agentId: number, provider: RuntimeProviderDescriptor): Promise<AgentProfile> {
     const listed = await this.resolveAgentProfileFromApi(agentId);
-    if (listed) {
-      return listed;
-    }
-
     const envName = nonEmpty(process.env.AGENTMC_AGENT_NAME);
     const envType = nonEmpty(process.env.AGENTMC_AGENT_TYPE);
+    const envEmoji = nonEmpty(process.env.AGENTMC_AGENT_EMOJI);
 
-    if (!envName || !envType) {
+    const resolvedName = listed?.name ?? envName;
+    const resolvedType = listed?.type ?? envType;
+
+    if (!resolvedName || !resolvedType) {
       throw new Error(
         "Unable to resolve agent profile. Ensure listAgents is accessible or set AGENTMC_AGENT_NAME and AGENTMC_AGENT_TYPE."
       );
     }
 
-    const identity = this.resolveIdentityFromWorkspace(envName);
+    const fallbackIdentity = listed?.identity ?? this.resolveIdentityFromWorkspace(resolvedName);
+    const fallbackEmoji = envEmoji ?? listed?.emoji ?? extractIdentityEmoji(fallbackIdentity);
+    const machineSnapshot = await this.resolveMachineIdentitySnapshot(
+      provider,
+      resolvedName,
+      fallbackIdentity
+    );
+
+    const profileName = nonEmpty(machineSnapshot?.name) ?? resolvedName;
+    const identityCandidate = machineSnapshot?.identity ?? fallbackIdentity;
+    const profileEmoji = machineSnapshot?.emoji ?? fallbackEmoji ?? extractIdentityEmoji(identityCandidate);
+    const profileIdentity = ensureIdentityPayload(identityCandidate, profileName, profileEmoji);
 
     return {
       id: agentId,
-      name: envName,
-      type: envType,
-      identity
+      name: profileName,
+      type: resolvedType,
+      identity: profileIdentity,
+      emoji: profileEmoji
     };
   }
 
@@ -545,9 +574,109 @@ export class AgentRuntimeProgram {
         id: agentId,
         name,
         type,
-        identity
+        identity,
+        emoji: extractIdentityEmoji(identity)
       };
     } catch {
+      return null;
+    }
+  }
+
+  private async refreshAgentProfileFromMachine(): Promise<void> {
+    const provider = this.runtimeProvider;
+    const profile = this.agentProfile;
+    if (!provider || !profile) {
+      return;
+    }
+
+    const machineSnapshot = await this.resolveMachineIdentitySnapshot(
+      provider,
+      profile.name,
+      profile.identity
+    );
+    if (!machineSnapshot) {
+      return;
+    }
+
+    const resolvedName = nonEmpty(machineSnapshot.name) ?? profile.name;
+    const resolvedIdentityCandidate = machineSnapshot.identity ?? profile.identity;
+    const resolvedEmoji = machineSnapshot.emoji ?? profile.emoji ?? extractIdentityEmoji(resolvedIdentityCandidate);
+    const resolvedIdentity = ensureIdentityPayload(resolvedIdentityCandidate, resolvedName, resolvedEmoji);
+
+    this.agentProfile = {
+      ...profile,
+      name: resolvedName,
+      identity: resolvedIdentity,
+      emoji: resolvedEmoji
+    };
+  }
+
+  private async resolveMachineIdentitySnapshot(
+    provider: RuntimeProviderDescriptor,
+    fallbackName: string,
+    fallbackIdentity: JsonObject | string
+  ): Promise<RuntimeMachineIdentitySnapshot | null> {
+    if (!provider.machineIdentityResolver) {
+      return null;
+    }
+
+    return provider.machineIdentityResolver(fallbackName, fallbackIdentity);
+  }
+
+  private async resolveOpenClawMachineIdentitySnapshot(
+    fallbackName: string,
+    fallbackIdentity: JsonObject | string
+  ): Promise<RuntimeMachineIdentitySnapshot | null> {
+    const command = nonEmpty(this.options.openclawCommand) ?? "openclaw";
+    const openclawAgent = normalizeOpenClawAgentName(this.options.openclawAgent);
+
+    try {
+      const output = await execCapture(command, ["agents", "list", "--json"], {
+        timeoutMs: OPENCLAW_TELEMETRY_TIMEOUT_MS
+      });
+      const parsed = parseJsonUnknown(output.stdout) ?? parseJsonUnknown(output.stderr);
+      const payload = valueAsObject(parsed);
+      if (!payload) {
+        return null;
+      }
+
+      const rows = extractOpenClawAgentRows(payload);
+      const matched = findOpenClawAgentRow(rows, openclawAgent, fallbackName);
+      if (!matched) {
+        return null;
+      }
+
+      const identityFromRow = valueAsObject(matched.identity) ?? null;
+      const resolvedName =
+        nonEmpty(matched.name) ??
+        nonEmpty(identityFromRow?.name) ??
+        fallbackName;
+      const resolvedEmoji =
+        extractIdentityEmoji(matched) ??
+        extractIdentityEmoji(identityFromRow) ??
+        extractIdentityEmoji(fallbackIdentity);
+      const resolvedIdentity = ensureIdentityPayload(
+        identityFromRow ?? fallbackIdentity,
+        resolvedName,
+        resolvedEmoji
+      );
+
+      this.lastOpenClawIdentityError = null;
+
+      return {
+        name: resolvedName,
+        identity: resolvedIdentity,
+        emoji: resolvedEmoji
+      };
+    } catch (error) {
+      const message = normalizeError(error).message;
+      if (this.lastOpenClawIdentityError !== message) {
+        this.lastOpenClawIdentityError = message;
+        this.emitInfo("OpenClaw agent identity unavailable; using current profile", {
+          reason: message
+        });
+      }
+
       return null;
     }
   }
@@ -806,6 +935,8 @@ export class AgentRuntimeProgram {
   }
 
   private async buildHeartbeatBody(): Promise<HeartbeatBody> {
+    await this.refreshAgentProfileFromMachine();
+
     const provider = this.runtimeProvider;
     const profile = this.agentProfile;
 
@@ -844,6 +975,8 @@ export class AgentRuntimeProgram {
 
     const runtimeStatus = this.realtimeRuntime?.getStatus();
     const metaType = provider.kind === "openclaw" ? "openclaw" : provider.name;
+    const profileEmoji = nonEmpty(profile.emoji) ?? extractIdentityEmoji(profile.identity);
+    const profileIdentity = ensureIdentityPayload(profile.identity, profile.name, profileEmoji);
 
     const heartbeatMeta: JsonObject = {
       type: metaType,
@@ -866,6 +999,9 @@ export class AgentRuntimeProgram {
     if (provider.kind === "openclaw") {
       heartbeatMeta.openclaw_version = runtimeVersion;
       heartbeatMeta.openclaw_build = runtimeBuild ?? runtimeVersion;
+    }
+    if (profileEmoji) {
+      heartbeatMeta.emoji = profileEmoji;
     }
 
     for (const [key, value] of Object.entries(runtimeTelemetry)) {
@@ -905,7 +1041,7 @@ export class AgentRuntimeProgram {
         id: profile.id,
         name: profile.name,
         type: profile.type,
-        identity: profile.identity as HeartbeatBody["agent"]["identity"]
+        identity: profileIdentity as HeartbeatBody["agent"]["identity"]
       }
     };
   }
@@ -1774,6 +1910,126 @@ function isIpv4(value: string): boolean {
   }
 
   return true;
+}
+
+function ensureIdentityPayload(identity: unknown, fallbackName: string, emoji: string | null): JsonObject {
+  const objectIdentity = valueAsObject(identity) ?? {};
+  const normalizedIdentity: JsonObject = { ...objectIdentity };
+
+  if (!nonEmpty(normalizedIdentity.name)) {
+    normalizedIdentity.name = fallbackName;
+  }
+  if (emoji && !nonEmpty(normalizedIdentity.emoji)) {
+    normalizedIdentity.emoji = emoji;
+  }
+
+  return normalizedIdentity;
+}
+
+function extractIdentityEmoji(value: unknown): string | null {
+  const objectValue = valueAsObject(value);
+  if (!objectValue) {
+    return null;
+  }
+
+  const direct =
+    nonEmpty(objectValue.emoji) ??
+    nonEmpty(objectValue.avatar_emoji) ??
+    nonEmpty(objectValue.avatarEmoji) ??
+    nonEmpty(objectValue.profile_emoji) ??
+    nonEmpty(objectValue.profileEmoji) ??
+    nonEmpty(objectValue.icon_emoji) ??
+    nonEmpty(objectValue.iconEmoji) ??
+    nonEmpty(objectValue.icon);
+  if (direct) {
+    return direct;
+  }
+
+  const nestedIdentity = valueAsObject(objectValue.identity);
+  if (!nestedIdentity) {
+    return null;
+  }
+
+  return (
+    nonEmpty(nestedIdentity.emoji) ??
+    nonEmpty(nestedIdentity.avatar_emoji) ??
+    nonEmpty(nestedIdentity.avatarEmoji) ??
+    nonEmpty(nestedIdentity.profile_emoji) ??
+    nonEmpty(nestedIdentity.profileEmoji) ??
+    nonEmpty(nestedIdentity.icon_emoji) ??
+    nonEmpty(nestedIdentity.iconEmoji) ??
+    nonEmpty(nestedIdentity.icon) ??
+    null
+  );
+}
+
+function extractOpenClawAgentRows(payload: JsonObject): JsonObject[] {
+  const candidates = [payload.list, payload.agents, payload.data];
+
+  for (const candidate of candidates) {
+    if (!Array.isArray(candidate)) {
+      continue;
+    }
+
+    return candidate
+      .map((entry) => valueAsObject(entry))
+      .filter((entry): entry is JsonObject => entry !== null);
+  }
+
+  return [];
+}
+
+function findOpenClawAgentRow(
+  rows: readonly JsonObject[],
+  agentKey: string,
+  fallbackName: string
+): JsonObject | null {
+  if (rows.length === 0) {
+    return null;
+  }
+
+  const normalizedTargetKey = normalizeAgentLookupToken(agentKey);
+  if (normalizedTargetKey) {
+    const byKey = rows.find((row) => {
+      const rowKey = normalizeAgentLookupToken(
+        nonEmpty(row.key) ??
+          nonEmpty(row.id) ??
+          nonEmpty(row.agent_key) ??
+          nonEmpty(row.agentKey) ??
+          ""
+      );
+
+      return rowKey !== "" && rowKey === normalizedTargetKey;
+    });
+    if (byKey) {
+      return byKey;
+    }
+  }
+
+  const normalizedFallbackName = normalizeAgentLookupToken(fallbackName);
+  if (normalizedFallbackName) {
+    const byName = rows.find((row) => {
+      const rowName = normalizeAgentLookupToken(
+        nonEmpty(row.name) ??
+          nonEmpty(row.display_name) ??
+          nonEmpty(row.displayName) ??
+          ""
+      );
+
+      return rowName !== "" && rowName === normalizedFallbackName;
+    });
+    if (byName) {
+      return byName;
+    }
+  }
+
+  return rows[0] ?? null;
+}
+
+function normalizeAgentLookupToken(value: unknown): string {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase();
 }
 
 function normalizeModelList(models: readonly string[]): string[] {

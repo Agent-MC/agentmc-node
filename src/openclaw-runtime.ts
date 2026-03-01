@@ -693,6 +693,11 @@ export class OpenClawAgentRuntime {
       return;
     }
 
+    if (channelType === "agent.profile.update") {
+      await this.handleAgentProfileUpdate(state, payload, channelPayload);
+      return;
+    }
+
     await callOptionalHandler(
       this.options.onUnhandledMessage,
       {
@@ -1340,6 +1345,114 @@ export class OpenClawAgentRuntime {
     });
   }
 
+  private async handleAgentProfileUpdate(
+    state: SessionState,
+    envelope: JsonObject,
+    payload: JsonObject
+  ): Promise<void> {
+    const requestIdFromPayload =
+      valueAsString(payload.request_id)?.trim() ||
+      valueAsString(envelope.request_id)?.trim() ||
+      "";
+    const requestId = requestIdFromPayload || `agent-profile-${state.sessionId}-${Date.now().toString(36)}`;
+    const hasName = hasOwn(envelope, "name") || hasOwn(payload, "name");
+    const hasEmoji = hasOwn(envelope, "emoji") || hasOwn(payload, "emoji");
+    const rawName = valueAsString(payload.name) ?? valueAsString(envelope.name);
+    const rawEmoji = valueAsString(payload.emoji) ?? valueAsString(envelope.emoji);
+    const name = normalizeAgentProfileName(rawName);
+    const emoji = normalizeAgentProfileEmoji(rawEmoji);
+    const dedupeKey = `agent.profile.update:${requestId}`;
+
+    if (!shouldProcessInboundKey(state, dedupeKey, this.options.duplicateTtlMs)) {
+      return;
+    }
+
+    if (!requestIdFromPayload) {
+      await this.publishChannelMessage(state.sessionId, "agent.profile.error", requestId, {
+        code: "invalid_request",
+        error: "request_id is required"
+      });
+      return;
+    }
+
+    if (!hasName && !hasEmoji) {
+      await this.publishChannelMessage(state.sessionId, "agent.profile.error", requestId, {
+        code: "invalid_request",
+        error: "name or emoji is required"
+      });
+      return;
+    }
+
+    if (hasName && !name) {
+      await this.publishChannelMessage(state.sessionId, "agent.profile.error", requestId, {
+        code: "invalid_request",
+        error: "name must be a non-empty string when provided"
+      });
+      return;
+    }
+
+    if (hasEmoji && rawEmoji === null) {
+      await this.publishChannelMessage(state.sessionId, "agent.profile.error", requestId, {
+        code: "invalid_request",
+        error: "emoji must be a string when provided"
+      });
+      return;
+    }
+
+    try {
+      const updatedProfile = await this.updateOpenClawAgentIdentity({
+        ...(hasName ? { name: name ?? null } : {}),
+        ...(hasEmoji ? { emoji } : {})
+      });
+
+      await this.publishChannelMessage(state.sessionId, "agent.profile.updated", requestId, {
+        provider: "openclaw",
+        agent_key: this.options.openclawAgent,
+        profile: {
+          name: updatedProfile.name,
+          emoji: updatedProfile.emoji
+        },
+        message: "Profile updated on runtime. Heartbeat sync pending."
+      });
+    } catch (error) {
+      const normalized = normalizeError(error);
+      await this.publishChannelMessage(state.sessionId, "agent.profile.error", requestId, {
+        code: "command_failed",
+        error: normalized.message
+      });
+      await this.emitError(normalized);
+    }
+  }
+
+  private async updateOpenClawAgentIdentity(input: {
+    name?: string | null;
+    emoji?: string | null;
+  }): Promise<{ name: string | null; emoji: string | null }> {
+    const args = ["agents", "set-identity", "--agent", this.options.openclawAgent];
+
+    if (typeof input.name === "string" && input.name.trim() !== "") {
+      args.push("--name", input.name);
+    }
+
+    if (Object.prototype.hasOwnProperty.call(input, "emoji")) {
+      args.push("--emoji", input.emoji ?? "");
+    }
+
+    if (args.length <= 4) {
+      throw new Error("agent profile update requires at least one field.");
+    }
+
+    await execFileAsync(this.options.openclawCommand, args, {
+      timeout: this.options.openclawGatewayTimeoutMs,
+      maxBuffer: this.options.openclawMaxBufferBytes
+    });
+
+    return {
+      name: typeof input.name === "string" && input.name.trim() !== "" ? input.name : null,
+      emoji: Object.prototype.hasOwnProperty.call(input, "emoji") ? input.emoji ?? null : null
+    };
+  }
+
   private async sendInitialSnapshot(state: SessionState, reason: string): Promise<void> {
     const requestId = `snapshot-${state.sessionId}-${Date.now().toString(36)}`;
     await this.sendSnapshotResponse(state.sessionId, requestId, reason);
@@ -1709,6 +1822,36 @@ function buildFileIdPayload(fileId: string): { file_id: string; doc_id: string }
     file_id: fileId,
     doc_id: fileId
   };
+}
+
+function hasOwn(value: JsonObject, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(value, key);
+}
+
+function normalizeAgentProfileName(value: string | null): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (trimmed === "") {
+    return null;
+  }
+
+  return trimmed.slice(0, 255);
+}
+
+function normalizeAgentProfileEmoji(value: string | null): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (trimmed === "") {
+    return null;
+  }
+
+  return trimmed.slice(0, 32);
 }
 
 function normalizePositiveInt(value: number | undefined, fallback: number): number {

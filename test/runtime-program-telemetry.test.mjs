@@ -26,6 +26,7 @@ function createRuntimeProgram(snapshots, models = ["openai/gpt-5-codex"]) {
   };
 
   runtime.loadOpenClawTelemetrySnapshots = async () => snapshots;
+  runtime.resolveMachineIdentitySnapshot = async () => null;
 
   return runtime;
 }
@@ -168,4 +169,24 @@ test("buildHeartbeatBody extracts telemetry from status-style text fragments", a
   assert.equal(meta.session, "agent:main:main");
   assert.equal(meta.queue_depth, 1);
   assert.equal(meta.auth, "oauth (openai-codex:default)");
+});
+
+test("buildHeartbeatBody applies machine identity emoji/name into heartbeat payload", async () => {
+  const runtime = createRuntimeProgram([{}]);
+
+  runtime.resolveMachineIdentitySnapshot = async () => ({
+    name: "Orbit",
+    identity: {
+      name: "Orbit",
+      emoji: "🤖"
+    },
+    emoji: "🤖"
+  });
+
+  const body = await runtime.buildHeartbeatBody();
+  const meta = body.meta;
+
+  assert.equal(body.agent.name, "Orbit");
+  assert.equal(body.agent.identity.emoji, "🤖");
+  assert.equal(meta.emoji, "🤖");
 });

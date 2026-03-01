@@ -22,7 +22,7 @@ test("runtime:start validates required AGENTMC env", async () => {
     () => execFileAsync(process.execPath, [cliPath, "runtime:start"], { env }),
     (error) => {
       assert.equal(error?.code, 1);
-      assert.match(String(error?.stderr), /AGENTMC_BASE_URL is required\./);
+      assert.match(String(error?.stderr), /AGENTMC_API_KEY is required\./);
       return true;
     }
   );

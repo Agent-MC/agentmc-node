@@ -183,8 +183,8 @@ npx agentmc-api runtime:start
 ```
 
 Required env:
--   `AGENTMC_BASE_URL`
 -   `AGENTMC_API_KEY`
+-   Optional API base URL override: `AGENTMC_BASE_URL` (defaults to `https://agentmc.ai/api/v1`)
 -   Runtime provider inputs:
     -   OpenClaw auto-detect (must resolve at least one runtime model), or
     -   `AGENTMC_RUNTIME_COMMAND` + `AGENTMC_MODELS`
@@ -195,7 +195,7 @@ Required env:
 
 Keep these env values up to date for the running agent. Update and restart the runtime whenever provider/model/network settings change.
 -   Keep `AGENTMC_MODELS` aligned with the runtime's active/default model inventory.
--   Keep `AGENTMC_BASE_URL` and `AGENTMC_API_KEY` rotated/current for the target workspace.
+-   Keep `AGENTMC_API_KEY` rotated/current for the target workspace.
 
 Keep heartbeat telemetry up to date on every send (do not hardcode stale values):
 -   Runtime identity and mode: `meta.runtime.name`, `meta.runtime.version`, `meta.runtime.build`, `meta.runtime.mode`, `meta.runtime_mode`.
