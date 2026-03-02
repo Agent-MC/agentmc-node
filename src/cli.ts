@@ -112,6 +112,32 @@ interface RuntimeWorkerStatusReport {
   heartbeat_age_seconds: number | null;
 }
 
+interface RuntimeServiceStatusReport {
+  name: string;
+  active_state: string | null;
+  sub_state: string | null;
+  main_pid: number | null;
+  restarts: number | null;
+  exec_main_status: number | null;
+  active_enter_timestamp: string | null;
+}
+
+interface RuntimeStatusLogEntry {
+  timestamp: string | null;
+  message: string;
+}
+
+interface RuntimeStatusDiagnostics {
+  status_stale: boolean;
+  status_stale_threshold_seconds: number;
+  heartbeat_stale_threshold_seconds: number;
+  unresolved_workers: string[];
+  workers_missing_heartbeat: string[];
+  workers_stale_heartbeat: string[];
+  workers_with_state_errors: string[];
+  hints: string[];
+}
+
 interface RuntimeStatusReport {
   status_path: string;
   file_exists: boolean;
@@ -126,6 +152,12 @@ interface RuntimeStatusReport {
   summary: string | null;
   workers: RuntimeWorkerStatusReport[];
   warnings: string[];
+  service: RuntimeServiceStatusReport | null;
+  recent_errors: RuntimeStatusLogEntry[];
+  recent_errors_service_name: string | null;
+  recent_errors_window_minutes: number;
+  recent_errors_limit: number;
+  diagnostics: RuntimeStatusDiagnostics;
 }
 
 const DEFAULT_WORKER_RESTART_DELAY_MS = 2_000;
@@ -134,8 +166,17 @@ const WORKER_RESTART_RESET_WINDOW_MS = 60_000;
 const DEFAULT_HOST_HEARTBEAT_INTERVAL_SECONDS = 300;
 const DEFAULT_HOST_REQUESTED_SESSION_LIMIT = 20;
 const DEFAULT_HOST_REQUEST_POLL_MS = 250;
+const DEFAULT_AUTO_UPDATE_INTERVAL_SECONDS = 300;
+const DEFAULT_AUTO_UPDATE_INSTALL_TIMEOUT_MS = 120_000;
+const DEFAULT_AUTO_UPDATE_PACKAGE_NAME = "@agentmc/api";
+const DEFAULT_AUTO_UPDATE_REGISTRY_URL = "https://registry.npmjs.org/@agentmc%2Fapi/latest";
+const INSTALLED_PACKAGE_PATH_MARKER = "/node_modules/@agentmc/api/";
 const DEFAULT_RUNTIME_STATUS_PATH = ".agentmc/runtime-status.json";
 const DEFAULT_RUNTIME_STATE_PATH = ".agentmc/state.json";
+const DEFAULT_RUNTIME_SERVICE_NAME = "agentmc-host";
+const DEFAULT_RUNTIME_STATUS_STALE_THRESHOLD_SECONDS = 120;
+const DEFAULT_RUNTIME_ERROR_LOOKBACK_MINUTES = 30;
+const DEFAULT_RUNTIME_ERROR_LIMIT = 20;
 const OPENCLAW_MODELS_STATUS_COMMAND: readonly string[] = ["models", "--status-json"];
 const OPENCLAW_MODELS_STATUS_FALLBACK_COMMAND: readonly string[] = ["models", "status", "--json"];
 const OPENCLAW_MODEL_PLACEHOLDER_TOKENS = new Set([
@@ -208,9 +249,70 @@ function parseCommaSeparatedList(value: unknown): string[] {
     .filter((entry) => entry.length > 0);
 }
 
+function parseBoundedPositiveInt(
+  value: unknown,
+  fallback: number,
+  minValue: number,
+  maxValue: number
+): number {
+  const parsed = toPositiveInt(value) ?? fallback;
+  return Math.max(minValue, Math.min(maxValue, parsed));
+}
+
 function resolveRuntimeStatusPath(env: NodeJS.ProcessEnv, override?: string): string {
   const configured = nonEmpty(override) ?? nonEmpty(env.AGENTMC_RUNTIME_STATUS_PATH);
   return resolve(configured ?? resolve(process.cwd(), DEFAULT_RUNTIME_STATUS_PATH));
+}
+
+function resolveRuntimeServiceName(env: NodeJS.ProcessEnv, override?: string): string {
+  return nonEmpty(override) ?? nonEmpty(env.AGENTMC_SERVICE_NAME) ?? DEFAULT_RUNTIME_SERVICE_NAME;
+}
+
+interface RuntimeAutoUpdateConfig {
+  enabled: boolean;
+  intervalSeconds: number;
+  installTimeoutMs: number;
+  npmCommand: string;
+  installDir: string;
+  registryUrl: string;
+  packageName: string;
+}
+
+function resolveRuntimeAutoUpdateInstallDir(env: NodeJS.ProcessEnv): string {
+  const configured = nonEmpty(env.AGENTMC_AUTO_UPDATE_INSTALL_DIR);
+  if (configured) {
+    return resolve(configured);
+  }
+
+  const normalizedCliFilePath = fileURLToPath(import.meta.url).replace(/\\/g, "/");
+  const markerIndex = normalizedCliFilePath.lastIndexOf(INSTALLED_PACKAGE_PATH_MARKER);
+  if (markerIndex >= 0) {
+    return resolve(normalizedCliFilePath.slice(0, markerIndex));
+  }
+
+  return process.cwd();
+}
+
+function resolveRuntimeAutoUpdateConfig(env: NodeJS.ProcessEnv): RuntimeAutoUpdateConfig {
+  const normalizedCliFilePath = fileURLToPath(import.meta.url).replace(/\\/g, "/");
+  const defaultEnabled = normalizedCliFilePath.includes(INSTALLED_PACKAGE_PATH_MARKER);
+  const enabled = toBoolean(env.AGENTMC_AUTO_UPDATE) ?? defaultEnabled;
+
+  return {
+    enabled,
+    intervalSeconds: Math.max(
+      30,
+      toPositiveInt(env.AGENTMC_AUTO_UPDATE_INTERVAL_SECONDS) ?? DEFAULT_AUTO_UPDATE_INTERVAL_SECONDS
+    ),
+    installTimeoutMs: Math.max(
+      10_000,
+      toPositiveInt(env.AGENTMC_AUTO_UPDATE_INSTALL_TIMEOUT_MS) ?? DEFAULT_AUTO_UPDATE_INSTALL_TIMEOUT_MS
+    ),
+    npmCommand: nonEmpty(env.AGENTMC_AUTO_UPDATE_NPM_COMMAND) ?? "npm",
+    installDir: resolveRuntimeAutoUpdateInstallDir(env),
+    registryUrl: nonEmpty(env.AGENTMC_AUTO_UPDATE_REGISTRY_URL) ?? DEFAULT_AUTO_UPDATE_REGISTRY_URL,
+    packageName: DEFAULT_AUTO_UPDATE_PACKAGE_NAME
+  };
 }
 
 function toRuntimeSupervisorWorkerStatus(worker: RuntimeWorkerConfig): RuntimeSupervisorWorkerStatus {
@@ -347,7 +449,22 @@ function readRuntimeStatusReport(statusPath: string, env: NodeJS.ProcessEnv): Ru
       updated_age_seconds: null,
       summary: null,
       workers: fallbackWorker,
-      warnings
+      warnings,
+      service: null,
+      recent_errors: [],
+      recent_errors_service_name: null,
+      recent_errors_window_minutes: DEFAULT_RUNTIME_ERROR_LOOKBACK_MINUTES,
+      recent_errors_limit: DEFAULT_RUNTIME_ERROR_LIMIT,
+      diagnostics: {
+        status_stale: false,
+        status_stale_threshold_seconds: DEFAULT_RUNTIME_STATUS_STALE_THRESHOLD_SECONDS,
+        heartbeat_stale_threshold_seconds: DEFAULT_HOST_HEARTBEAT_INTERVAL_SECONDS * 2 + 60,
+        unresolved_workers: [],
+        workers_missing_heartbeat: [],
+        workers_stale_heartbeat: [],
+        workers_with_state_errors: [],
+        hints: []
+      }
     };
   }
 
@@ -416,7 +533,22 @@ function readRuntimeStatusReport(statusPath: string, env: NodeJS.ProcessEnv): Ru
       updated_age_seconds: null,
       summary: null,
       workers: [],
-      warnings
+      warnings,
+      service: null,
+      recent_errors: [],
+      recent_errors_service_name: null,
+      recent_errors_window_minutes: DEFAULT_RUNTIME_ERROR_LOOKBACK_MINUTES,
+      recent_errors_limit: DEFAULT_RUNTIME_ERROR_LIMIT,
+      diagnostics: {
+        status_stale: false,
+        status_stale_threshold_seconds: DEFAULT_RUNTIME_STATUS_STALE_THRESHOLD_SECONDS,
+        heartbeat_stale_threshold_seconds: DEFAULT_HOST_HEARTBEAT_INTERVAL_SECONDS * 2 + 60,
+        unresolved_workers: [],
+        workers_missing_heartbeat: [],
+        workers_stale_heartbeat: [],
+        workers_with_state_errors: [],
+        hints: []
+      }
     };
   }
 
@@ -447,7 +579,308 @@ function readRuntimeStatusReport(statusPath: string, env: NodeJS.ProcessEnv): Ru
     updated_age_seconds: updatedAtDate ? secondsSince(updatedAtDate, now) : null,
     summary: parsedSnapshot.summary,
     workers: workerReports,
-    warnings
+    warnings,
+    service: null,
+    recent_errors: [],
+    recent_errors_service_name: null,
+    recent_errors_window_minutes: DEFAULT_RUNTIME_ERROR_LOOKBACK_MINUTES,
+    recent_errors_limit: DEFAULT_RUNTIME_ERROR_LIMIT,
+    diagnostics: {
+      status_stale: false,
+      status_stale_threshold_seconds: DEFAULT_RUNTIME_STATUS_STALE_THRESHOLD_SECONDS,
+      heartbeat_stale_threshold_seconds: DEFAULT_HOST_HEARTBEAT_INTERVAL_SECONDS * 2 + 60,
+      unresolved_workers: [],
+      workers_missing_heartbeat: [],
+      workers_stale_heartbeat: [],
+      workers_with_state_errors: [],
+      hints: []
+    }
+  };
+}
+
+function parseSystemdShowOutput(output: string): Record<string, string> {
+  const values: Record<string, string> = {};
+  for (const line of String(output ?? "").split(/\r?\n/)) {
+    const separatorIndex = line.indexOf("=");
+    if (separatorIndex < 1) {
+      continue;
+    }
+    const key = line.slice(0, separatorIndex).trim();
+    const value = line.slice(separatorIndex + 1).trim();
+    if (key !== "") {
+      values[key] = value;
+    }
+  }
+  return values;
+}
+
+function readSystemdServiceStatus(serviceName: string): {
+  status: RuntimeServiceStatusReport | null;
+  warnings: string[];
+} {
+  const warnings: string[] = [];
+  if (platform() !== "linux") {
+    return {
+      status: null,
+      warnings
+    };
+  }
+  try {
+    const output = execFileSync(
+      "systemctl",
+      [
+        "show",
+        serviceName,
+        "--property=ActiveState",
+        "--property=SubState",
+        "--property=MainPID",
+        "--property=NRestarts",
+        "--property=ExecMainStatus",
+        "--property=ActiveEnterTimestamp",
+        "--no-pager"
+      ],
+      {
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"]
+      }
+    );
+    const parsed = parseSystemdShowOutput(output);
+    const parsedExecMainStatus =
+      parsed.ExecMainStatus !== undefined ? Number.parseInt(parsed.ExecMainStatus, 10) : Number.NaN;
+    return {
+      status: {
+        name: serviceName,
+        active_state: nonEmpty(parsed.ActiveState),
+        sub_state: nonEmpty(parsed.SubState),
+        main_pid: toPositiveInt(parsed.MainPID),
+        restarts: toPositiveInt(parsed.NRestarts),
+        exec_main_status: Number.isInteger(parsedExecMainStatus) ? parsedExecMainStatus : null,
+        active_enter_timestamp: nonEmpty(parsed.ActiveEnterTimestamp)
+      },
+      warnings
+    };
+  } catch (error) {
+    const normalizedError = error as NodeJS.ErrnoException & { stderr?: string | Buffer };
+    if (normalizedError.code === "ENOENT") {
+      warnings.push("systemctl not found; service diagnostics unavailable");
+      return {
+        status: null,
+        warnings
+      };
+    }
+
+    const stderr = firstNonEmptyLine(execOutputToString(normalizedError.stderr)) ?? normalizedError.message;
+    warnings.push(`failed to read systemd service status (${serviceName}): ${stderr}`);
+    return {
+      status: null,
+      warnings
+    };
+  }
+}
+
+function parseJournalTimestamp(line: string): { timestamp: string | null; body: string } {
+  const match = line.match(/^(\d{4}-\d{2}-\d{2}T\S+)\s+(.+)$/);
+  if (!match) {
+    return {
+      timestamp: null,
+      body: line
+    };
+  }
+  const timestamp = nonEmpty(match[1]);
+  const body = nonEmpty(match[2]) ?? line;
+  return {
+    timestamp,
+    body
+  };
+}
+
+function normalizeJournalMessage(body: string): string {
+  const separator = body.indexOf(": ");
+  if (separator === -1) {
+    return body.trim();
+  }
+  return body.slice(separator + 2).trim();
+}
+
+function readRecentRuntimeErrors(input: {
+  serviceName: string;
+  windowMinutes: number;
+  limit: number;
+}): { entries: RuntimeStatusLogEntry[]; warnings: string[] } {
+  const warnings: string[] = [];
+  if (platform() !== "linux") {
+    return {
+      entries: [],
+      warnings
+    };
+  }
+  try {
+    const output = execFileSync(
+      "journalctl",
+      [
+        "-u",
+        input.serviceName,
+        "--since",
+        `${input.windowMinutes} minutes ago`,
+        "--priority=3",
+        "--no-pager",
+        "-o",
+        "short-iso",
+        "-n",
+        String(input.limit)
+      ],
+      {
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"]
+      }
+    );
+    const entries = String(output ?? "")
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line !== "" && !line.startsWith("-- "))
+      .map((line): RuntimeStatusLogEntry => {
+        const parsed = parseJournalTimestamp(line);
+        return {
+          timestamp: parsed.timestamp,
+          message: normalizeJournalMessage(parsed.body)
+        };
+      });
+
+    return {
+      entries,
+      warnings
+    };
+  } catch (error) {
+    const normalizedError = error as NodeJS.ErrnoException & { stderr?: string | Buffer };
+    if (normalizedError.code === "ENOENT") {
+      warnings.push("journalctl not found; recent runtime error scan unavailable");
+      return {
+        entries: [],
+        warnings
+      };
+    }
+
+    const stderr = firstNonEmptyLine(execOutputToString(normalizedError.stderr)) ?? normalizedError.message;
+    warnings.push(`failed to read recent runtime errors (${input.serviceName}): ${stderr}`);
+    return {
+      entries: [],
+      warnings
+    };
+  }
+}
+
+function buildRuntimeStatusDiagnostics(
+  report: RuntimeStatusReport,
+  env: NodeJS.ProcessEnv,
+  service: RuntimeServiceStatusReport | null,
+  recentErrors: RuntimeStatusLogEntry[]
+): RuntimeStatusDiagnostics {
+  const statusStaleThresholdSeconds = DEFAULT_RUNTIME_STATUS_STALE_THRESHOLD_SECONDS;
+  const heartbeatIntervalSeconds =
+    toPositiveInt(env.AGENTMC_HOST_HEARTBEAT_INTERVAL_SECONDS) ??
+    toPositiveInt(env.AGENTMC_HEARTBEAT_INTERVAL_SECONDS) ??
+    DEFAULT_HOST_HEARTBEAT_INTERVAL_SECONDS;
+  const heartbeatStaleThresholdSeconds = Math.max(180, heartbeatIntervalSeconds * 2 + 60);
+
+  const unresolvedWorkers: string[] = [];
+  const workersMissingHeartbeat: string[] = [];
+  const workersStaleHeartbeat: string[] = [];
+  const workersWithStateErrors: string[] = [];
+  for (const worker of report.workers) {
+    if (worker.agent_id === null) {
+      unresolvedWorkers.push(worker.local_key);
+    }
+    if (!worker.state_exists || worker.state_error) {
+      workersWithStateErrors.push(worker.local_key);
+    }
+    if (!worker.last_heartbeat_at) {
+      workersMissingHeartbeat.push(worker.local_key);
+      continue;
+    }
+    if (worker.heartbeat_age_seconds !== null && worker.heartbeat_age_seconds > heartbeatStaleThresholdSeconds) {
+      workersStaleHeartbeat.push(worker.local_key);
+    }
+  }
+
+  const statusStale =
+    report.updated_age_seconds !== null && report.updated_age_seconds > statusStaleThresholdSeconds;
+  const hints: string[] = [];
+
+  if (!report.file_exists) {
+    hints.push("Runtime status file is missing. Start the runtime or pass --status-path.");
+  }
+  if (report.status === "running" && !report.process_alive) {
+    hints.push("Status says running but PID is not alive. Restart the runtime service.");
+  }
+  if (statusStale) {
+    hints.push("Supervisor status file appears stale. Check service health and restart if needed.");
+  }
+  if (unresolvedWorkers.length > 0) {
+    hints.push("Some workers are unresolved in AgentMC. Check host heartbeat/API key and mapping logs.");
+  }
+  if (workersMissingHeartbeat.length > 0) {
+    hints.push("Some workers have not persisted heartbeats yet. Check recent heartbeat errors.");
+  }
+  if (workersStaleHeartbeat.length > 0) {
+    hints.push("Some workers have stale heartbeats. Verify API reachability and runtime loops.");
+  }
+  if (workersWithStateErrors.length > 0) {
+    hints.push("Some worker state files are missing or invalid JSON.");
+  }
+  if (service && service.active_state && service.active_state !== "active") {
+    hints.push(`Systemd service ${service.name} is not active (${service.active_state}/${service.sub_state ?? "unknown"}).`);
+  }
+  if (recentErrors.length > 0) {
+    hints.push(`Recent runtime errors found: ${recentErrors.length}.`);
+  }
+
+  return {
+    status_stale: statusStale,
+    status_stale_threshold_seconds: statusStaleThresholdSeconds,
+    heartbeat_stale_threshold_seconds: heartbeatStaleThresholdSeconds,
+    unresolved_workers: unresolvedWorkers,
+    workers_missing_heartbeat: workersMissingHeartbeat,
+    workers_stale_heartbeat: workersStaleHeartbeat,
+    workers_with_state_errors: workersWithStateErrors,
+    hints
+  };
+}
+
+function enrichRuntimeStatusReport(
+  report: RuntimeStatusReport,
+  env: NodeJS.ProcessEnv,
+  input: {
+    serviceName: string;
+    includeRecentErrors: boolean;
+    recentErrorWindowMinutes: number;
+    recentErrorLimit: number;
+  }
+): RuntimeStatusReport {
+  const warnings = [...report.warnings];
+  const serviceResult = readSystemdServiceStatus(input.serviceName);
+  warnings.push(...serviceResult.warnings);
+
+  const recentErrorResult = input.includeRecentErrors
+    ? readRecentRuntimeErrors({
+        serviceName: input.serviceName,
+        windowMinutes: input.recentErrorWindowMinutes,
+        limit: input.recentErrorLimit
+      })
+    : {
+        entries: [],
+        warnings: [] as string[]
+      };
+  warnings.push(...recentErrorResult.warnings);
+
+  return {
+    ...report,
+    warnings,
+    service: serviceResult.status,
+    recent_errors: recentErrorResult.entries,
+    recent_errors_service_name: input.includeRecentErrors ? input.serviceName : null,
+    recent_errors_window_minutes: input.recentErrorWindowMinutes,
+    recent_errors_limit: input.recentErrorLimit,
+    diagnostics: buildRuntimeStatusDiagnostics(report, env, serviceResult.status, recentErrorResult.entries)
   };
 }
 
@@ -474,6 +907,39 @@ function printRuntimeStatusReport(report: RuntimeStatusReport): void {
       process.stdout.write(` (${worker.heartbeat_age_seconds}s ago)`);
     }
     process.stdout.write("\n");
+  }
+  if (report.service) {
+    process.stdout.write(
+      `Service: ${report.service.name} active=${report.service.active_state ?? "unknown"} sub=${report.service.sub_state ?? "unknown"}`
+    );
+    if (report.service.main_pid !== null) {
+      process.stdout.write(` pid=${report.service.main_pid}`);
+    }
+    if (report.service.restarts !== null) {
+      process.stdout.write(` restarts=${report.service.restarts}`);
+    }
+    if (report.service.exec_main_status !== null) {
+      process.stdout.write(` exit=${report.service.exec_main_status}`);
+    }
+    process.stdout.write("\n");
+  }
+  process.stdout.write("Diagnostics:\n");
+  if (report.diagnostics.hints.length === 0) {
+    process.stdout.write(" - no immediate issues detected\n");
+  } else {
+    for (const hint of report.diagnostics.hints) {
+      process.stdout.write(` - ${hint}\n`);
+    }
+  }
+  process.stdout.write(
+    `Recent errors (${report.recent_errors_window_minutes}m, limit=${report.recent_errors_limit}): ${report.recent_errors.length}\n`
+  );
+  if (report.recent_errors.length === 0) {
+    process.stdout.write(" - none\n");
+  } else {
+    for (const entry of report.recent_errors) {
+      process.stdout.write(` - [${entry.timestamp ?? "unknown"}] ${entry.message}\n`);
+    }
   }
   for (const warning of report.warnings) {
     process.stdout.write(`Warning: ${warning}\n`);
@@ -510,6 +976,9 @@ async function runMultiAgentRuntimeFromEnv(env: NodeJS.ProcessEnv): Promise<bool
   const activeRuntimes = new Map<string, AgentRuntimeProgram>();
   let hostHeartbeatLoopPromise: Promise<void> | null = null;
   let hostRequestedSessionLoopPromise: Promise<void> | null = null;
+  let autoUpdateLoopPromise: Promise<void> | null = null;
+  let restartRequestedByAutoUpdate = false;
+  const autoUpdateConfig = resolveRuntimeAutoUpdateConfig(env);
 
   const persistStatus = async (
     input: Partial<Pick<RuntimeSupervisorSnapshot, "status" | "mode" | "host_fingerprint" | "summary">> = {}
@@ -566,6 +1035,23 @@ async function runMultiAgentRuntimeFromEnv(env: NodeJS.ProcessEnv): Promise<bool
     }, 30_000);
     statusRefreshTimer.unref?.();
 
+    if (autoUpdateConfig.enabled) {
+      process.stderr.write(
+        `[agentmc-runtime] auto-update enabled interval=${autoUpdateConfig.intervalSeconds}s install_dir=${autoUpdateConfig.installDir}\n`
+      );
+      autoUpdateLoopPromise = runAutoUpdateLoop({
+        config: autoUpdateConfig,
+        shouldStop: () => stopping,
+        onUpdateInstalled: async ({ fromVersion, toVersion }) => {
+          restartRequestedByAutoUpdate = true;
+          await persistStatusSafe({
+            summary: `auto-update installed ${fromVersion ?? "unknown"} -> ${toVersion}; restarting runtime supervisor`
+          });
+          await stopAll();
+        }
+      });
+    }
+
     const baseUrl = nonEmpty(env.AGENTMC_BASE_URL) ?? undefined;
     const explicitAgentId = toPositiveInt(env.AGENTMC_AGENT_ID);
     if (explicitAgentId !== null) {
@@ -612,6 +1098,10 @@ async function runMultiAgentRuntimeFromEnv(env: NodeJS.ProcessEnv): Promise<bool
         },
         shouldStop: () => stopping
       });
+
+      if (restartRequestedByAutoUpdate) {
+        process.stderr.write("[agentmc-runtime] auto-update applied; exiting for restart.\n");
+      }
 
       return true;
     }
@@ -740,26 +1230,33 @@ async function runMultiAgentRuntimeFromEnv(env: NodeJS.ProcessEnv): Promise<bool
       shouldStop: () => stopping
     });
 
-    await Promise.all(
-      [
-        ...runtimeEntries.map((entry) =>
-          runRuntimeEntryWithRestart({
-            entry,
-            activeRuntimes,
-            workerRestartDelayMs,
-            workerRestartMaxDelayMs,
-            onWorkerEvent: async ({ worker, event }) => {
-              await persistStatusSafe({
-                summary: `worker ${worker.localKey} ${event}`
-              });
-            },
-            shouldStop: () => stopping
-          })
-        ),
-        hostHeartbeatLoopPromise,
-        hostRequestedSessionLoopPromise
-      ]
-    );
+    const lifecyclePromises: Promise<void>[] = [
+      ...runtimeEntries.map((entry) =>
+        runRuntimeEntryWithRestart({
+          entry,
+          activeRuntimes,
+          workerRestartDelayMs,
+          workerRestartMaxDelayMs,
+          onWorkerEvent: async ({ worker, event }) => {
+            await persistStatusSafe({
+              summary: `worker ${worker.localKey} ${event}`
+            });
+          },
+          shouldStop: () => stopping
+        })
+      ),
+      hostHeartbeatLoopPromise,
+      hostRequestedSessionLoopPromise
+    ];
+    if (autoUpdateLoopPromise) {
+      lifecyclePromises.push(autoUpdateLoopPromise);
+    }
+
+    await Promise.all(lifecyclePromises);
+
+    if (restartRequestedByAutoUpdate) {
+      process.stderr.write("[agentmc-runtime] auto-update applied; exiting for restart.\n");
+    }
 
     return true;
   } finally {
@@ -773,6 +1270,9 @@ async function runMultiAgentRuntimeFromEnv(env: NodeJS.ProcessEnv): Promise<bool
     }
     if (hostRequestedSessionLoopPromise) {
       await Promise.allSettled([hostRequestedSessionLoopPromise]);
+    }
+    if (autoUpdateLoopPromise) {
+      await Promise.allSettled([autoUpdateLoopPromise]);
     }
     await stopAll();
     await persistStatusSafe({
@@ -905,6 +1405,125 @@ async function runHostRequestedSessionLoop(input: {
     const waitMs = Math.max(150, Math.min(1_000, Math.max(0, nextPollAtMs - Date.now())));
     await sleepWithStop(waitMs, input.shouldStop);
   }
+}
+
+async function runAutoUpdateLoop(input: {
+  config: RuntimeAutoUpdateConfig;
+  shouldStop: () => boolean;
+  onUpdateInstalled: (input: { fromVersion: string | null; toVersion: string }) => Promise<void> | void;
+}): Promise<void> {
+  const currentVersion = nonEmpty(AGENTMC_NODE_PACKAGE_VERSION);
+
+  while (!input.shouldStop()) {
+    await sleepWithStop(input.config.intervalSeconds * 1000, input.shouldStop);
+    if (input.shouldStop()) {
+      break;
+    }
+
+    try {
+      const latestVersion = await fetchLatestPackageVersion(input.config.registryUrl);
+      if (!latestVersion) {
+        continue;
+      }
+      if (currentVersion && latestVersion === currentVersion) {
+        continue;
+      }
+
+      process.stderr.write(
+        `[agentmc-runtime] auto-update found ${input.config.packageName}@${latestVersion} (current=${currentVersion ?? "unknown"}); installing...\n`
+      );
+      installLatestPackageVersion({
+        npmCommand: input.config.npmCommand,
+        installDir: input.config.installDir,
+        installTimeoutMs: input.config.installTimeoutMs,
+        packageName: input.config.packageName,
+        targetVersion: latestVersion
+      });
+      process.stderr.write(
+        `[agentmc-runtime] auto-update installed ${input.config.packageName}@${latestVersion}; restarting runtime.\n`
+      );
+      await input.onUpdateInstalled({
+        fromVersion: currentVersion,
+        toVersion: latestVersion
+      });
+      return;
+    } catch (error) {
+      const message = summarizeRuntimeAutoUpdateError(error);
+      process.stderr.write(`[agentmc-runtime] auto-update check failed: ${message}\n`);
+    }
+  }
+}
+
+async function fetchLatestPackageVersion(registryUrl: string): Promise<string | null> {
+  const response = await fetch(registryUrl, {
+    headers: {
+      Accept: "application/json",
+      "User-Agent": "agentmc-runtime-auto-update"
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error(`registry request failed with HTTP ${response.status}`);
+  }
+
+  const payload = valueAsObject(await response.json());
+  return nonEmpty(payload?.version);
+}
+
+function installLatestPackageVersion(input: {
+  npmCommand: string;
+  installDir: string;
+  installTimeoutMs: number;
+  packageName: string;
+  targetVersion: string;
+}): void {
+  execFileSync(
+    input.npmCommand,
+    [
+      "install",
+      "--omit=dev",
+      "--no-audit",
+      "--no-fund",
+      "--no-save",
+      `${input.packageName}@${input.targetVersion}`
+    ],
+    {
+      cwd: input.installDir,
+      env: process.env,
+      stdio: "pipe",
+      encoding: "utf8",
+      timeout: input.installTimeoutMs
+    }
+  );
+}
+
+function summarizeRuntimeAutoUpdateError(error: unknown): string {
+  const object = valueAsObject(error);
+  const stderrValue = object ? valueAsCommandOutput(object.stderr) : null;
+  if (stderrValue) {
+    return stderrValue;
+  }
+
+  const stdoutValue = object ? valueAsCommandOutput(object.stdout) : null;
+  if (stdoutValue) {
+    return stdoutValue;
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return String(error);
+}
+
+function valueAsCommandOutput(value: unknown): string | null {
+  if (typeof value === "string") {
+    return nonEmpty(value);
+  }
+  if (value instanceof Buffer) {
+    return nonEmpty(value.toString("utf8"));
+  }
+  return null;
 }
 
 async function sleepWithStop(totalMs: number, shouldStop: () => boolean): Promise<void> {
@@ -2101,10 +2720,45 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
     .command("runtime:status")
     .description("Print local AgentMC runtime supervisor status from the server")
     .option("--status-path <path>", "override runtime status file path")
+    .option("--service-name <name>", "override systemd service unit name used for diagnostics")
+    .option(
+      "--errors-since-minutes <minutes>",
+      "lookback window for recent runtime errors (journalctl)",
+      String(DEFAULT_RUNTIME_ERROR_LOOKBACK_MINUTES)
+    )
+    .option("--errors-limit <count>", "max recent runtime errors to include", String(DEFAULT_RUNTIME_ERROR_LIMIT))
+    .option("--no-recent-errors", "skip journalctl recent runtime error scan")
     .option("--json", "print full status JSON payload", false)
-    .action((options: { statusPath?: string; json?: boolean }) => {
+    .action(
+      (options: {
+        statusPath?: string;
+        serviceName?: string;
+        errorsSinceMinutes?: string;
+        errorsLimit?: string;
+        recentErrors?: boolean;
+        json?: boolean;
+      }) => {
       const statusPath = resolveRuntimeStatusPath(process.env, options.statusPath);
-      const report = readRuntimeStatusReport(statusPath, process.env);
+      const baseReport = readRuntimeStatusReport(statusPath, process.env);
+      const serviceName = resolveRuntimeServiceName(process.env, options.serviceName);
+      const recentErrorWindowMinutes = parseBoundedPositiveInt(
+        options.errorsSinceMinutes,
+        DEFAULT_RUNTIME_ERROR_LOOKBACK_MINUTES,
+        1,
+        24 * 60
+      );
+      const recentErrorLimit = parseBoundedPositiveInt(
+        options.errorsLimit,
+        DEFAULT_RUNTIME_ERROR_LIMIT,
+        1,
+        200
+      );
+      const report = enrichRuntimeStatusReport(baseReport, process.env, {
+        serviceName,
+        includeRecentErrors: options.recentErrors !== false,
+        recentErrorWindowMinutes,
+        recentErrorLimit
+      });
       if (options.json) {
         print(report);
         return;

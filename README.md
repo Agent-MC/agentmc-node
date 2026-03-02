@@ -190,6 +190,17 @@ JSON output (for scripts/monitoring):
 npx agentmc-api runtime:status --json
 ```
 
+`runtime:status` now also includes:
+-   computed diagnostics (missing/stale status, unresolved workers, missing/stale heartbeats, state-file issues)
+-   systemd service snapshot (`systemctl show`, default service `agentmc-host` or `AGENTMC_SERVICE_NAME`)
+-   recent runtime errors from `journalctl` (default: last `30` minutes, max `20` entries)
+
+Useful options:
+-   `--service-name <name>` to inspect a different systemd unit
+-   `--errors-since-minutes <minutes>` to change journal lookback window
+-   `--errors-limit <count>` to control max error entries
+-   `--no-recent-errors` to skip journal scan
+
 Required env:
 -   Host runtime key:
     -   `AGENTMC_API_KEY=<host-key>`
@@ -213,6 +224,13 @@ Required env:
 -   Optional recurring execution tuning:
     -   `AGENTMC_RECURRING_WAIT_TIMEOUT_MS` (default `600000` / 10 minutes)
     -   `AGENTMC_RECURRING_GATEWAY_TIMEOUT_MS` (default `720000` / 12 minutes; always coerced to at least wait timeout + 30 seconds)
+-   Optional runtime auto-update tuning:
+    -   `AGENTMC_AUTO_UPDATE` (`true`/`false`; defaults to enabled when running from an installed `node_modules/@agentmc/api` package path)
+    -   `AGENTMC_AUTO_UPDATE_INTERVAL_SECONDS` (default `300`)
+    -   `AGENTMC_AUTO_UPDATE_INSTALL_TIMEOUT_MS` (default `120000`)
+    -   `AGENTMC_AUTO_UPDATE_NPM_COMMAND` (default `npm`)
+    -   `AGENTMC_AUTO_UPDATE_INSTALL_DIR` (default inferred install root when installed, else `process.cwd()`)
+    -   `AGENTMC_AUTO_UPDATE_REGISTRY_URL` (default `https://registry.npmjs.org/@agentmc%2Fapi/latest`)
 
 Keep these env values up to date for each running agent worker. Update and restart the runtime whenever provider/model/network settings change.
 -   Keep `AGENTMC_MODELS` aligned with the runtime's active/default model inventory.
@@ -243,6 +261,8 @@ Optional install/runtime env:
 -   `AGENTMC_RUNTIME_PROVIDER` (default `auto`)
 -   `AGENTMC_SERVICE_NAME` (default `agentmc-host`)
 -   `AGENTMC_SERVICE_USER` / `AGENTMC_SERVICE_GROUP` (defaults to current user)
+-   `AGENTMC_AUTO_UPDATE` (default enabled for installed package runtime)
+-   `AGENTMC_AUTO_UPDATE_INTERVAL_SECONDS` (default `300`)
 
 ## CLI
 
