@@ -178,11 +178,24 @@ Run the unified runtime program directly:
 npx agentmc-api runtime:start
 ```
 
+Check runtime status quickly on the server:
+
+```bash
+npx agentmc-api runtime:status
+```
+
+JSON output (for scripts/monitoring):
+
+```bash
+npx agentmc-api runtime:status --json
+```
+
 Required env:
 -   Host runtime key:
     -   `AGENTMC_API_KEY=<host-key>`
 -   Runtime workspace: current working directory (`process.cwd()`)
 -   Optional API base URL override: `AGENTMC_BASE_URL` (defaults to `https://agentmc.ai/api/v1`)
+-   Optional runtime supervisor status file path: `AGENTMC_RUNTIME_STATUS_PATH` (default `.agentmc/runtime-status.json` in current working directory)
 -   Agent routing: runtime auto-detects OpenClaw agents from `~/.openclaw/openclaw.json` and heartbeat auto-provisions AgentMC agents per host.
 -   Runtime provider inputs:
     -   OpenClaw auto-detect (must resolve at least one runtime model), or

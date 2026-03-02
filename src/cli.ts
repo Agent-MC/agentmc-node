@@ -2,6 +2,7 @@ import { Command } from "commander";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
+import { mkdir, writeFile } from "node:fs/promises";
 import { arch, cpus, hostname, networkInterfaces, platform, release, totalmem, uptime } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -64,6 +65,67 @@ interface HostHeartbeatAgentRow {
 }
 
 type HostHeartbeatRuntimeProvider = "openclaw" | "external" | "host-runtime";
+type RuntimeSupervisorMode = "single-agent" | "multi-agent";
+type RuntimeSupervisorStatus = "running" | "stopped";
+
+interface RuntimeSupervisorWorkerStatus {
+  local_key: string;
+  local_name: string | null;
+  provider: string | null;
+  agent_id: number | null;
+  workspace_dir: string;
+  state_path: string;
+  openclaw_agent: string | null;
+}
+
+interface RuntimeSupervisorSnapshot {
+  schema_version: 1;
+  pid: number;
+  status: RuntimeSupervisorStatus;
+  mode: RuntimeSupervisorMode;
+  started_at: string;
+  updated_at: string;
+  host_fingerprint: string | null;
+  summary: string | null;
+  workers: RuntimeSupervisorWorkerStatus[];
+}
+
+interface RuntimeWorkerStateSnapshot {
+  exists: boolean;
+  agentId: number | null;
+  lastHeartbeatAt: string | null;
+  error: string | null;
+}
+
+interface RuntimeWorkerStatusReport {
+  local_key: string;
+  local_name: string | null;
+  provider: string | null;
+  agent_id: number | null;
+  workspace_dir: string;
+  state_path: string;
+  openclaw_agent: string | null;
+  state_exists: boolean;
+  state_error: string | null;
+  last_heartbeat_at: string | null;
+  heartbeat_age_seconds: number | null;
+}
+
+interface RuntimeStatusReport {
+  status_path: string;
+  file_exists: boolean;
+  status: RuntimeSupervisorStatus | "unknown";
+  mode: RuntimeSupervisorMode | "unknown";
+  pid: number | null;
+  process_alive: boolean;
+  running: boolean;
+  started_at: string | null;
+  updated_at: string | null;
+  updated_age_seconds: number | null;
+  summary: string | null;
+  workers: RuntimeWorkerStatusReport[];
+  warnings: string[];
+}
 
 const DEFAULT_WORKER_RESTART_DELAY_MS = 2_000;
 const DEFAULT_WORKER_RESTART_MAX_DELAY_MS = 30_000;
@@ -71,6 +133,8 @@ const WORKER_RESTART_RESET_WINDOW_MS = 60_000;
 const DEFAULT_HOST_HEARTBEAT_INTERVAL_SECONDS = 300;
 const DEFAULT_HOST_REQUESTED_SESSION_LIMIT = 20;
 const DEFAULT_HOST_REQUEST_POLL_MS = 250;
+const DEFAULT_RUNTIME_STATUS_PATH = ".agentmc/runtime-status.json";
+const DEFAULT_RUNTIME_STATE_PATH = ".agentmc/state.json";
 const OPENCLAW_MODELS_STATUS_COMMAND: readonly string[] = ["models", "--status-json"];
 const OPENCLAW_MODELS_STATUS_FALLBACK_COMMAND: readonly string[] = ["models", "status", "--json"];
 const OPENCLAW_MODEL_PLACEHOLDER_TOKENS = new Set([
@@ -143,6 +207,278 @@ function parseCommaSeparatedList(value: unknown): string[] {
     .filter((entry) => entry.length > 0);
 }
 
+function resolveRuntimeStatusPath(env: NodeJS.ProcessEnv, override?: string): string {
+  const configured = nonEmpty(override) ?? nonEmpty(env.AGENTMC_RUNTIME_STATUS_PATH);
+  return resolve(configured ?? resolve(process.cwd(), DEFAULT_RUNTIME_STATUS_PATH));
+}
+
+function toRuntimeSupervisorWorkerStatus(worker: RuntimeWorkerConfig): RuntimeSupervisorWorkerStatus {
+  return {
+    local_key: worker.localKey,
+    local_name: nonEmpty(worker.localName),
+    provider: nonEmpty(worker.provider),
+    agent_id: worker.agentId,
+    workspace_dir: worker.workspaceDir,
+    state_path: worker.statePath,
+    openclaw_agent: nonEmpty(worker.openclawAgent)
+  };
+}
+
+function parseIsoDate(value: unknown): Date | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+  const parsed = new Date(trimmed);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+  return parsed;
+}
+
+function secondsSince(date: Date, now = new Date()): number {
+  return Math.max(0, Math.floor((now.getTime() - date.getTime()) / 1000));
+}
+
+async function writeRuntimeSupervisorSnapshot(
+  statusPath: string,
+  snapshot: RuntimeSupervisorSnapshot
+): Promise<void> {
+  await mkdir(dirname(statusPath), { recursive: true });
+  await writeFile(statusPath, `${JSON.stringify(snapshot, null, 2)}\n`, "utf8");
+}
+
+function readRuntimeWorkerStateSnapshot(statePath: string): RuntimeWorkerStateSnapshot {
+  if (!existsSync(statePath)) {
+    return {
+      exists: false,
+      agentId: null,
+      lastHeartbeatAt: null,
+      error: null
+    };
+  }
+
+  try {
+    const raw = readFileSync(statePath, "utf8");
+    const parsed = JSON.parse(raw);
+    const object = valueAsObject(parsed);
+    if (!object) {
+      return {
+        exists: true,
+        agentId: null,
+        lastHeartbeatAt: null,
+        error: "invalid_state_json"
+      };
+    }
+
+    return {
+      exists: true,
+      agentId: toPositiveInt(object.agent_id),
+      lastHeartbeatAt: nonEmpty(object.last_heartbeat_at),
+      error: null
+    };
+  } catch (error) {
+    return {
+      exists: true,
+      agentId: null,
+      lastHeartbeatAt: null,
+      error: error instanceof Error ? error.message : String(error)
+    };
+  }
+}
+
+function isPidAlive(pid: number | null): boolean {
+  if (pid === null || !Number.isInteger(pid) || pid < 1) {
+    return false;
+  }
+
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    return code === "EPERM";
+  }
+}
+
+function readRuntimeStatusReport(statusPath: string, env: NodeJS.ProcessEnv): RuntimeStatusReport {
+  const warnings: string[] = [];
+  const now = new Date();
+
+  if (!existsSync(statusPath)) {
+    const fallbackStatePath = resolve(nonEmpty(env.AGENTMC_STATE_PATH) ?? resolve(process.cwd(), DEFAULT_RUNTIME_STATE_PATH));
+    const fallbackState = readRuntimeWorkerStateSnapshot(fallbackStatePath);
+    const fallbackHeartbeatDate = parseIsoDate(fallbackState.lastHeartbeatAt);
+    const fallbackWorker: RuntimeWorkerStatusReport[] = fallbackState.exists
+      ? [{
+          local_key: "default",
+          local_name: null,
+          provider: null,
+          agent_id: fallbackState.agentId,
+          workspace_dir: dirname(dirname(fallbackStatePath)),
+          state_path: fallbackStatePath,
+          openclaw_agent: null,
+          state_exists: fallbackState.exists,
+          state_error: fallbackState.error,
+          last_heartbeat_at: fallbackState.lastHeartbeatAt,
+          heartbeat_age_seconds: fallbackHeartbeatDate ? secondsSince(fallbackHeartbeatDate, now) : null
+        }]
+      : [];
+
+    warnings.push(`runtime status file not found at ${statusPath}`);
+    if (fallbackState.exists) {
+      warnings.push(`using fallback state file ${fallbackStatePath}`);
+    }
+
+    return {
+      status_path: statusPath,
+      file_exists: false,
+      status: "unknown",
+      mode: "unknown",
+      pid: null,
+      process_alive: false,
+      running: false,
+      started_at: null,
+      updated_at: null,
+      updated_age_seconds: null,
+      summary: null,
+      workers: fallbackWorker,
+      warnings
+    };
+  }
+
+  let parsedSnapshot: RuntimeSupervisorSnapshot | null = null;
+  try {
+    const raw = readFileSync(statusPath, "utf8");
+    const parsed = JSON.parse(raw);
+    const object = valueAsObject(parsed);
+    if (!object) {
+      warnings.push("runtime status file is not a JSON object");
+    } else {
+      const workersValue = Array.isArray(object.workers) ? object.workers : [];
+      const workers: RuntimeSupervisorWorkerStatus[] = workersValue
+        .map((row) => {
+          const objectRow = valueAsObject(row);
+          if (!objectRow) {
+            return null;
+          }
+          const localKey = nonEmpty(objectRow.local_key);
+          const workspaceDir = nonEmpty(objectRow.workspace_dir);
+          const statePath = nonEmpty(objectRow.state_path);
+          if (!localKey || !workspaceDir || !statePath) {
+            return null;
+          }
+          return {
+            local_key: localKey,
+            local_name: nonEmpty(objectRow.local_name),
+            provider: nonEmpty(objectRow.provider),
+            agent_id: toPositiveInt(objectRow.agent_id),
+            workspace_dir: workspaceDir,
+            state_path: statePath,
+            openclaw_agent: nonEmpty(objectRow.openclaw_agent)
+          };
+        })
+        .filter((row): row is RuntimeSupervisorWorkerStatus => row !== null);
+
+      const mode = nonEmpty(object.mode);
+      const status = nonEmpty(object.status);
+      parsedSnapshot = {
+        schema_version: 1,
+        pid: toPositiveInt(object.pid) ?? 0,
+        status: status === "running" || status === "stopped" ? status : "running",
+        mode: mode === "single-agent" || mode === "multi-agent" ? mode : "multi-agent",
+        started_at: nonEmpty(object.started_at) ?? new Date(0).toISOString(),
+        updated_at: nonEmpty(object.updated_at) ?? new Date(0).toISOString(),
+        host_fingerprint: nonEmpty(object.host_fingerprint),
+        summary: nonEmpty(object.summary),
+        workers
+      };
+    }
+  } catch (error) {
+    warnings.push(`failed to parse runtime status file: ${error instanceof Error ? error.message : String(error)}`);
+  }
+
+  if (!parsedSnapshot) {
+    return {
+      status_path: statusPath,
+      file_exists: true,
+      status: "unknown",
+      mode: "unknown",
+      pid: null,
+      process_alive: false,
+      running: false,
+      started_at: null,
+      updated_at: null,
+      updated_age_seconds: null,
+      summary: null,
+      workers: [],
+      warnings
+    };
+  }
+
+  const updatedAtDate = parseIsoDate(parsedSnapshot.updated_at);
+  const processAlive = isPidAlive(parsedSnapshot.pid);
+  const workerReports: RuntimeWorkerStatusReport[] = parsedSnapshot.workers.map((worker) => {
+    const state = readRuntimeWorkerStateSnapshot(worker.state_path);
+    const lastHeartbeatDate = parseIsoDate(state.lastHeartbeatAt);
+    return {
+      ...worker,
+      state_exists: state.exists,
+      state_error: state.error,
+      last_heartbeat_at: state.lastHeartbeatAt,
+      heartbeat_age_seconds: lastHeartbeatDate ? secondsSince(lastHeartbeatDate, now) : null
+    };
+  });
+
+  return {
+    status_path: statusPath,
+    file_exists: true,
+    status: parsedSnapshot.status,
+    mode: parsedSnapshot.mode,
+    pid: parsedSnapshot.pid,
+    process_alive: processAlive,
+    running: parsedSnapshot.status === "running" && processAlive,
+    started_at: parsedSnapshot.started_at,
+    updated_at: parsedSnapshot.updated_at,
+    updated_age_seconds: updatedAtDate ? secondsSince(updatedAtDate, now) : null,
+    summary: parsedSnapshot.summary,
+    workers: workerReports,
+    warnings
+  };
+}
+
+function printRuntimeStatusReport(report: RuntimeStatusReport): void {
+  const headline = report.running ? "RUNNING" : "NOT RUNNING";
+  process.stdout.write(`AgentMC runtime status: ${headline}\n`);
+  process.stdout.write(`Status file: ${report.status_path}\n`);
+  process.stdout.write(`PID: ${report.pid ?? "unknown"} (${report.process_alive ? "alive" : "not alive"})\n`);
+  process.stdout.write(`Mode: ${report.mode}\n`);
+  process.stdout.write(`Updated: ${report.updated_at ?? "unknown"}`);
+  if (report.updated_age_seconds !== null) {
+    process.stdout.write(` (${report.updated_age_seconds}s ago)`);
+  }
+  process.stdout.write("\n");
+  if (report.summary) {
+    process.stdout.write(`Summary: ${report.summary}\n`);
+  }
+  process.stdout.write(`Workers: ${report.workers.length}\n`);
+  for (const worker of report.workers) {
+    process.stdout.write(
+      ` - ${worker.local_key} provider=${worker.provider ?? "unknown"} agent=${worker.agent_id ?? "unresolved"} heartbeat=${worker.last_heartbeat_at ?? "none"}`
+    );
+    if (worker.heartbeat_age_seconds !== null) {
+      process.stdout.write(` (${worker.heartbeat_age_seconds}s ago)`);
+    }
+    process.stdout.write("\n");
+  }
+  for (const warning of report.warnings) {
+    process.stdout.write(`Warning: ${warning}\n`);
+  }
+}
+
 async function runMultiAgentRuntimeFromEnv(env: NodeJS.ProcessEnv): Promise<boolean> {
   const hostApiKey = nonEmpty(env.AGENTMC_API_KEY);
   if (!hostApiKey) {
@@ -154,11 +490,56 @@ async function runMultiAgentRuntimeFromEnv(env: NodeJS.ProcessEnv): Promise<bool
     workerRestartDelayMs,
     toPositiveInt(env.AGENTMC_WORKER_RESTART_MAX_DELAY_MS) ?? DEFAULT_WORKER_RESTART_MAX_DELAY_MS
   );
+  const statusPath = resolveRuntimeStatusPath(env);
+  let statusWorkers: RuntimeWorkerConfig[] = [];
+  const statusSnapshot: RuntimeSupervisorSnapshot = {
+    schema_version: 1,
+    pid: process.pid,
+    status: "running",
+    mode: "multi-agent",
+    started_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    host_fingerprint: null,
+    summary: "initializing runtime supervisor",
+    workers: []
+  };
+  let statusRefreshTimer: NodeJS.Timeout | null = null;
 
   let stopping = false;
   const activeRuntimes = new Map<string, AgentRuntimeProgram>();
   let hostHeartbeatLoopPromise: Promise<void> | null = null;
   let hostRequestedSessionLoopPromise: Promise<void> | null = null;
+
+  const persistStatus = async (
+    input: Partial<Pick<RuntimeSupervisorSnapshot, "status" | "mode" | "host_fingerprint" | "summary">> = {}
+  ): Promise<void> => {
+    if (input.status) {
+      statusSnapshot.status = input.status;
+    }
+    if (input.mode) {
+      statusSnapshot.mode = input.mode;
+    }
+    if (Object.prototype.hasOwnProperty.call(input, "host_fingerprint")) {
+      statusSnapshot.host_fingerprint = input.host_fingerprint ?? null;
+    }
+    if (Object.prototype.hasOwnProperty.call(input, "summary")) {
+      statusSnapshot.summary = input.summary ?? null;
+    }
+    statusSnapshot.updated_at = new Date().toISOString();
+    statusSnapshot.workers = statusWorkers.map((worker) => toRuntimeSupervisorWorkerStatus(worker));
+    await writeRuntimeSupervisorSnapshot(statusPath, statusSnapshot);
+  };
+
+  const persistStatusSafe = async (
+    input: Partial<Pick<RuntimeSupervisorSnapshot, "status" | "mode" | "host_fingerprint" | "summary">> = {}
+  ): Promise<void> => {
+    try {
+      await persistStatus(input);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      process.stderr.write(`[agentmc-runtime] failed to write runtime status file ${statusPath}: ${message}\n`);
+    }
+  };
 
   const stopAll = async (): Promise<void> => {
     if (stopping) {
@@ -178,6 +559,12 @@ async function runMultiAgentRuntimeFromEnv(env: NodeJS.ProcessEnv): Promise<bool
   process.once("SIGTERM", handleSignal);
 
   try {
+    await persistStatusSafe();
+    statusRefreshTimer = setInterval(() => {
+      void persistStatusSafe();
+    }, 30_000);
+    statusRefreshTimer.unref?.();
+
     const baseUrl = nonEmpty(env.AGENTMC_BASE_URL) ?? undefined;
     const explicitAgentId = toPositiveInt(env.AGENTMC_AGENT_ID);
     if (explicitAgentId !== null) {
@@ -200,6 +587,11 @@ async function runMultiAgentRuntimeFromEnv(env: NodeJS.ProcessEnv): Promise<bool
         },
         runtimeEnv
       };
+      statusWorkers = [entry.worker];
+      await persistStatusSafe({
+        mode: "single-agent",
+        summary: `starting single worker ${entry.worker.localKey}`
+      });
 
       if (toBoolean(env.AGENTMC_DISABLE_HEARTBEAT) !== true) {
         process.stderr.write(
@@ -212,6 +604,11 @@ async function runMultiAgentRuntimeFromEnv(env: NodeJS.ProcessEnv): Promise<bool
         activeRuntimes,
         workerRestartDelayMs,
         workerRestartMaxDelayMs,
+        onWorkerEvent: async ({ worker, event }) => {
+          await persistStatusSafe({
+            summary: `worker ${worker.localKey} ${event}`
+          });
+        },
         shouldStop: () => stopping
       });
 
@@ -235,6 +632,11 @@ async function runMultiAgentRuntimeFromEnv(env: NodeJS.ProcessEnv): Promise<bool
     if (resolved.workers.length === 0) {
       throw new Error("Detected runtime agents but failed to build worker runtime configs.");
     }
+    statusWorkers = resolved.workers;
+    await persistStatusSafe({
+      mode: "multi-agent",
+      summary: `starting ${resolved.workers.length} worker runtime(s)`
+    });
 
     const hostHeartbeatIntervalSeconds =
       toPositiveInt(env.AGENTMC_HOST_HEARTBEAT_INTERVAL_SECONDS) ??
@@ -254,9 +656,16 @@ async function runMultiAgentRuntimeFromEnv(env: NodeJS.ProcessEnv): Promise<bool
       apiKey: hostApiKey
     });
     const hostFingerprint = resolveHostFingerprint(env);
+    await persistStatusSafe({
+      host_fingerprint: hostFingerprint,
+      summary: "sending initial host heartbeat"
+    });
 
     const initialHeartbeat = await sendHostHeartbeat(heartbeatClient, env, resolved.workers, hostFingerprint);
     applyHeartbeatAgentMapping(resolved.workers, initialHeartbeat);
+    await persistStatusSafe({
+      summary: "initial host heartbeat complete"
+    });
 
     const unresolvedWorkers = resolved.workers.filter((worker) => worker.agentId === null);
     if (unresolvedWorkers.length > 0) {
@@ -314,6 +723,10 @@ async function runMultiAgentRuntimeFromEnv(env: NodeJS.ProcessEnv): Promise<bool
             process.stderr.write(`[agentmc-runtime] worker restart after mapping change failed: ${message}\n`);
           }
         }
+
+        await persistStatusSafe({
+          summary: `worker mapping changed for ${changedWorkerKeys.join(", ")}`
+        });
       },
       shouldStop: () => stopping
     });
@@ -334,6 +747,11 @@ async function runMultiAgentRuntimeFromEnv(env: NodeJS.ProcessEnv): Promise<bool
             activeRuntimes,
             workerRestartDelayMs,
             workerRestartMaxDelayMs,
+            onWorkerEvent: async ({ worker, event }) => {
+              await persistStatusSafe({
+                summary: `worker ${worker.localKey} ${event}`
+              });
+            },
             shouldStop: () => stopping
           })
         ),
@@ -345,6 +763,10 @@ async function runMultiAgentRuntimeFromEnv(env: NodeJS.ProcessEnv): Promise<bool
     return true;
   } finally {
     stopping = true;
+    if (statusRefreshTimer) {
+      clearInterval(statusRefreshTimer);
+      statusRefreshTimer = null;
+    }
     if (hostHeartbeatLoopPromise) {
       await Promise.allSettled([hostHeartbeatLoopPromise]);
     }
@@ -352,6 +774,10 @@ async function runMultiAgentRuntimeFromEnv(env: NodeJS.ProcessEnv): Promise<bool
       await Promise.allSettled([hostRequestedSessionLoopPromise]);
     }
     await stopAll();
+    await persistStatusSafe({
+      status: "stopped",
+      summary: "runtime supervisor stopped"
+    });
     process.off("SIGINT", handleSignal);
     process.off("SIGTERM", handleSignal);
   }
@@ -1061,9 +1487,24 @@ async function runRuntimeEntryWithRestart(input: {
   activeRuntimes: Map<string, AgentRuntimeProgram>;
   workerRestartDelayMs: number;
   workerRestartMaxDelayMs: number;
+  onWorkerEvent?: (input: { worker: RuntimeWorkerConfig; event: string }) => Promise<void> | void;
   shouldStop: () => boolean;
 }): Promise<void> {
   const { entry, activeRuntimes, shouldStop } = input;
+  const emitWorkerEvent = async (event: string): Promise<void> => {
+    if (!input.onWorkerEvent) {
+      return;
+    }
+    try {
+      await input.onWorkerEvent({
+        worker: entry.worker,
+        event
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      process.stderr.write(`[agentmc-runtime] worker event callback failed (${event}): ${message}\n`);
+    }
+  };
   let consecutiveFailures = 0;
 
   while (!shouldStop()) {
@@ -1074,6 +1515,7 @@ async function runRuntimeEntryWithRestart(input: {
     activeRuntimes.set(entry.worker.localKey, runtime);
     const startedAtMs = Date.now();
     process.stderr.write(`[agentmc-runtime] worker start ${workerLabel}\n`);
+    await emitWorkerEvent("starting");
 
     try {
       await runtime.run();
@@ -1083,6 +1525,7 @@ async function runRuntimeEntryWithRestart(input: {
       }
 
       process.stderr.write(`[agentmc-runtime] worker exited unexpectedly; restarting ${workerLabel}\n`);
+      await emitWorkerEvent("exited");
     } catch (error) {
       if (shouldStop()) {
         break;
@@ -1090,6 +1533,7 @@ async function runRuntimeEntryWithRestart(input: {
 
       const message = error instanceof Error ? error.message : String(error);
       process.stderr.write(`[agentmc-runtime] worker crashed ${workerLabel}: ${message}\n`);
+      await emitWorkerEvent("crashed");
     } finally {
       if (activeRuntimes.get(entry.worker.localKey) === runtime) {
         activeRuntimes.delete(entry.worker.localKey);
@@ -1112,6 +1556,7 @@ async function runRuntimeEntryWithRestart(input: {
       input.workerRestartDelayMs * 2 ** consecutiveFailures
     );
     process.stderr.write(`[agentmc-runtime] worker restart scheduled in ${backoffMs}ms (${workerLabel})\n`);
+    await emitWorkerEvent("restart-scheduled");
     await sleep(backoffMs);
   }
 }
@@ -1252,6 +1697,21 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
       if (!multiRuntimeRan) {
         throw new Error("Runtime bootstrap failed. Set AGENTMC_API_KEY (host key).");
       }
+    });
+
+  program
+    .command("runtime:status")
+    .description("Print local AgentMC runtime supervisor status from the server")
+    .option("--status-path <path>", "override runtime status file path")
+    .option("--json", "print full status JSON payload", false)
+    .action((options: { statusPath?: string; json?: boolean }) => {
+      const statusPath = resolveRuntimeStatusPath(process.env, options.statusPath);
+      const report = readRuntimeStatusReport(statusPath, process.env);
+      if (options.json) {
+        print(report);
+        return;
+      }
+      printRuntimeStatusReport(report);
     });
 
   program

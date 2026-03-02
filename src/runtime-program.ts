@@ -438,7 +438,8 @@ export class AgentRuntimeProgram {
         ? Math.max(0, nextHeartbeatAtMs - nowMs)
         : recurringPollIntervalMs;
       const delayToRecurringMs = Math.max(0, nextRecurringPollAtMs - nowMs);
-      const waitMs = Math.max(250, Math.min(delayToHeartbeatMs, delayToRecurringMs));
+      // Keep the loop responsive so immediate heartbeat sync requests are applied quickly.
+      const waitMs = Math.max(250, Math.min(delayToHeartbeatMs, delayToRecurringMs, 1000));
       await sleep(waitMs);
     }
   }
