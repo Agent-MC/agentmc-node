@@ -4827,6 +4827,9 @@
     },
     "/agents/recurring-task-runs/due": {
       "get": {
+        "tags": [
+          "Agents"
+        ],
         "parameters": [
           {
             "name": "limit",
@@ -4885,6 +4888,9 @@
         "requestBody": {
           "$ref": "#/components/requestBodies/CompleteAgentRecurringTaskRunApiRequest"
         },
+        "tags": [
+          "Agents"
+        ],
         "parameters": [
           {
             "name": "run",

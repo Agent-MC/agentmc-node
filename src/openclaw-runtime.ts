@@ -1086,45 +1086,68 @@ export class OpenClawAgentRuntime {
     const fallbackRunId = `agentmc-${input.sessionId}-${input.requestId}`;
     let runId = fallbackRunId;
     const sessionKey = `agent:${this.options.openclawAgent}:agentmc:${input.sessionId}`;
-    let waitResult: unknown = null;
+    const timeoutMs = this.resolveOpenClawAgentCommandTimeout();
+    let commandStatus: "ok" | "error" | "timeout" = "ok";
+    let commandErrorMessage: string | null = null;
+
+    const commandOptions = {
+      cwd: this.options.runtimeWorkingDirectory,
+      timeout: timeoutMs,
+      encoding: "utf8" as const,
+      maxBuffer: this.options.openclawMaxBufferBytes,
+      env: buildAgentRuntimeCommandEnv({
+        apiKey: this.options.agentmcApiKey,
+        apiBaseUrl: this.options.agentmcBaseUrl,
+        openApiUrl: this.options.agentmcOpenApiUrl
+      })
+    };
+
     try {
-      const submitted = await this.gatewayCall(
-        "agent",
-        {
-          agent: this.options.openclawAgent,
-          message: input.userText
-        },
-        this.resolveGatewayCallTimeout(this.options.openclawSubmitTimeoutMs)
+      const output = await execFileAsync(
+        this.options.openclawCommand,
+        ["agent", "--agent", this.options.openclawAgent, "--message", input.userText],
+        commandOptions
       );
-      runId = resolveOpenClawRunId(submitted) ?? fallbackRunId;
+      const commandResult =
+        parseJsonUnknownOutput(output.stdout) ??
+        parseJsonUnknownOutput(output.stderr) ??
+        null;
+      runId = resolveOpenClawRunId(commandResult) ?? fallbackRunId;
 
-      waitResult = await this.gatewayCall(
-        "agent.wait",
-        {
-          runId
-        },
-        this.resolveGatewayCallTimeout(this.options.openclawWaitTimeoutMs)
+      const directText = sanitizeAssistantOutputText(
+        parseExternalAgentOutput(output.stdout) || parseExternalAgentOutput(output.stderr)
       );
+      if (directText !== "") {
+        return {
+          requestId: input.requestId,
+          runId,
+          status: "ok",
+          textSource: "wait",
+          content: directText
+        };
+      }
     } catch (error) {
-      return {
-        requestId: input.requestId,
-        runId,
-        status: "error",
-        textSource: "error",
-        content: `I hit an error in the OpenClaw run: ${normalizeError(error).message}`
-      };
-    }
+      const objectError = valueAsObject(error);
+      const stdout = execOutputToString(objectError?.stdout);
+      const stderr = execOutputToString(objectError?.stderr);
+      const commandResult = parseJsonUnknownOutput(stdout) ?? parseJsonUnknownOutput(stderr) ?? null;
+      runId = resolveOpenClawRunId(commandResult) ?? runId;
 
-    const waitStatus = resolveOpenClawWaitStatus(waitResult);
-    const waitText = sanitizeAssistantOutputText(extractText(waitResult) ?? "");
-    if (waitText !== "") {
-      return {
-        requestId: input.requestId,
-        runId,
-        status: waitStatus,
-        textSource: "wait",
-        content: waitText
-      };
+      const directText = sanitizeAssistantOutputText(
+        parseExternalAgentOutput(stdout) || parseExternalAgentOutput(stderr)
+      );
+      if (directText !== "") {
+        return {
+          requestId: input.requestId,
+          runId,
+          status: "ok",
+          textSource: "wait",
+          content: directText
+        };
+      }
+
+      commandErrorMessage = normalizeError(error).message;
+      commandStatus = looksLikeTimeoutError(commandErrorMessage) ? "timeout" : "error";
     }
 
     const historyText = await this.readLatestAssistantText(sessionKey);
@@ -1139,17 +1162,17 @@ export class OpenClawAgentRuntime {
       };
     }
 
-    if (waitStatus === "error") {
+    if (commandStatus === "error") {
       return {
         requestId: input.requestId,
         runId,
         status: "error",
         textSource: "error",
-        content: "I finished the run, but OpenClaw reported an error and no assistant text was found."
+        content: `I hit an error in the OpenClaw run: ${commandErrorMessage ?? "unknown error"}`
       };
     }
 
-    if (waitStatus === "timeout") {
+    if (commandStatus === "timeout") {
       return {
         requestId: input.requestId,
         runId,
@@ -1168,52 +1191,10 @@ export class OpenClawAgentRuntime {
     };
   }
 
-  private resolveGatewayCallTimeout(timeoutMs: number): number {
-    const bounded = Math.min(this.options.openclawGatewayTimeoutMs, timeoutMs);
+  private resolveOpenClawAgentCommandTimeout(): number {
+    const preferred = Math.max(this.options.openclawSubmitTimeoutMs, this.options.openclawWaitTimeoutMs);
+    const bounded = Math.min(this.options.openclawGatewayTimeoutMs, preferred);
     return Math.max(1_000, bounded);
-  }
-
-  private async gatewayCall(
-    method: string,
-    params: JsonObject,
-    timeoutMs: number
-  ): Promise<unknown> {
-    const args = ["gateway", "call", method, "--json", "--params", JSON.stringify(params)];
-    const commandOptions = {
-      cwd: this.options.runtimeWorkingDirectory,
-      timeout: timeoutMs,
-      encoding: "utf8" as const,
-      maxBuffer: this.options.openclawMaxBufferBytes,
-      env: buildAgentRuntimeCommandEnv({
-        apiKey: this.options.agentmcApiKey,
-        apiBaseUrl: this.options.agentmcBaseUrl,
-        openApiUrl: this.options.agentmcOpenApiUrl
-      })
-    };
-
-    try {
-      const output = await execFileAsync(this.options.openclawCommand, args, commandOptions);
-      return (
-        parseJsonUnknownOutput(output.stdout) ??
-        parseJsonUnknownOutput(output.stderr) ??
-        parseExternalAgentOutput(output.stdout) ??
-        parseExternalAgentOutput(output.stderr) ??
-        null
-      );
-    } catch (error) {
-      const objectError = valueAsObject(error);
-      const stdout = parseJsonUnknownOutput(execOutputToString(objectError?.stdout));
-      if (stdout !== null) {
-        return stdout;
-      }
-
-      const stderr = parseJsonUnknownOutput(execOutputToString(objectError?.stderr));
-      if (stderr !== null) {
-        return stderr;
-      }
-
-      throw normalizeError(error);
-    }
   }
 
   private async readLatestAssistantText(sessionKey: string): Promise<string | null> {
@@ -2308,32 +2289,17 @@ function resolveOpenClawRunId(value: unknown): string | null {
   return null;
 }
 
-function resolveOpenClawWaitStatus(value: unknown): "ok" | "error" | "timeout" {
-  const objectValue = valueAsObject(value);
-  const status =
-    normalizeLowercase(objectValue?.status) ||
-    normalizeLowercase(objectValue?.state) ||
-    normalizeLowercase(objectValue?.result_status) ||
-    normalizeLowercase(objectValue?.resultStatus);
-
-  if (
-    status === "timeout" ||
-    status === "timed_out" ||
-    status === "timed-out" ||
-    status === "expired"
-  ) {
-    return "timeout";
+function looksLikeTimeoutError(message: string): boolean {
+  const normalized = message.trim().toLowerCase();
+  if (normalized === "") {
+    return false;
   }
 
-  if (
-    status === "error" ||
-    status === "failed" ||
-    status === "failure"
-  ) {
-    return "error";
-  }
-
-  return "ok";
+  return (
+    normalized.includes("timed out") ||
+    normalized.includes("timeout") ||
+    normalized.includes("etimedout")
+  );
 }
 
 function parseJsonUnknownOutput(value: unknown): unknown | null {

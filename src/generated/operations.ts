@@ -818,7 +818,9 @@ export const operations = [
     "path": "/agents/recurring-task-runs/{run}/complete",
     "summary": "",
     "description": "",
-    "tags": [],
+    "tags": [
+      "Agents"
+    ],
     "security": [
       [
         "ApiKeyAuth"
@@ -4550,7 +4552,9 @@ export const operations = [
     "path": "/agents/recurring-task-runs/due",
     "summary": "",
     "description": "",
-    "tags": [],
+    "tags": [
+      "Agents"
+    ],
     "security": [
       [
         "ApiKeyAuth"
