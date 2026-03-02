@@ -171,6 +171,7 @@ export class AgentRuntimeProgram {
   private lastOpenClawTelemetryError: string | null = null;
   private lastOpenClawIdentityError: string | null = null;
   private resolvedOpenClawCommand: string | null = null;
+  private pendingImmediateHeartbeatReason: string | null = null;
 
   constructor(options: AgentRuntimeProgramOptions = {}) {
     this.options = options;
@@ -374,6 +375,10 @@ export class AgentRuntimeProgram {
     while (!this.stopRequested) {
       const cycleNowMs = Date.now();
 
+      if (this.heartbeatEnabled && this.pendingImmediateHeartbeatReason !== null) {
+        nextHeartbeatAtMs = Math.min(nextHeartbeatAtMs, cycleNowMs);
+      }
+
       if (cycleNowMs >= nextRecurringPollAtMs) {
         if (agentId !== null) {
           try {
@@ -389,6 +394,9 @@ export class AgentRuntimeProgram {
       }
 
       if (this.heartbeatEnabled && cycleNowMs >= nextHeartbeatAtMs) {
+        const immediateReason = this.pendingImmediateHeartbeatReason;
+        this.pendingImmediateHeartbeatReason = null;
+
         try {
           const heartbeatBody = await this.buildHeartbeatBody();
           const resolvedAgentId = await this.sendHeartbeat(heartbeatBody);
@@ -408,7 +416,16 @@ export class AgentRuntimeProgram {
           if (agentId !== null && this.runtimeProvider && this.realtimeRuntime === null) {
             await this.startRealtimeRuntime(agentId, this.runtimeProvider);
           }
+
+          if (immediateReason) {
+            this.emitInfo("Immediate heartbeat sync completed", {
+              reason: immediateReason
+            });
+          }
         } catch (error) {
+          if (immediateReason !== null) {
+            this.pendingImmediateHeartbeatReason = immediateReason;
+          }
           this.emitError(normalizeError(error), { source: "heartbeat.cycle" });
         } finally {
           nextHeartbeatAtMs = Date.now() + (this.heartbeatIntervalSeconds ?? 1) * 1000;
@@ -432,6 +449,14 @@ export class AgentRuntimeProgram {
     }
 
     await this.startRealtimeRuntime(agentId, provider);
+  }
+
+  private requestImmediateHeartbeatSync(reason: string): void {
+    if (!this.heartbeatEnabled) {
+      return;
+    }
+
+    this.pendingImmediateHeartbeatReason = nonEmpty(reason) ?? "runtime_update";
   }
 
   private async loadState(): Promise<void> {
@@ -746,8 +771,14 @@ export class AgentRuntimeProgram {
     }
 
     const resolvedName = nonEmpty(machineSnapshot.name) ?? profile.name;
-    const resolvedIdentityCandidate = machineSnapshot.identity ?? profile.identity;
-    const resolvedEmoji = machineSnapshot.emoji ?? profile.emoji ?? extractIdentityEmoji(resolvedIdentityCandidate);
+    const hasMachineIdentity = machineSnapshot.identity !== null;
+    const resolvedIdentityCandidate = hasMachineIdentity ? machineSnapshot.identity : profile.identity;
+    const machineDerivedEmoji =
+      machineSnapshot.emoji ??
+      (hasMachineIdentity ? extractIdentityEmoji(machineSnapshot.identity) : null);
+    const resolvedEmoji =
+      machineDerivedEmoji ??
+      (hasMachineIdentity ? null : profile.emoji ?? extractIdentityEmoji(resolvedIdentityCandidate));
     const resolvedIdentity = ensureIdentityPayload(resolvedIdentityCandidate, resolvedName, resolvedEmoji);
 
     this.agentProfile = {
@@ -800,8 +831,7 @@ export class AgentRuntimeProgram {
       const hasNameFromRow = resolvedNameFromRow !== null;
       const resolvedEmoji =
         extractIdentityEmoji(matched) ??
-        extractIdentityEmoji(identityFromRow) ??
-        extractIdentityEmoji(fallbackIdentity);
+        extractIdentityEmoji(identityFromRow);
       const identitySource =
         identityFromRow ??
         (hasNameFromRow ? ({ name: resolvedName } satisfies JsonObject) : fallbackIdentity);
@@ -964,9 +994,17 @@ export class AgentRuntimeProgram {
           return;
         }
 
+        const details = valueAsObject(event.details) ?? {};
+        if (
+          event.event === "agent.profile.update.ack.sent" &&
+          String(details.channel_type ?? "").trim().toLowerCase() === "agent.profile.updated"
+        ) {
+          this.requestImmediateHeartbeatSync("agent_profile_updated");
+        }
+
         this.emitInfo("Agent profile update runtime event", {
           event: event.event,
-          details: event.details
+          details
         });
       }
     });
@@ -1201,7 +1239,7 @@ export class AgentRuntimeProgram {
       heartbeatMeta[key] = value;
     }
 
-    const agentPayload: NonNullable<HeartbeatBody["agent"]> = {
+    const agentPayload: NonNullable<HeartbeatBody["agent"]> & { emoji?: string | null } = {
       name: profile.name,
       type: profile.type,
       identity: profileIdentity
@@ -1209,6 +1247,7 @@ export class AgentRuntimeProgram {
     if (profile.id !== null) {
       agentPayload.id = profile.id;
     }
+    agentPayload.emoji = profileEmoji ?? null;
 
     const openclawAgentKey = normalizeOpenClawAgentName(this.options.openclawAgent);
     if (provider.kind === "openclaw" && openclawAgentKey) {

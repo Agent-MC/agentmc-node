@@ -12164,6 +12164,13 @@
                 "description": "Required display name persisted to the agent record.",
                 "example": "Jarvis"
               },
+              "emoji": {
+                "nullable": true,
+                "type": "string",
+                "maxLength": 32,
+                "description": "Emoji.",
+                "example": "example"
+              },
               "type": {
                 "type": "string",
                 "maxLength": 120,
@@ -12236,6 +12243,13 @@
                   "maxLength": 255,
                   "description": "Human-readable name.",
                   "example": "Example Name"
+                },
+                "emoji": {
+                  "nullable": true,
+                  "type": "string",
+                  "maxLength": 32,
+                  "description": "Emoji.",
+                  "example": "example"
                 },
                 "type": {
                   "type": "string",

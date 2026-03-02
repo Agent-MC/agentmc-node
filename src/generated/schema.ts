@@ -6853,6 +6853,11 @@ export interface components {
                  */
                 name: string;
                 /**
+                 * @description Emoji.
+                 * @example example
+                 */
+                emoji?: string | null;
+                /**
                  * @description Optional runtime agent type identifier. Prefer sending this as `meta.type`.
                  * @example codex
                  */
@@ -6891,6 +6896,11 @@ export interface components {
                  * @example Example Name
                  */
                 name: string;
+                /**
+                 * @description Emoji.
+                 * @example example
+                 */
+                emoji?: string | null;
                 /**
                  * @description Type discriminator for this record.
                  * @example example
