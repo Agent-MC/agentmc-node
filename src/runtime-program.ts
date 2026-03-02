@@ -41,6 +41,15 @@ const OPENCLAW_COMMAND_FALLBACK_PATHS: readonly string[] = [
   "/opt/homebrew/bin/openclaw",
   "/bin/openclaw"
 ];
+const OPENCLAW_MODEL_PLACEHOLDER_TOKENS = new Set([
+  "openclaw/default",
+  "openclaw:default",
+  "default",
+  "unknown",
+  "n/a",
+  "none",
+  "null"
+]);
 
 type JsonObject = Record<string, unknown>;
 
@@ -2659,11 +2668,21 @@ function normalizeModelToken(value: unknown): string {
     return "";
   }
 
+  const normalizedLower = trimmed.toLowerCase();
+  if (OPENCLAW_MODEL_PLACEHOLDER_TOKENS.has(normalizedLower)) {
+    return "";
+  }
+
   if (
     (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
     (trimmed.startsWith("'") && trimmed.endsWith("'"))
   ) {
-    return trimmed.slice(1, -1).trim();
+    const unwrapped = trimmed.slice(1, -1).trim();
+    if (unwrapped === "") {
+      return "";
+    }
+
+    return OPENCLAW_MODEL_PLACEHOLDER_TOKENS.has(unwrapped.toLowerCase()) ? "" : unwrapped;
   }
 
   return trimmed;
@@ -2678,22 +2697,40 @@ function normalizeHeartbeatModels(value: unknown): (string | JsonObject)[] {
   const seenStrings = new Set<string>();
 
   for (const item of value) {
-    const text = nonEmpty(item);
-    if (text) {
-      if (!seenStrings.has(text)) {
-        seenStrings.add(text);
-        normalized.push(text);
+    const normalizedText = normalizeModelToken(item);
+    if (normalizedText !== "") {
+      const key = normalizedText.toLowerCase();
+      if (!seenStrings.has(key)) {
+        seenStrings.add(key);
+        normalized.push(normalizedText);
       }
       continue;
     }
 
     const object = valueAsObject(item);
     if (object) {
+      const objectModelLabel = firstHeartbeatModelObjectLabel(object);
+      if (objectModelLabel !== null && normalizeModelToken(objectModelLabel) === "") {
+        continue;
+      }
+
       normalized.push(object);
     }
   }
 
   return normalized;
+}
+
+function firstHeartbeatModelObjectLabel(object: JsonObject): string | null {
+  const keys = ["model_id", "modelId", "full_name", "fullName", "id", "model", "name", "label"] as const;
+  for (const key of keys) {
+    const value = nonEmpty(object[key]);
+    if (value) {
+      return value;
+    }
+  }
+
+  return null;
 }
 
 function mergeHeartbeatTelemetry(target: JsonObject, patch: JsonObject): void {

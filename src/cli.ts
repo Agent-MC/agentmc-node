@@ -50,6 +50,7 @@ interface RuntimeWorkerConfig {
   localKey: string;
   openclawAgent?: string;
   localName?: string;
+  localEmoji?: string;
   provider?: string;
 }
 
@@ -927,7 +928,14 @@ async function sendHostHeartbeat(
   const configuredRuntimeProvider = normalizeRuntimeProvider(env.AGENTMC_RUNTIME_PROVIDER);
   const resolvedRuntimeProvider = resolveHostHeartbeatRuntimeProvider(configuredRuntimeProvider, workers);
   const runtimeIdentity = resolveHostHeartbeatRuntimeIdentity(env, configuredRuntimeProvider, resolvedRuntimeProvider);
-  const models = resolveHostHeartbeatModels(env, workers, resolvedRuntimeProvider, runtimeIdentity.modelPrefix);
+  const models = resolveHostHeartbeatModels(env, workers, resolvedRuntimeProvider);
+  const heartbeatModels =
+    models.length > 0 ? models : resolveHostHeartbeatFallbackModels(runtimeIdentity, resolvedRuntimeProvider);
+  const hasOpenClawWorkers = workers.some((worker) => nonEmpty(worker.provider)?.toLowerCase() === "openclaw");
+  const latestOpenClawProfiles =
+    hasOpenClawWorkers
+      ? resolveLatestHostHeartbeatOpenClawProfiles(env)
+      : new Map<string, { name: string | null; emoji: string | null }>();
 
   const payload = {
     meta: {
@@ -939,7 +947,7 @@ async function sendHostHeartbeat(
       },
       type: runtimeIdentity.type,
       runtime_mode: runtimeIdentity.mode,
-      models: models.length > 0 ? models : [`${runtimeIdentity.modelPrefix}/default`],
+      models: heartbeatModels,
       ...(AGENTMC_NODE_PACKAGE_VERSION ? { agentmc_node_package_version: AGENTMC_NODE_PACKAGE_VERSION } : {}),
       ...(runtimeIdentity.openclawVersion ? { openclaw_version: runtimeIdentity.openclawVersion } : {}),
       ...(runtimeIdentity.openclawBuild ? { openclaw_build: runtimeIdentity.openclawBuild } : {})
@@ -973,16 +981,24 @@ async function sendHostHeartbeat(
         }
       }
     },
-    agents: workers.map((worker) => ({
-      ...(worker.agentId !== null ? { id: worker.agentId } : {}),
-      name: worker.localName ?? worker.localKey,
-      type: worker.provider ?? "runtime",
-      identity: {
-        name: worker.localName ?? worker.localKey,
-        agent_key: worker.localKey,
-        openclaw_agent: worker.openclawAgent ?? worker.localKey
-      }
-    }))
+    agents: workers.map((worker) => {
+      updateWorkerProfileFromHeartbeat(worker, latestOpenClawProfiles);
+      const resolvedName = worker.localName ?? worker.localKey;
+      const resolvedEmoji = worker.localEmoji ?? null;
+
+      return {
+        ...(worker.agentId !== null ? { id: worker.agentId } : {}),
+        name: resolvedName,
+        emoji: resolvedEmoji,
+        type: worker.provider ?? "runtime",
+        identity: {
+          name: resolvedName,
+          ...(worker.localEmoji ? { emoji: worker.localEmoji } : {}),
+          agent_key: worker.localKey,
+          openclaw_agent: worker.openclawAgent ?? worker.localKey
+        }
+      };
+    })
   };
 
   const response = await client.request("agentHeartbeat", {
@@ -1025,6 +1041,308 @@ async function sendHostHeartbeat(
   );
 
   return rows;
+}
+
+function updateWorkerProfileFromHeartbeat(
+  worker: RuntimeWorkerConfig,
+  profiles: Map<string, { name: string | null; emoji: string | null }>
+): void {
+  const lookupKey = nonEmpty(worker.openclawAgent) ?? nonEmpty(worker.localKey);
+  if (!lookupKey) {
+    return;
+  }
+
+  const profile = profiles.get(lookupKey.toLowerCase());
+  if (!profile) {
+    return;
+  }
+
+  if (profile.name) {
+    worker.localName = profile.name;
+  }
+
+  if (profile.emoji) {
+    worker.localEmoji = profile.emoji;
+  }
+}
+
+function resolveLatestHostHeartbeatOpenClawProfiles(
+  env: NodeJS.ProcessEnv
+): Map<string, { name: string | null; emoji: string | null }> {
+  const command = nonEmpty(env.OPENCLAW_CMD) ?? "openclaw";
+  const rows = resolveOpenClawHeartbeatAgentRows(command);
+  const profiles = new Map<string, { name: string | null; emoji: string | null }>();
+
+  for (const row of rows) {
+    const identity = valueAsObject(row.identity);
+    const key =
+      nonEmpty(row.key) ??
+      nonEmpty(row.id) ??
+      nonEmpty(row.agent) ??
+      nonEmpty(row.agent_key) ??
+      nonEmpty(row.agentKey) ??
+      nonEmpty(row.slug);
+    if (!key) {
+      continue;
+    }
+
+    profiles.set(key.toLowerCase(), {
+      name: resolveOpenClawAgentRowName(row, identity),
+      emoji: extractIdentityEmojiFromObject(row) ?? extractIdentityEmojiFromObject(identity)
+    });
+  }
+
+  return profiles;
+}
+
+function resolveOpenClawHeartbeatAgentRows(command: string): Record<string, unknown>[] {
+  const commands: string[][] = [
+    ["agents", "list", "--json"],
+    ["gateway", "call", "agents.list", "--json"],
+    ["gateway", "call", "agents.list", "--json", "--params", "{}"],
+    ["gateway", "call", "config.get", "--json"]
+  ];
+
+  for (const args of commands) {
+    const payload = readCommandJsonUnknownOutput(command, args);
+    if (payload === null) {
+      continue;
+    }
+
+    const rows = extractOpenClawAgentRows(payload);
+    if (rows.length > 0) {
+      return rows;
+    }
+  }
+
+  return [];
+}
+
+function readCommandJsonUnknownOutput(command: string, args: readonly string[]): unknown | null {
+  try {
+    const stdout = execFileSync(command, [...args], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+    return parseJsonUnknownOutput(stdout);
+  } catch (error) {
+    const normalizedError = error as { stdout?: string | Buffer; stderr?: string | Buffer };
+    const stdout = parseJsonUnknownOutput(execOutputToString(normalizedError.stdout));
+    if (stdout !== null) {
+      return stdout;
+    }
+
+    return parseJsonUnknownOutput(execOutputToString(normalizedError.stderr));
+  }
+}
+
+function parseJsonUnknownOutput(value: string): unknown | null {
+  const trimmed = String(value ?? "").trim();
+  if (trimmed === "") {
+    return null;
+  }
+
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    const firstLine = firstNonEmptyLine(trimmed);
+    if (!firstLine) {
+      return null;
+    }
+
+    try {
+      return JSON.parse(firstLine);
+    } catch {
+      return null;
+    }
+  }
+}
+
+function extractOpenClawAgentRows(payload: unknown): Record<string, unknown>[] {
+  const queue: unknown[] = [payload];
+  const visited = new Set<unknown>();
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (current === undefined || current === null || visited.has(current)) {
+      continue;
+    }
+    visited.add(current);
+
+    const rows = coerceOpenClawAgentRows(current);
+    if (rows.length > 0) {
+      return rows;
+    }
+
+    if (Array.isArray(current)) {
+      for (const item of current) {
+        queue.push(item);
+      }
+      continue;
+    }
+
+    const object = valueAsObject(current);
+    if (!object) {
+      continue;
+    }
+
+    queue.push(
+      object.payload,
+      object.result,
+      object.response,
+      object.data,
+      object.config,
+      object.parsed,
+      object.agents,
+      object.list,
+      object.items
+    );
+  }
+
+  return [];
+}
+
+function coerceOpenClawAgentRows(candidate: unknown): Record<string, unknown>[] {
+  if (Array.isArray(candidate)) {
+    return candidate
+      .map((entry) => valueAsObject(entry))
+      .filter((entry): entry is Record<string, unknown> => entry !== null)
+      .filter((entry) => isLikelyOpenClawAgentRow(entry));
+  }
+
+  const object = valueAsObject(candidate);
+  if (!object) {
+    return [];
+  }
+
+  const nestedCandidates = [
+    object.list,
+    object.agents,
+    object.data,
+    object.items,
+    valueAsObject(object.list)?.agents,
+    valueAsObject(object.agents)?.agents,
+    valueAsObject(object.agents)?.list,
+    valueAsObject(object.config)?.agents,
+    valueAsObject(valueAsObject(object.config)?.agents)?.list,
+    valueAsObject(object.parsed)?.agents,
+    valueAsObject(valueAsObject(object.parsed)?.agents)?.list
+  ];
+  for (const nested of nestedCandidates) {
+    const rows = coerceOpenClawAgentRows(nested);
+    if (rows.length > 0) {
+      return rows;
+    }
+  }
+
+  return Object.entries(object)
+    .map(([mapKey, entry]) => {
+      const objectEntry = valueAsObject(entry);
+      if (!objectEntry || !isLikelyOpenClawAgentRow(objectEntry)) {
+        return null;
+      }
+
+      if (
+        nonEmpty(objectEntry.key) ??
+        nonEmpty(objectEntry.id) ??
+        nonEmpty(objectEntry.agent_key) ??
+        nonEmpty(objectEntry.agentKey)
+      ) {
+        return objectEntry;
+      }
+
+      return { key: mapKey, ...objectEntry };
+    })
+    .filter((entry): entry is Record<string, unknown> => entry !== null);
+}
+
+function isLikelyOpenClawAgentRow(row: Record<string, unknown>): boolean {
+  return (
+    nonEmpty(row.id) ??
+    nonEmpty(row.key) ??
+    nonEmpty(row.agent) ??
+    nonEmpty(row.slug) ??
+    nonEmpty(row.agent_key) ??
+    nonEmpty(row.agentKey) ??
+    nonEmpty(row.name) ??
+    nonEmpty(row.agent_name) ??
+    nonEmpty(row.agentName) ??
+    nonEmpty(row.identityName) ??
+    nonEmpty(row.identity_name) ??
+    nonEmpty(row.display_name) ??
+    nonEmpty(row.displayName) ??
+    nonEmpty(row.workspace) ??
+    nonEmpty(row.workspace_path) ??
+    nonEmpty(row.workspacePath) ??
+    nonEmpty(row.agentDir) ??
+    nonEmpty(row.agent_dir) ??
+    nonEmpty(row.agentPath) ??
+    valueAsObject(row.agent) ??
+    valueAsObject(row.profile) ??
+    valueAsObject(row.meta) ??
+    valueAsObject(row.identity)
+  ) !== null;
+}
+
+function resolveOpenClawAgentRowName(
+  row: Record<string, unknown>,
+  identityFromRow: Record<string, unknown> | null
+): string | null {
+  const rowAgent = valueAsObject(row.agent);
+  const rowProfile = valueAsObject(row.profile);
+  const rowMeta = valueAsObject(row.meta);
+  const identity = identityFromRow ?? valueAsObject(row.identity);
+
+  return (
+    nonEmpty(row.identityName) ??
+    nonEmpty(row.identity_name) ??
+    nonEmpty(row.name) ??
+    nonEmpty(row.agent_name) ??
+    nonEmpty(row.agentName) ??
+    nonEmpty(row.display_name) ??
+    nonEmpty(row.displayName) ??
+    nonEmpty(rowProfile?.name) ??
+    nonEmpty(rowAgent?.name) ??
+    nonEmpty(rowMeta?.name) ??
+    nonEmpty(identity?.name) ??
+    null
+  );
+}
+
+function extractIdentityEmojiFromObject(value: Record<string, unknown> | null): string | null {
+  if (!value) {
+    return null;
+  }
+
+  const direct =
+    nonEmpty(value.emoji) ??
+    nonEmpty(value.avatar_emoji) ??
+    nonEmpty(value.avatarEmoji) ??
+    nonEmpty(value.profile_emoji) ??
+    nonEmpty(value.profileEmoji) ??
+    nonEmpty(value.icon_emoji) ??
+    nonEmpty(value.iconEmoji) ??
+    nonEmpty(value.icon);
+  if (direct) {
+    return direct;
+  }
+
+  const nestedIdentity = valueAsObject(value.identity);
+  if (!nestedIdentity) {
+    return null;
+  }
+
+  return (
+    nonEmpty(nestedIdentity.emoji) ??
+    nonEmpty(nestedIdentity.avatar_emoji) ??
+    nonEmpty(nestedIdentity.avatarEmoji) ??
+    nonEmpty(nestedIdentity.profile_emoji) ??
+    nonEmpty(nestedIdentity.profileEmoji) ??
+    nonEmpty(nestedIdentity.icon_emoji) ??
+    nonEmpty(nestedIdentity.iconEmoji) ??
+    nonEmpty(nestedIdentity.icon) ??
+    null
+  );
 }
 
 function resolveHostHeartbeatRuntimeProvider(
@@ -1178,8 +1496,7 @@ function extractBuildToken(line: string): string | null {
 function resolveHostHeartbeatModels(
   env: NodeJS.ProcessEnv,
   workers: RuntimeWorkerConfig[],
-  resolvedProvider: HostHeartbeatRuntimeProvider,
-  modelPrefix: string
+  resolvedProvider: HostHeartbeatRuntimeProvider
 ): string[] {
   const configured = parseCommaSeparatedList(env.AGENTMC_MODELS);
   if (configured.length > 0) {
@@ -1187,7 +1504,7 @@ function resolveHostHeartbeatModels(
   }
 
   if (resolvedProvider !== "openclaw") {
-    return [`${modelPrefix}/default`];
+    return [];
   }
 
   const command = nonEmpty(env.OPENCLAW_CMD) ?? "openclaw";
@@ -1230,7 +1547,20 @@ function resolveHostHeartbeatModels(
     return normalized;
   }
 
-  return [`${modelPrefix}/default`];
+  return [];
+}
+
+function resolveHostHeartbeatFallbackModels(
+  runtimeIdentity: ReturnType<typeof resolveHostHeartbeatRuntimeIdentity>,
+  resolvedRuntimeProvider: HostHeartbeatRuntimeProvider
+): string[] {
+  if (resolvedRuntimeProvider === "openclaw") {
+    const version = nonEmpty(runtimeIdentity.openclawVersion) ?? runtimeIdentity.version;
+    const build = nonEmpty(runtimeIdentity.openclawBuild) ?? nonEmpty(runtimeIdentity.build) ?? version;
+    return [`🦞 OpenClaw ${version} (${build})`];
+  }
+
+  return [`${runtimeIdentity.name}@${runtimeIdentity.version}`];
 }
 
 function readOpenClawModelStatus(command: string, agentKey: string | null): Record<string, unknown> | null {
