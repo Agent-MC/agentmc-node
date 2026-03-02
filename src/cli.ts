@@ -70,6 +70,17 @@ const WORKER_RESTART_RESET_WINDOW_MS = 60_000;
 const DEFAULT_HOST_HEARTBEAT_INTERVAL_SECONDS = 300;
 const DEFAULT_HOST_REQUESTED_SESSION_LIMIT = 20;
 const DEFAULT_HOST_REQUEST_POLL_MS = 250;
+const OPENCLAW_MODELS_STATUS_COMMAND: readonly string[] = ["models", "--status-json"];
+const OPENCLAW_MODELS_STATUS_FALLBACK_COMMAND: readonly string[] = ["models", "status", "--json"];
+const OPENCLAW_MODEL_PLACEHOLDER_TOKENS = new Set([
+  "openclaw/default",
+  "openclaw:default",
+  "default",
+  "unknown",
+  "n/a",
+  "none",
+  "null"
+]);
 
 function nonEmpty(value: unknown): string | null {
   if (typeof value !== "string" && typeof value !== "number") {
@@ -483,13 +494,13 @@ async function sendHostHeartbeat(
   workers: RuntimeWorkerConfig[],
   hostFingerprint: string
 ): Promise<HostHeartbeatAgentRow[]> {
-  const models = parseCommaSeparatedList(env.AGENTMC_MODELS);
   const privateIp = resolvePrivateIp();
   const configuredPublicIp = nonEmpty(env.AGENTMC_PUBLIC_IP);
   const publicIp = configuredPublicIp ?? privateIp ?? "127.0.0.1";
   const configuredRuntimeProvider = normalizeRuntimeProvider(env.AGENTMC_RUNTIME_PROVIDER);
   const resolvedRuntimeProvider = resolveHostHeartbeatRuntimeProvider(configuredRuntimeProvider, workers);
   const runtimeIdentity = resolveHostHeartbeatRuntimeIdentity(env, configuredRuntimeProvider, resolvedRuntimeProvider);
+  const models = resolveHostHeartbeatModels(env, workers, resolvedRuntimeProvider, runtimeIdentity.modelPrefix);
 
   const payload = {
     meta: {
@@ -734,6 +745,206 @@ function extractBuildToken(line: string): string | null {
 
   const hash = line.match(/\b[a-f0-9]{7,40}\b/i);
   return hash?.[0] ?? null;
+}
+
+function resolveHostHeartbeatModels(
+  env: NodeJS.ProcessEnv,
+  workers: RuntimeWorkerConfig[],
+  resolvedProvider: HostHeartbeatRuntimeProvider,
+  modelPrefix: string
+): string[] {
+  const configured = parseCommaSeparatedList(env.AGENTMC_MODELS);
+  if (configured.length > 0) {
+    return dedupeModelIdentifiers(configured);
+  }
+
+  if (resolvedProvider !== "openclaw") {
+    return [`${modelPrefix}/default`];
+  }
+
+  const command = nonEmpty(env.OPENCLAW_CMD) ?? "openclaw";
+  const openclawAgents = new Set<string>();
+  for (const worker of workers) {
+    if (worker.provider?.toLowerCase() !== "openclaw") {
+      continue;
+    }
+
+    const key = nonEmpty(worker.openclawAgent) ?? nonEmpty(worker.localKey);
+    if (key) {
+      openclawAgents.add(key);
+    }
+  }
+
+  const configuredOpenClawAgent = nonEmpty(env.OPENCLAW_AGENT);
+  if (configuredOpenClawAgent) {
+    openclawAgents.add(configuredOpenClawAgent);
+  }
+
+  const discovered: string[] = [];
+  for (const agentKey of openclawAgents) {
+    const status = readOpenClawModelStatus(command, agentKey);
+    if (!status) {
+      continue;
+    }
+
+    discovered.push(...extractOpenClawModelIdentifiers(status));
+  }
+
+  if (discovered.length === 0) {
+    const sharedStatus = readOpenClawModelStatus(command, null);
+    if (sharedStatus) {
+      discovered.push(...extractOpenClawModelIdentifiers(sharedStatus));
+    }
+  }
+
+  const normalized = dedupeModelIdentifiers(discovered);
+  if (normalized.length > 0) {
+    return normalized;
+  }
+
+  return [`${modelPrefix}/default`];
+}
+
+function readOpenClawModelStatus(command: string, agentKey: string | null): Record<string, unknown> | null {
+  const commands: string[][] = [];
+  if (agentKey) {
+    commands.push(["models", "--agent", agentKey, "--status-json"]);
+    commands.push([...OPENCLAW_MODELS_STATUS_FALLBACK_COMMAND, "--agent", agentKey]);
+    commands.push(["models", "status", "--agent", agentKey, "--json"]);
+  } else {
+    commands.push([...OPENCLAW_MODELS_STATUS_COMMAND]);
+    commands.push([...OPENCLAW_MODELS_STATUS_FALLBACK_COMMAND]);
+  }
+
+  for (const args of commands) {
+    const parsed = readCommandJsonObjectOutput(command, args);
+    if (parsed) {
+      return parsed;
+    }
+  }
+
+  return null;
+}
+
+function readCommandJsonObjectOutput(command: string, args: readonly string[]): Record<string, unknown> | null {
+  try {
+    const stdout = execFileSync(command, [...args], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+    return parseJsonObjectOutput(stdout);
+  } catch (error) {
+    const normalizedError = error as { stdout?: string | Buffer; stderr?: string | Buffer };
+    const stdout = parseJsonObjectOutput(execOutputToString(normalizedError.stdout));
+    if (stdout) {
+      return stdout;
+    }
+
+    return parseJsonObjectOutput(execOutputToString(normalizedError.stderr));
+  }
+}
+
+function parseJsonObjectOutput(value: string): Record<string, unknown> | null {
+  const trimmed = String(value ?? "").trim();
+  if (trimmed === "") {
+    return null;
+  }
+
+  const direct = parseJsonObjectCandidate(trimmed);
+  if (direct) {
+    return direct;
+  }
+
+  const firstBrace = trimmed.indexOf("{");
+  const lastBrace = trimmed.lastIndexOf("}");
+  if (firstBrace < 0 || lastBrace <= firstBrace) {
+    return null;
+  }
+
+  return parseJsonObjectCandidate(trimmed.slice(firstBrace, lastBrace + 1));
+}
+
+function parseJsonObjectCandidate(value: string): Record<string, unknown> | null {
+  try {
+    const parsed = JSON.parse(value);
+    return valueAsObject(parsed);
+  } catch {
+    return null;
+  }
+}
+
+function extractOpenClawModelIdentifiers(status: Record<string, unknown>): string[] {
+  const models: string[] = [];
+  const add = (candidate: unknown): void => {
+    const normalized = normalizeModelIdentifier(candidate);
+    if (normalized) {
+      models.push(normalized);
+    }
+  };
+
+  add(status.resolvedDefault);
+  add(status.resolved_default);
+  add(status.defaultModel);
+  add(status.default_model);
+  add(status.model);
+
+  const allowed = Array.isArray(status.allowed) ? status.allowed : [];
+  for (const row of allowed) {
+    add(row);
+  }
+
+  const fallbacks = Array.isArray(status.fallbacks) ? status.fallbacks : [];
+  for (const row of fallbacks) {
+    add(row);
+  }
+
+  const aliases = valueAsObject(status.aliases);
+  if (aliases) {
+    for (const aliasTarget of Object.values(aliases)) {
+      add(aliasTarget);
+    }
+  }
+
+  return dedupeModelIdentifiers(models);
+}
+
+function dedupeModelIdentifiers(models: readonly unknown[]): string[] {
+  const values: string[] = [];
+  const seen = new Set<string>();
+
+  for (const model of models) {
+    const normalized = normalizeModelIdentifier(model);
+    if (!normalized) {
+      continue;
+    }
+
+    const key = normalized.toLowerCase();
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    values.push(normalized);
+  }
+
+  return values;
+}
+
+function normalizeModelIdentifier(value: unknown): string | null {
+  const text = nonEmpty(value);
+  if (!text) {
+    return null;
+  }
+
+  const normalized = text.trim();
+  if (normalized === "" || /\s/.test(normalized)) {
+    return null;
+  }
+
+  if (OPENCLAW_MODEL_PLACEHOLDER_TOKENS.has(normalized.toLowerCase())) {
+    return null;
+  }
+
+  return normalized;
 }
 
 function applyHeartbeatAgentMapping(workers: RuntimeWorkerConfig[], rows: HostHeartbeatAgentRow[]): string[] {

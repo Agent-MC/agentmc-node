@@ -627,15 +627,22 @@ export class AgentRuntimeProgram {
       return fromEnv;
     }
 
-    try {
-      const output = await execCapture(command, ["models", "status", "--json"], {
-        cwd: this.resolveRuntimeCommandCwd()
-      });
-      const parsed = parseJsonUnknown(output.stdout) ?? parseJsonUnknown(output.stderr);
-      return normalizeModelList(extractModelStrings(parsed));
-    } catch {
-      return [];
+    for (const args of this.resolveOpenClawModelsStatusCommands()) {
+      try {
+        const output = await execCapture(command, args, {
+          cwd: this.resolveRuntimeCommandCwd()
+        });
+        const parsed = parseJsonUnknown(output.stdout) ?? parseJsonUnknown(output.stderr);
+        const models = normalizeModelList(extractModelStrings(parsed));
+        if (models.length > 0) {
+          return models;
+        }
+      } catch {
+        // Keep trying fallback command variants.
+      }
     }
+
+    return [];
   }
 
   private resolveExternalProvider(strict: boolean): RuntimeProviderDescriptor {
@@ -1079,20 +1086,23 @@ export class AgentRuntimeProgram {
       snapshots.push(primary);
     }
 
-    try {
-      const output = await execCapture(command, OPENCLAW_MODELS_TELEMETRY_COMMAND, {
-        cwd: this.resolveRuntimeCommandCwd(),
-        timeoutMs: OPENCLAW_TELEMETRY_TIMEOUT_MS
-      });
-      const parsed = parseJsonUnknown(output.stdout) ?? parseJsonUnknown(output.stderr);
-      const object = valueAsObject(parsed);
-      if (object) {
-        snapshots.push(object);
+    for (const args of this.resolveOpenClawModelsStatusCommands()) {
+      try {
+        const output = await execCapture(command, args, {
+          cwd: this.resolveRuntimeCommandCwd(),
+          timeoutMs: OPENCLAW_TELEMETRY_TIMEOUT_MS
+        });
+        const parsed = parseJsonUnknown(output.stdout) ?? parseJsonUnknown(output.stderr);
+        const object = valueAsObject(parsed);
+        if (object) {
+          snapshots.push(object);
+          break;
+        }
+      } catch (error) {
+        errors.push(
+          `${args.join(" ")}: ${normalizeError(error).message}`
+        );
       }
-    } catch (error) {
-      errors.push(
-        `${OPENCLAW_MODELS_TELEMETRY_COMMAND.join(" ")}: ${normalizeError(error).message}`
-      );
     }
 
     if (snapshots.length > 0) {
@@ -1109,6 +1119,22 @@ export class AgentRuntimeProgram {
     }
 
     return [];
+  }
+
+  private resolveOpenClawModelsStatusCommands(): string[][] {
+    const openclawAgent = normalizeOpenClawAgentName(this.options.openclawAgent);
+    if (!openclawAgent) {
+      return [
+        [...OPENCLAW_MODELS_TELEMETRY_COMMAND],
+        ["models", "--status-json"]
+      ];
+    }
+
+    return [
+      ["models", "--agent", openclawAgent, "--status-json"],
+      [...OPENCLAW_MODELS_TELEMETRY_COMMAND, "--agent", openclawAgent],
+      ["models", "status", "--agent", openclawAgent, "--json"]
+    ];
   }
 
   private async executeOpenClawTelemetryCommand(command: string, errors: string[]): Promise<JsonObject | null> {
