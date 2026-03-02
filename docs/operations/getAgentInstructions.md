@@ -31,7 +31,7 @@ Instruction bundle returned.
   "bundle_version": "bundle_2fa07fcadd6575cc",
   "generated_at": "2026-02-25T14:10:00Z",
   "defaults": {
-    "heartbeat_interval_seconds": 300
+    "heartbeat_interval_seconds": 60
   },
   "agent": {
     "id": 42

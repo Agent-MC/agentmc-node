@@ -22,7 +22,7 @@ npm install @agentmc/api
 -   Realtime runtime example: `examples/realtime/openclawAgentRuntime.ts`
 -   CLI for operation discovery and direct API calls.
 
-## Quick Start (SDK)
+## Quick Start(SDK)
 
 ```ts
 import { AgentMCApi } from '@agentmc/api';
@@ -191,17 +191,20 @@ npx agentmc-api runtime:status --json
 ```
 
 `runtime:status` now also includes:
+
 -   computed diagnostics (missing/stale status, unresolved workers, missing/stale heartbeats, state-file issues)
 -   systemd service snapshot (`systemctl show`, default service `agentmc-host` or `AGENTMC_SERVICE_NAME`)
 -   recent runtime errors from `journalctl` (default: last `30` minutes, max `20` entries)
 
 Useful options:
+
 -   `--service-name <name>` to inspect a different systemd unit
 -   `--errors-since-minutes <minutes>` to change journal lookback window
 -   `--errors-limit <count>` to control max error entries
 -   `--no-recent-errors` to skip journal scan
 
 Required env:
+
 -   Host runtime key:
     -   `AGENTMC_API_KEY=<host-key>`
 -   Runtime workspace: current working directory (`process.cwd()`)
@@ -233,11 +236,13 @@ Required env:
     -   `AGENTMC_AUTO_UPDATE_REGISTRY_URL` (default `https://registry.npmjs.org/@agentmc%2Fapi/latest`)
 
 Keep these env values up to date for each running agent worker. Update and restart the runtime whenever provider/model/network settings change.
+
 -   Keep `AGENTMC_MODELS` aligned with the runtime's active/default model inventory.
 -   Keep the host API key rotated/current for the target host.
 -   OpenClaw prompt execution uses `openclaw agent --agent <openclaw-agent> --message "<prompt>"`.
 
 Keep heartbeat telemetry up to date on every send (do not hardcode stale values):
+
 -   Runtime identity and mode: `meta.runtime.name`, `meta.runtime.version`, `meta.runtime.build`, `meta.runtime.mode`, `meta.runtime_mode`.
 -   Runtime model inventory: `meta.models`.
 -   AgentMC SDK package version: `meta.agentmc_node_package_version` (`@agentmc/api` package version).
