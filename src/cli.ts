@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { arch, cpus, hostname, networkInterfaces, platform, release, totalmem, uptime } from "node:os";
@@ -60,6 +61,8 @@ interface HostHeartbeatAgentRow {
   runtimeKey: string | null;
   name: string | null;
 }
+
+type HostHeartbeatRuntimeProvider = "openclaw" | "external" | "host-runtime";
 
 const DEFAULT_WORKER_RESTART_DELAY_MS = 2_000;
 const DEFAULT_WORKER_RESTART_MAX_DELAY_MS = 30_000;
@@ -484,21 +487,23 @@ async function sendHostHeartbeat(
   const privateIp = resolvePrivateIp();
   const configuredPublicIp = nonEmpty(env.AGENTMC_PUBLIC_IP);
   const publicIp = configuredPublicIp ?? privateIp ?? "127.0.0.1";
-  const runtimeProvider = normalizeRuntimeProvider(env.AGENTMC_RUNTIME_PROVIDER);
-  const runtimeName = nonEmpty(env.AGENTMC_RUNTIME_NAME) ?? "agentmc-node-host";
-  const runtimeVersion = nonEmpty(env.AGENTMC_RUNTIME_VERSION) ?? process.version;
-  const runtimeBuild = nonEmpty(env.AGENTMC_RUNTIME_BUILD) ?? null;
+  const configuredRuntimeProvider = normalizeRuntimeProvider(env.AGENTMC_RUNTIME_PROVIDER);
+  const resolvedRuntimeProvider = resolveHostHeartbeatRuntimeProvider(configuredRuntimeProvider, workers);
+  const runtimeIdentity = resolveHostHeartbeatRuntimeIdentity(env, configuredRuntimeProvider, resolvedRuntimeProvider);
 
   const payload = {
     meta: {
       runtime: {
-        name: runtimeName,
-        version: runtimeVersion,
-        ...(runtimeBuild ? { build: runtimeBuild } : {})
+        name: runtimeIdentity.name,
+        version: runtimeIdentity.version,
+        ...(runtimeIdentity.build ? { build: runtimeIdentity.build } : {}),
+        mode: runtimeIdentity.mode
       },
-      type: "host-runtime",
-      runtime_mode: runtimeProvider,
-      models: models.length > 0 ? models : [`${runtimeProvider}/default`]
+      type: runtimeIdentity.type,
+      runtime_mode: runtimeIdentity.mode,
+      models: models.length > 0 ? models : [`${runtimeIdentity.modelPrefix}/default`],
+      ...(runtimeIdentity.openclawVersion ? { openclaw_version: runtimeIdentity.openclawVersion } : {}),
+      ...(runtimeIdentity.openclawBuild ? { openclaw_build: runtimeIdentity.openclawBuild } : {})
     },
     host: {
       fingerprint: hostFingerprint,
@@ -524,8 +529,8 @@ async function sendHostHeartbeat(
         },
         uptime_seconds: Math.max(0, Math.trunc(uptime())),
         runtime: {
-          name: runtimeName,
-          version: runtimeVersion
+          name: runtimeIdentity.name,
+          version: runtimeIdentity.version
         }
       }
     },
@@ -581,6 +586,154 @@ async function sendHostHeartbeat(
   );
 
   return rows;
+}
+
+function resolveHostHeartbeatRuntimeProvider(
+  configuredProvider: "auto" | "openclaw" | "external",
+  workers: RuntimeWorkerConfig[]
+): HostHeartbeatRuntimeProvider {
+  const workerProviders = new Set<string>();
+  for (const worker of workers) {
+    const provider = nonEmpty(worker.provider)?.toLowerCase();
+    if (provider === "openclaw" || provider === "external") {
+      workerProviders.add(provider);
+    }
+  }
+
+  if (workerProviders.size === 1) {
+    return Array.from(workerProviders)[0] as HostHeartbeatRuntimeProvider;
+  }
+
+  if (configuredProvider === "openclaw" || configuredProvider === "external") {
+    return configuredProvider;
+  }
+
+  return "host-runtime";
+}
+
+function resolveHostHeartbeatRuntimeIdentity(
+  env: NodeJS.ProcessEnv,
+  configuredProvider: "auto" | "openclaw" | "external",
+  resolvedProvider: HostHeartbeatRuntimeProvider
+): {
+  type: string;
+  mode: string;
+  name: string;
+  version: string;
+  build: string | null;
+  modelPrefix: string;
+  openclawVersion: string | null;
+  openclawBuild: string | null;
+} {
+  const configuredRuntimeVersion = nonEmpty(env.AGENTMC_RUNTIME_VERSION);
+  const configuredRuntimeBuild = nonEmpty(env.AGENTMC_RUNTIME_BUILD);
+
+  if (resolvedProvider === "openclaw") {
+    const openclawIdentity = resolveOpenClawVersionIdentity(env);
+    const version = configuredRuntimeVersion ?? openclawIdentity?.version ?? "unknown";
+    const build = configuredRuntimeBuild ?? openclawIdentity?.build ?? null;
+
+    return {
+      type: "openclaw",
+      mode: "openclaw",
+      name: "openclaw",
+      version,
+      build,
+      modelPrefix: "openclaw",
+      openclawVersion: version,
+      openclawBuild: build ?? version
+    };
+  }
+
+  const mode = resolvedProvider === "external" ? "external" : configuredProvider;
+
+  return {
+    type: "host-runtime",
+    mode,
+    name: nonEmpty(env.AGENTMC_RUNTIME_NAME) ?? "agentmc-node-host",
+    version: configuredRuntimeVersion ?? process.version,
+    build: configuredRuntimeBuild ?? null,
+    modelPrefix: resolvedProvider === "external" ? "external" : mode,
+    openclawVersion: null,
+    openclawBuild: null
+  };
+}
+
+function resolveOpenClawVersionIdentity(
+  env: NodeJS.ProcessEnv
+): {
+  version: string;
+  build: string | null;
+} | null {
+  const command = nonEmpty(env.OPENCLAW_CMD) ?? "openclaw";
+  const output = readCommandVersionOutput(command, ["--version"]);
+  if (!output) {
+    return null;
+  }
+
+  const version = extractVersionToken(output) ?? output.trim();
+  if (!version) {
+    return null;
+  }
+
+  return {
+    version,
+    build: extractBuildToken(output)
+  };
+}
+
+function readCommandVersionOutput(command: string, args: readonly string[]): string | null {
+  try {
+    const stdout = execFileSync(command, [...args], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+    return firstNonEmptyLine(stdout);
+  } catch (error) {
+    const normalizedError = error as { stdout?: string | Buffer; stderr?: string | Buffer };
+    const stdout = firstNonEmptyLine(execOutputToString(normalizedError.stdout));
+    if (stdout) {
+      return stdout;
+    }
+
+    return firstNonEmptyLine(execOutputToString(normalizedError.stderr));
+  }
+}
+
+function execOutputToString(value: string | Buffer | undefined): string {
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (value instanceof Buffer) {
+    return value.toString("utf8");
+  }
+
+  return "";
+}
+
+function firstNonEmptyLine(value: string): string | null {
+  const lines = String(value ?? "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line !== "");
+
+  return lines[0] ?? null;
+}
+
+function extractVersionToken(line: string): string | null {
+  const match = line.match(/\b\d+\.\d+(?:\.\d+)?(?:[-+][A-Za-z0-9._-]+)?\b/);
+  return match?.[0] ?? null;
+}
+
+function extractBuildToken(line: string): string | null {
+  const paren = line.match(/\(([A-Za-z0-9._-]{5,})\)/);
+  if (paren?.[1]) {
+    return paren[1];
+  }
+
+  const hash = line.match(/\b[a-f0-9]{7,40}\b/i);
+  return hash?.[0] ?? null;
 }
 
 function applyHeartbeatAgentMapping(workers: RuntimeWorkerConfig[], rows: HostHeartbeatAgentRow[]): string[] {
