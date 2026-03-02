@@ -35,6 +35,7 @@ const METHOD_TO_CLIENT_CALL: Record<HttpMethod, OpenApiFetchMethod> = {
 
 export class AgentMCApi {
   private readonly auth: AgentMCApiAuthConfig;
+  private readonly baseUrl: string;
   private readonly defaultHeaders: Headers;
   private readonly openapiClient: ReturnType<typeof createClient<paths>>;
 
@@ -46,6 +47,7 @@ export class AgentMCApi {
     this.auth = {
       apiKey: config.apiKey
     };
+    this.baseUrl = normalizeBaseUrl(config.baseUrl ?? DEFAULT_BASE_URL);
 
     this.defaultHeaders = new Headers(config.headers);
 
@@ -58,7 +60,7 @@ export class AgentMCApi {
     }
 
     this.openapiClient = createClient<paths>({
-      baseUrl: config.baseUrl ?? DEFAULT_BASE_URL,
+      baseUrl: this.baseUrl,
       fetch: config.fetch
     });
 
@@ -74,6 +76,19 @@ export class AgentMCApi {
 
   listOperations(): readonly OperationDefinition[] {
     return operations;
+  }
+
+  getConfiguredApiKey(): string | null {
+    const key = this.auth.apiKey;
+    return typeof key === "string" && key.trim() !== "" ? key : null;
+  }
+
+  getBaseUrl(): string {
+    return this.baseUrl;
+  }
+
+  getOpenApiUrl(): string {
+    return deriveOpenApiUrl(this.baseUrl);
   }
 
   getOperation(operationId: OperationId): OperationDefinition {
@@ -224,5 +239,38 @@ export class AgentMCApi {
       default:
         return null;
     }
+  }
+}
+
+function normalizeBaseUrl(value: string): string {
+  const normalized = String(value ?? "").trim();
+  return normalized.replace(/\/+$/, "");
+}
+
+function deriveOpenApiUrl(baseUrl: string): string {
+  try {
+    const url = new URL(baseUrl);
+    const path = url.pathname.replace(/\/+$/, "");
+
+    if (path.endsWith("/api/v1")) {
+      url.pathname = `${path.slice(0, -"/api/v1".length)}/api/openapi.json`;
+    } else if (path.endsWith("/api")) {
+      url.pathname = `${path}/openapi.json`;
+    } else if (path === "") {
+      url.pathname = "/api/openapi.json";
+    } else {
+      url.pathname = `${path}/api/openapi.json`;
+    }
+
+    return url.toString();
+  } catch {
+    const normalized = normalizeBaseUrl(baseUrl);
+    if (normalized.endsWith("/api/v1")) {
+      return `${normalized.slice(0, -"/api/v1".length)}/api/openapi.json`;
+    }
+    if (normalized.endsWith("/api")) {
+      return `${normalized}/openapi.json`;
+    }
+    return `${normalized}/api/openapi.json`;
   }
 }

@@ -31,6 +31,7 @@ const DEFAULT_OPENCLAW_MAX_BUFFER_BYTES = 10 * 1024 * 1024;
 const DEFAULT_SELF_HEAL_CONNECTION_STALE_MS = 45_000;
 const DEFAULT_SELF_HEAL_ACTIVITY_STALE_MS = 120_000;
 const DEFAULT_SELF_HEAL_MIN_SESSION_AGE_MS = 20_000;
+const DEFAULT_AGENTMC_API_BASE_URL = "https://agentmc.ai/api/v1";
 
 const DEFAULT_OPENCLAW_DOC_IDS = [
   "AGENTS.md",
@@ -118,6 +119,9 @@ export type AgentRuntimeRunResult = OpenClawRuntimeNotificationBridgeRunResult;
 export interface OpenClawAgentRuntimeOptions {
   client: AgentMCApi;
   agent: number;
+  agentmcApiKey?: string;
+  agentmcBaseUrl?: string;
+  agentmcOpenApiUrl?: string;
   realtimeSessionsEnabled?: boolean;
   chatRealtimeEnabled?: boolean;
   filesRealtimeEnabled?: boolean;
@@ -181,6 +185,9 @@ export interface OpenClawAgentRuntimeStatus {
 interface ResolvedOptions {
   client: AgentMCApi;
   agent: number;
+  agentmcApiKey: string | null;
+  agentmcBaseUrl: string;
+  agentmcOpenApiUrl: string;
   realtimeSessionsEnabled: boolean;
   chatRealtimeEnabled: boolean;
   filesRealtimeEnabled: boolean;
@@ -261,6 +268,12 @@ interface BridgedAgentMcContext {
   timezone: string | null;
   actorUserId: number;
   defaultAssigneeUserId: number;
+}
+
+interface BridgedAgentMcRuntimeContext {
+  apiKey: string | null;
+  apiBaseUrl: string;
+  openApiUrl: string;
 }
 
 export class OpenClawAgentRuntime {
@@ -880,7 +893,12 @@ export class OpenClawAgentRuntime {
     const bridgedUserText = buildAgentMcBridgeMessage({
       userText,
       payload: bridgePayload,
-      session: state.session
+      session: state.session,
+      runtimeContext: {
+        apiKey: this.options.agentmcApiKey,
+        apiBaseUrl: this.options.agentmcBaseUrl,
+        openApiUrl: this.options.agentmcOpenApiUrl
+      }
     });
 
     let runResult: OpenClawRunResult;
@@ -1001,7 +1019,12 @@ export class OpenClawAgentRuntime {
     const bridgedUserText = buildAgentMcBridgeMessage({
       userText,
       payload,
-      session: state.session
+      session: state.session,
+      runtimeContext: {
+        apiKey: this.options.agentmcApiKey,
+        apiBaseUrl: this.options.agentmcBaseUrl,
+        openApiUrl: this.options.agentmcOpenApiUrl
+      }
     });
 
     let runResult: OpenClawRunResult;
@@ -1078,7 +1101,12 @@ export class OpenClawAgentRuntime {
           cwd: this.options.runtimeWorkingDirectory,
           timeout: timeoutMs,
           encoding: "utf8",
-          maxBuffer: this.options.openclawMaxBufferBytes
+          maxBuffer: this.options.openclawMaxBufferBytes,
+          env: buildAgentRuntimeCommandEnv({
+            apiKey: this.options.agentmcApiKey,
+            apiBaseUrl: this.options.agentmcBaseUrl,
+            openApiUrl: this.options.agentmcOpenApiUrl
+          })
         }
       );
       const stdoutText = parseExternalAgentOutput(valueAsString(output.stdout) ?? "");
@@ -1778,10 +1806,29 @@ function resolveOptions(options: OpenClawAgentRuntimeOptions): ResolvedOptions {
   const realtimeSessionsEnabled = typeof options.realtimeSessionsEnabled === "boolean"
     ? options.realtimeSessionsEnabled
     : chatRealtimeEnabled || filesRealtimeEnabled || notificationsRealtimeEnabled || hasRealtimeCallbacks;
+  const agentmcApiKey = sanitizeRuntimeContextValue(
+    valueAsString(options.agentmcApiKey) ??
+      readClientConfiguredValue(options.client, "getConfiguredApiKey") ??
+      valueAsString(process.env.AGENTMC_API_KEY),
+    512
+  );
+  const agentmcBaseUrl = normalizeAgentMcApiBaseUrl(
+    valueAsString(options.agentmcBaseUrl) ??
+      readClientConfiguredValue(options.client, "getBaseUrl") ??
+      valueAsString(process.env.AGENTMC_BASE_URL) ??
+      DEFAULT_AGENTMC_API_BASE_URL
+  );
+  const agentmcOpenApiUrl = normalizeAgentMcOpenApiUrl(
+    valueAsString(options.agentmcOpenApiUrl) ?? readClientConfiguredValue(options.client, "getOpenApiUrl"),
+    agentmcBaseUrl
+  );
 
   return {
     client: options.client,
     agent,
+    agentmcApiKey,
+    agentmcBaseUrl,
+    agentmcOpenApiUrl,
     realtimeSessionsEnabled,
     chatRealtimeEnabled,
     filesRealtimeEnabled,
@@ -1843,6 +1890,69 @@ function resolveOptions(options: OpenClawAgentRuntimeOptions): ResolvedOptions {
     onDebug: options.onDebug,
     onError: options.onError
   };
+}
+
+function readClientConfiguredValue(
+  client: AgentMCApi,
+  key: "getConfiguredApiKey" | "getBaseUrl" | "getOpenApiUrl"
+): string | null {
+  const candidate = client as unknown as Record<string, unknown>;
+  const value = candidate[key];
+  if (typeof value !== "function") {
+    return null;
+  }
+
+  try {
+    const resolved = (value as () => unknown).call(client);
+    return valueAsString(resolved);
+  } catch {
+    return null;
+  }
+}
+
+function normalizeAgentMcApiBaseUrl(value: string): string {
+  const trimmed = value.trim().replace(/\/+$/, "");
+  if (trimmed.endsWith("/api/v1")) {
+    return trimmed;
+  }
+
+  return `${trimmed}/api/v1`;
+}
+
+function normalizeAgentMcOpenApiUrl(value: string | null, apiBaseUrl: string): string {
+  const normalized = sanitizeRuntimeContextValue(value, 1024);
+  if (normalized) {
+    return normalized;
+  }
+
+  return `${apiBaseUrl.slice(0, -"/api/v1".length)}/api/openapi.json`;
+}
+
+function sanitizeRuntimeContextValue(value: string | null, maxLength: number): string | null {
+  if (!value) {
+    return null;
+  }
+
+  const normalized = value.replace(/[\r\n\t]+/g, " ").trim();
+  if (normalized === "") {
+    return null;
+  }
+
+  return normalized.slice(0, maxLength);
+}
+
+function buildAgentRuntimeCommandEnv(context: BridgedAgentMcRuntimeContext): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {
+    ...process.env,
+    AGENTMC_BASE_URL: context.apiBaseUrl,
+    AGENTMC_OPENAPI_URL: context.openApiUrl
+  };
+
+  if (context.apiKey) {
+    env.AGENTMC_API_KEY = context.apiKey;
+  }
+
+  return env;
 }
 
 async function callOptionalHandler<Input, Extra>(
@@ -2502,8 +2612,10 @@ function buildAgentMcBridgeMessage(input: {
   userText: string;
   payload: JsonObject;
   session: AgentRealtimeSessionRecord | null;
+  runtimeContext: BridgedAgentMcRuntimeContext;
 }): string {
   const context = deriveBridgedAgentMcContext(input.payload, input.session);
+  const apiKey = sanitizeRuntimeContextValue(input.runtimeContext.apiKey, 512);
   const lines = [
     "[AgentMC Context]",
     "app=AgentMC",
@@ -2514,6 +2626,12 @@ function buildAgentMcBridgeMessage(input: {
     ...(context.defaultAssigneeUserId > 0
       ? [`default_assignee_user_id=${context.defaultAssigneeUserId}`]
       : []),
+    `api_base_url=${input.runtimeContext.apiBaseUrl}`,
+    `openapi_url=${input.runtimeContext.openApiUrl}`,
+    "api_auth_header=X-Api-Key",
+    "api_key_env=AGENTMC_API_KEY",
+    ...(apiKey ? [`api_key=${apiKey}`] : []),
+    "openapi_hint=Fetch OpenAPI and resolve all $ref values before API calls.",
     "routing_hint=Treat actions with no external app specified as AgentMC operations.",
     "assignment_hint=When the user says 'assign it to me', map 'me' to default_assignee_user_id.",
     "",

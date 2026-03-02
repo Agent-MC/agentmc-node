@@ -87,6 +87,12 @@ interface RecurringTaskExecutionResult {
   runtimeMeta: JsonObject;
 }
 
+interface AgentMcPromptContext {
+  apiKey: string | null;
+  apiBaseUrl: string;
+  openApiUrl: string;
+}
+
 export interface AgentRuntimeProgramOptions {
   client?: AgentMCApi;
   baseUrl?: string;
@@ -144,6 +150,9 @@ export class AgentRuntimeProgram {
   private readonly client: AgentMCApi;
   private readonly initialAgentId: number | null;
   private readonly heartbeatEnabled: boolean;
+  private readonly agentMcApiKey: string | null;
+  private readonly agentMcApiBaseUrl: string;
+  private readonly agentMcOpenApiUrl: string;
 
   private running = false;
   private stopRequested = false;
@@ -190,6 +199,22 @@ export class AgentRuntimeProgram {
         apiKey
       });
     }
+
+    this.agentMcApiKey = sanitizeRuntimeContextValue(
+      nonEmpty(options.apiKey) ??
+        readClientStringValue(this.client, "getConfiguredApiKey") ??
+        nonEmpty(process.env.AGENTMC_API_KEY),
+      512
+    );
+    this.agentMcApiBaseUrl = normalizeApiBaseUrl(
+      nonEmpty(options.baseUrl) ??
+        readClientStringValue(this.client, "getBaseUrl") ??
+        nonEmpty(process.env.AGENTMC_BASE_URL) ??
+        DEFAULT_AGENTMC_API_BASE_URL
+    );
+    this.agentMcOpenApiUrl =
+      sanitizeRuntimeContextValue(readClientStringValue(this.client, "getOpenApiUrl"), 1024) ??
+      `${this.agentMcApiBaseUrl.slice(0, -"/api/v1".length)}/api/openapi.json`;
   }
 
   static fromEnv(env: NodeJS.ProcessEnv = process.env): AgentRuntimeProgram {
@@ -630,7 +655,8 @@ export class AgentRuntimeProgram {
         });
 
         const result = await execCapture(runtimeCommand, [...runtimeArgs, "--agentmc-input", payload], {
-          cwd: this.resolveRuntimeCommandCwd()
+          cwd: this.resolveRuntimeCommandCwd(),
+          env: this.buildAgentCommandEnv()
         });
         const text = parseExternalAgentOutput(result.stdout);
 
@@ -913,6 +939,9 @@ export class AgentRuntimeProgram {
     const runtime = new AgentRuntime({
       client: this.client,
       agent: agentId,
+      agentmcApiKey: this.agentMcApiKey ?? undefined,
+      agentmcBaseUrl: this.agentMcApiBaseUrl,
+      agentmcOpenApiUrl: this.agentMcOpenApiUrl,
       realtimeSessionsEnabled: this.options.realtimeSessionsEnabled !== false,
       runtimeDocsDirectory,
       runtimeWorkingDirectory: this.workspaceDir,
@@ -1396,7 +1425,7 @@ export class AgentRuntimeProgram {
     const runInput: AgentRuntimeRunInput = {
       sessionId: claimed.taskId,
       requestId,
-      userText: buildRecurringTaskAgentMcMessage(prompt)
+      userText: buildRecurringTaskAgentMcMessage(prompt, this.resolveAgentMcPromptContext())
     };
 
     let runResult: AgentRuntimeRunResult;
@@ -1465,7 +1494,8 @@ export class AgentRuntimeProgram {
         ["agent", "--agent", openclawAgent, "--message", input.userText],
         {
           cwd: this.resolveRuntimeCommandCwd(),
-          timeoutMs
+          timeoutMs,
+          env: this.buildAgentCommandEnv()
         }
       );
       const directTextRaw = parseExternalAgentOutput(output.stdout) || parseExternalAgentOutput(output.stderr);
@@ -1537,6 +1567,18 @@ export class AgentRuntimeProgram {
     }
   }
 
+  private resolveAgentMcPromptContext(): AgentMcPromptContext {
+    return {
+      apiKey: this.agentMcApiKey,
+      apiBaseUrl: this.agentMcApiBaseUrl,
+      openApiUrl: this.agentMcOpenApiUrl
+    };
+  }
+
+  private buildAgentCommandEnv(): NodeJS.ProcessEnv {
+    return buildAgentCommandEnv(this.resolveAgentMcPromptContext());
+  }
+
   private emitInfo(message: string, meta?: JsonObject): void {
     if (this.options.onInfo) {
       this.options.onInfo(message, meta);
@@ -1567,6 +1609,50 @@ function normalizeApiBaseUrl(raw: string): string {
   return `${trimmed}/api/v1`;
 }
 
+function readClientStringValue(
+  client: AgentMCApi,
+  key: "getConfiguredApiKey" | "getBaseUrl" | "getOpenApiUrl"
+): string | null {
+  const candidate = client as unknown as Record<string, unknown>;
+  const value = candidate[key];
+  if (typeof value !== "function") {
+    return null;
+  }
+
+  try {
+    return nonEmpty((value as () => unknown).call(client));
+  } catch {
+    return null;
+  }
+}
+
+function sanitizeRuntimeContextValue(value: string | null, maxLength: number): string | null {
+  if (!value) {
+    return null;
+  }
+
+  const normalized = value.replace(/[\r\n\t]+/g, " ").trim();
+  if (normalized === "") {
+    return null;
+  }
+
+  return normalized.slice(0, maxLength);
+}
+
+function buildAgentCommandEnv(context: AgentMcPromptContext): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {
+    ...process.env,
+    AGENTMC_BASE_URL: context.apiBaseUrl,
+    AGENTMC_OPENAPI_URL: context.openApiUrl
+  };
+
+  if (context.apiKey) {
+    env.AGENTMC_API_KEY = context.apiKey;
+  }
+
+  return env;
+}
+
 function normalizeOpenClawAgentName(value: unknown): string | null {
   const resolved = nonEmpty(value);
   if (!resolved) {
@@ -1580,7 +1666,7 @@ function normalizeOpenClawAgentName(value: unknown): string | null {
   return resolved;
 }
 
-function buildRecurringTaskAgentMcMessage(userPrompt: string): string {
+function buildRecurringTaskAgentMcMessage(userPrompt: string, context: AgentMcPromptContext): string {
   const normalizedPrompt = String(userPrompt ?? "").trim();
   if (normalizedPrompt === "") {
     return "";
@@ -1590,11 +1676,18 @@ function buildRecurringTaskAgentMcMessage(userPrompt: string): string {
     return normalizedPrompt;
   }
 
+  const apiKey = sanitizeRuntimeContextValue(context.apiKey, 512);
   const lines = [
     "[AgentMC Context]",
     "app=AgentMC",
     "source=agentmc_recurring_task",
     "intent_scope=agentmc",
+    `api_base_url=${context.apiBaseUrl}`,
+    `openapi_url=${context.openApiUrl}`,
+    "api_auth_header=X-Api-Key",
+    "api_key_env=AGENTMC_API_KEY",
+    ...(apiKey ? [`api_key=${apiKey}`] : []),
+    "openapi_hint=Fetch OpenAPI and resolve all $ref values before API calls.",
     "routing_hint=Treat actions with no external app specified as AgentMC operations.",
     "",
     normalizedPrompt
@@ -1838,12 +1931,13 @@ function resolveExecutableNameVariants(commandName: string): string[] {
 async function execCapture(
   command: string,
   args: readonly string[],
-  options: { cwd?: string; timeoutMs?: number } = {}
+  options: { cwd?: string; timeoutMs?: number; env?: NodeJS.ProcessEnv } = {}
 ): Promise<{ stdout: string; stderr: string }> {
   const output = await execFileAsync(command, [...args], {
     ...(nonEmpty(options.cwd) ? { cwd: options.cwd } : {}),
     maxBuffer: 10 * 1024 * 1024,
-    ...(options.timeoutMs && options.timeoutMs > 0 ? { timeout: options.timeoutMs } : {})
+    ...(options.timeoutMs && options.timeoutMs > 0 ? { timeout: options.timeoutMs } : {}),
+    ...(options.env ? { env: options.env } : {})
   });
 
   return {
