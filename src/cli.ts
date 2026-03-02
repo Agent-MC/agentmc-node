@@ -1142,20 +1142,88 @@ function parseJsonUnknownOutput(value: string): unknown | null {
     return null;
   }
 
-  try {
-    return JSON.parse(trimmed);
-  } catch {
-    const firstLine = firstNonEmptyLine(trimmed);
-    if (!firstLine) {
-      return null;
-    }
+  const direct = parseJsonUnknownCandidate(trimmed);
+  if (direct !== null) {
+    return direct;
+  }
 
-    try {
-      return JSON.parse(firstLine);
-    } catch {
-      return null;
+  const firstLine = firstNonEmptyLine(trimmed);
+  if (firstLine) {
+    const lineParsed = parseJsonUnknownCandidate(firstLine);
+    if (lineParsed !== null) {
+      return lineParsed;
     }
   }
+
+  const candidate = extractFirstJsonCandidate(trimmed);
+  if (!candidate) {
+    return null;
+  }
+
+  return parseJsonUnknownCandidate(candidate);
+}
+
+function parseJsonUnknownCandidate(value: string): unknown | null {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
+}
+
+function extractFirstJsonCandidate(value: string): string | null {
+  const text = String(value ?? "");
+  for (let start = 0; start < text.length; start += 1) {
+    const startChar = text[start];
+    if (startChar !== "{" && startChar !== "[") {
+      continue;
+    }
+
+    const stack: string[] = [startChar === "{" ? "}" : "]"];
+    let inString = false;
+    let escaped = false;
+
+    for (let index = start + 1; index < text.length; index += 1) {
+      const char = text[index];
+      if (inString) {
+        if (escaped) {
+          escaped = false;
+          continue;
+        }
+        if (char === "\\") {
+          escaped = true;
+          continue;
+        }
+        if (char === "\"") {
+          inString = false;
+        }
+        continue;
+      }
+
+      if (char === "\"") {
+        inString = true;
+        continue;
+      }
+
+      if (char === "{" || char === "[") {
+        stack.push(char === "{" ? "}" : "]");
+        continue;
+      }
+
+      if (char === "}" || char === "]") {
+        const expected = stack.pop();
+        if (!expected || expected !== char) {
+          break;
+        }
+
+        if (stack.length === 0) {
+          return text.slice(start, index + 1);
+        }
+      }
+    }
+  }
+
+  return null;
 }
 
 function extractOpenClawAgentRows(payload: unknown): Record<string, unknown>[] {

@@ -1083,35 +1083,28 @@ export class OpenClawAgentRuntime {
     requestId: string;
     userText: string;
   }): Promise<OpenClawRunResult> {
-    const runId = `agentmc-${input.sessionId}-${input.requestId}`;
+    const fallbackRunId = `agentmc-${input.sessionId}-${input.requestId}`;
+    let runId = fallbackRunId;
     const sessionKey = `agent:${this.options.openclawAgent}:agentmc:${input.sessionId}`;
-
-    const timeoutMs = Math.max(
-      this.options.openclawSubmitTimeoutMs,
-      this.options.openclawWaitTimeoutMs,
-      this.options.openclawGatewayTimeoutMs
-    );
-
-    let directText = "";
+    let waitResult: unknown = null;
     try {
-      const output = await execFileAsync(
-        this.options.openclawCommand,
-        ["agent", "--agent", this.options.openclawAgent, "--message", input.userText],
+      const submitted = await this.gatewayCall(
+        "agent",
         {
-          cwd: this.options.runtimeWorkingDirectory,
-          timeout: timeoutMs,
-          encoding: "utf8",
-          maxBuffer: this.options.openclawMaxBufferBytes,
-          env: buildAgentRuntimeCommandEnv({
-            apiKey: this.options.agentmcApiKey,
-            apiBaseUrl: this.options.agentmcBaseUrl,
-            openApiUrl: this.options.agentmcOpenApiUrl
-          })
-        }
+          agent: this.options.openclawAgent,
+          message: input.userText
+        },
+        this.resolveGatewayCallTimeout(this.options.openclawSubmitTimeoutMs)
       );
-      const stdoutText = parseExternalAgentOutput(valueAsString(output.stdout) ?? "");
-      const stderrText = parseExternalAgentOutput(valueAsString(output.stderr) ?? "");
-      directText = stdoutText !== "" ? stdoutText : stderrText;
+      runId = resolveOpenClawRunId(submitted) ?? fallbackRunId;
+
+      waitResult = await this.gatewayCall(
+        "agent.wait",
+        {
+          runId
+        },
+        this.resolveGatewayCallTimeout(this.options.openclawWaitTimeoutMs)
+      );
     } catch (error) {
       return {
         requestId: input.requestId,
@@ -1122,14 +1115,15 @@ export class OpenClawAgentRuntime {
       };
     }
 
-    const sanitizedDirectText = sanitizeAssistantOutputText(directText);
-    if (sanitizedDirectText !== "") {
+    const waitStatus = resolveOpenClawWaitStatus(waitResult);
+    const waitText = sanitizeAssistantOutputText(extractText(waitResult) ?? "");
+    if (waitText !== "") {
       return {
         requestId: input.requestId,
         runId,
-        status: "ok",
+        status: waitStatus,
         textSource: "wait",
-        content: sanitizedDirectText
+        content: waitText
       };
     }
 
@@ -1145,6 +1139,26 @@ export class OpenClawAgentRuntime {
       };
     }
 
+    if (waitStatus === "error") {
+      return {
+        requestId: input.requestId,
+        runId,
+        status: "error",
+        textSource: "error",
+        content: "I finished the run, but OpenClaw reported an error and no assistant text was found."
+      };
+    }
+
+    if (waitStatus === "timeout") {
+      return {
+        requestId: input.requestId,
+        runId,
+        status: "timeout",
+        textSource: "fallback",
+        content: "I finished waiting for the run, but no assistant text was found before timeout."
+      };
+    }
+
     return {
       requestId: input.requestId,
       runId,
@@ -1152,6 +1166,54 @@ export class OpenClawAgentRuntime {
       textSource: "fallback",
       content: "I finished the run, but no assistant text was found."
     };
+  }
+
+  private resolveGatewayCallTimeout(timeoutMs: number): number {
+    const bounded = Math.min(this.options.openclawGatewayTimeoutMs, timeoutMs);
+    return Math.max(1_000, bounded);
+  }
+
+  private async gatewayCall(
+    method: string,
+    params: JsonObject,
+    timeoutMs: number
+  ): Promise<unknown> {
+    const args = ["gateway", "call", method, "--json", "--params", JSON.stringify(params)];
+    const commandOptions = {
+      cwd: this.options.runtimeWorkingDirectory,
+      timeout: timeoutMs,
+      encoding: "utf8" as const,
+      maxBuffer: this.options.openclawMaxBufferBytes,
+      env: buildAgentRuntimeCommandEnv({
+        apiKey: this.options.agentmcApiKey,
+        apiBaseUrl: this.options.agentmcBaseUrl,
+        openApiUrl: this.options.agentmcOpenApiUrl
+      })
+    };
+
+    try {
+      const output = await execFileAsync(this.options.openclawCommand, args, commandOptions);
+      return (
+        parseJsonUnknownOutput(output.stdout) ??
+        parseJsonUnknownOutput(output.stderr) ??
+        parseExternalAgentOutput(output.stdout) ??
+        parseExternalAgentOutput(output.stderr) ??
+        null
+      );
+    } catch (error) {
+      const objectError = valueAsObject(error);
+      const stdout = parseJsonUnknownOutput(execOutputToString(objectError?.stdout));
+      if (stdout !== null) {
+        return stdout;
+      }
+
+      const stderr = parseJsonUnknownOutput(execOutputToString(objectError?.stderr));
+      if (stderr !== null) {
+        return stderr;
+      }
+
+      throw normalizeError(error);
+    }
   }
 
   private async readLatestAssistantText(sessionKey: string): Promise<string | null> {
@@ -2208,6 +2270,188 @@ function previewText(value: unknown, max = 220): string | null {
   }
 
   return `${trimmed.slice(0, Math.max(1, max - 3))}...`;
+}
+
+function resolveOpenClawRunId(value: unknown): string | null {
+  const direct = valueAsRunId(valueAsObject(value)?.runId) ?? valueAsRunId(valueAsObject(value)?.run_id);
+  if (direct) {
+    return direct;
+  }
+
+  const queue: unknown[] = [];
+  const root = valueAsObject(value);
+  if (root) {
+    queue.push(root.result, root.payload, root.response, root.data);
+  }
+
+  const visited = new Set<unknown>();
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (current === null || current === undefined || visited.has(current)) {
+      continue;
+    }
+    visited.add(current);
+
+    const objectValue = valueAsObject(current);
+    if (!objectValue) {
+      continue;
+    }
+
+    const runId = valueAsRunId(objectValue.runId) ?? valueAsRunId(objectValue.run_id);
+    if (runId) {
+      return runId;
+    }
+
+    queue.push(objectValue.result, objectValue.payload, objectValue.response, objectValue.data);
+  }
+
+  return null;
+}
+
+function resolveOpenClawWaitStatus(value: unknown): "ok" | "error" | "timeout" {
+  const objectValue = valueAsObject(value);
+  const status =
+    normalizeLowercase(objectValue?.status) ||
+    normalizeLowercase(objectValue?.state) ||
+    normalizeLowercase(objectValue?.result_status) ||
+    normalizeLowercase(objectValue?.resultStatus);
+
+  if (
+    status === "timeout" ||
+    status === "timed_out" ||
+    status === "timed-out" ||
+    status === "expired"
+  ) {
+    return "timeout";
+  }
+
+  if (
+    status === "error" ||
+    status === "failed" ||
+    status === "failure"
+  ) {
+    return "error";
+  }
+
+  return "ok";
+}
+
+function parseJsonUnknownOutput(value: unknown): unknown | null {
+  const text = execOutputToString(value).trim();
+  if (text === "") {
+    return null;
+  }
+
+  const direct = parseJsonUnknownCandidate(text);
+  if (direct !== null) {
+    return direct;
+  }
+
+  const firstLine = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find((line) => line !== "");
+  if (firstLine) {
+    const lineParsed = parseJsonUnknownCandidate(firstLine);
+    if (lineParsed !== null) {
+      return lineParsed;
+    }
+  }
+
+  const candidate = extractFirstJsonCandidate(text);
+  if (!candidate) {
+    return null;
+  }
+
+  return parseJsonUnknownCandidate(candidate);
+}
+
+function parseJsonUnknownCandidate(value: string): unknown | null {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
+}
+
+function extractFirstJsonCandidate(value: string): string | null {
+  const text = String(value ?? "");
+  for (let start = 0; start < text.length; start += 1) {
+    const startChar = text[start];
+    if (startChar !== "{" && startChar !== "[") {
+      continue;
+    }
+
+    const stack: string[] = [startChar === "{" ? "}" : "]"];
+    let inString = false;
+    let escaped = false;
+
+    for (let index = start + 1; index < text.length; index += 1) {
+      const char = text[index];
+      if (inString) {
+        if (escaped) {
+          escaped = false;
+          continue;
+        }
+        if (char === "\\") {
+          escaped = true;
+          continue;
+        }
+        if (char === "\"") {
+          inString = false;
+        }
+        continue;
+      }
+
+      if (char === "\"") {
+        inString = true;
+        continue;
+      }
+
+      if (char === "{" || char === "[") {
+        stack.push(char === "{" ? "}" : "]");
+        continue;
+      }
+
+      if (char === "}" || char === "]") {
+        const expected = stack.pop();
+        if (!expected || expected !== char) {
+          break;
+        }
+
+        if (stack.length === 0) {
+          return text.slice(start, index + 1);
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+function valueAsRunId(value: unknown): string | null {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed === "" ? null : trimmed;
+  }
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value);
+  }
+
+  return null;
+}
+
+function execOutputToString(value: unknown): string {
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (value instanceof Buffer) {
+    return value.toString("utf8");
+  }
+
+  return "";
 }
 
 function parseExternalAgentOutput(value: unknown): string {
