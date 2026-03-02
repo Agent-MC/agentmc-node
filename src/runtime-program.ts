@@ -907,7 +907,7 @@ export class AgentRuntimeProgram {
   }
 
   private async startRealtimeRuntime(agentId: number, provider: RuntimeProviderDescriptor): Promise<void> {
-    const runtimeDocsDirectory = this.resolveRuntimeDocsDirectory(agentId);
+    const runtimeDocsDirectory = this.resolveRuntimeDocsDirectory();
     await mkdir(runtimeDocsDirectory, { recursive: true });
 
     const runtime = new AgentRuntime({
@@ -951,11 +951,9 @@ export class AgentRuntimeProgram {
     });
   }
 
-  private resolveRuntimeDocsDirectory(agentId: number): string {
-    const openclawKey = normalizeOpenClawAgentName(this.options.openclawAgent);
-    const scopeRaw = openclawKey ?? `agent-${agentId}`;
-    const scope = scopeRaw.replace(/[^A-Za-z0-9_.-]/g, "-").toLowerCase();
-    return resolve(this.workspaceDir, ".agentmc", "runtime-docs", scope);
+  private resolveRuntimeDocsDirectory(): string {
+    // OpenClaw managed docs live at workspace root (AGENTS.md, TOOLS.md, etc).
+    return this.workspaceDir;
   }
 
   private async resolveRuntimeHeartbeatTelemetry(provider: RuntimeProviderDescriptor): Promise<JsonObject> {

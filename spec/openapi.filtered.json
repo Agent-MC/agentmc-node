@@ -100,6 +100,80 @@
         }
       }
     },
+    "/agents/instructions": {
+      "get": {
+        "tags": [
+          "Agents"
+        ],
+        "summary": "Fetch the AgentMC instruction bundle for the authenticated agent.",
+        "description": "Returns managed runtime files and bundle metadata. Send current_bundle_version to fetch files only when the bundle has changed.",
+        "operationId": "getAgentInstructions",
+        "parameters": [
+          {
+            "name": "current_bundle_version",
+            "in": "query",
+            "required": false,
+            "description": "Current bundle version.",
+            "schema": {
+              "nullable": true,
+              "type": "string",
+              "maxLength": 120,
+              "pattern": "^[A-Za-z0-9._:-]+$"
+            },
+            "example": "example"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Instruction bundle returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentInstructionsResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "changed": true,
+                  "bundle_version": "bundle_2fa07fcadd6575cc",
+                  "generated_at": "2026-02-25T14:10:00Z",
+                  "defaults": {
+                    "heartbeat_interval_seconds": 300
+                  },
+                  "agent": {
+                    "id": 42
+                  },
+                  "files": [
+                    {
+                      "id": "skill.md",
+                      "path": ".agentmc/skills/skill.md",
+                      "content": "# AgentMC Skill\n",
+                      "sha256": "f96c95bd27dc9f3415cc0f4d817b5ec6f14185b6fcb5db9f6b6f14f648f8e9e4"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/ApiError401"
+          },
+          "403": {
+            "$ref": "#/components/responses/ApiError403"
+          },
+          "422": {
+            "$ref": "#/components/responses/ApiError422"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "SessionCookieAuth": []
+          }
+        ]
+      }
+    },
     "/hosts": {
       "get": {
         "tags": [
@@ -6460,6 +6534,151 @@
             "type": "openclaw"
           }
         }
+      },
+      "AgentInstructionBundleFile": {
+        "type": "object",
+        "required": [
+          "id",
+          "path",
+          "content",
+          "sha256"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique identifier for this record.",
+            "example": "example"
+          },
+          "path": {
+            "type": "string",
+            "description": "Local filesystem path where this file should be written.",
+            "example": "notes/daily-ops.md"
+          },
+          "content": {
+            "type": "string",
+            "description": "Content.",
+            "example": "Example content."
+          },
+          "sha256": {
+            "type": "string",
+            "description": "SHA-256 checksum for file content.",
+            "example": "f96c95bd27dc9f3415cc0f4d817b5ec6f14185b6fcb5db9f6b6f14f648f8e9e4"
+          }
+        },
+        "example": {
+          "id": "skill.md",
+          "path": ".agentmc/skills/skill.md",
+          "content": "# AgentMC Skill\n",
+          "sha256": "f96c95bd27dc9f3415cc0f4d817b5ec6f14185b6fcb5db9f6b6f14f648f8e9e4"
+        },
+        "description": "Agent Instruction Bundle File schema."
+      },
+      "AgentInstructionsResponse": {
+        "type": "object",
+        "required": [
+          "ok",
+          "changed",
+          "bundle_version",
+          "generated_at",
+          "defaults",
+          "agent",
+          "files"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "description": "Boolean flag for ok.",
+            "example": true
+          },
+          "changed": {
+            "type": "boolean",
+            "description": "True when the runtime should rewrite local managed files from this response.",
+            "example": true
+          },
+          "bundle_version": {
+            "type": "string",
+            "description": "Bundle version.",
+            "example": "example"
+          },
+          "generated_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO-8601 generation timestamp.",
+            "example": "2026-02-22T17:21:00Z"
+          },
+          "defaults": {
+            "type": "object",
+            "required": [
+              "heartbeat_interval_seconds"
+            ],
+            "properties": {
+              "heartbeat_interval_seconds": {
+                "type": "integer",
+                "minimum": 1,
+                "description": "Heartbeat interval seconds.",
+                "example": 1
+              }
+            },
+            "description": "Defaults.",
+            "example": {
+              "heartbeat_interval_seconds": 1
+            }
+          },
+          "agent": {
+            "type": "object",
+            "required": [
+              "id"
+            ],
+            "properties": {
+              "id": {
+                "type": "integer",
+                "minimum": 1,
+                "description": "Unique identifier for this record.",
+                "example": 42
+              }
+            },
+            "description": "Agent.",
+            "example": {
+              "id": 42
+            }
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentInstructionBundleFile"
+            },
+            "description": "Managed files to write locally.",
+            "example": [
+              {
+                "id": "skill.md",
+                "path": ".agentmc/skills/skill.md",
+                "content": "# AgentMC Skill\n",
+                "sha256": "f96c95bd27dc9f3415cc0f4d817b5ec6f14185b6fcb5db9f6b6f14f648f8e9e4"
+              }
+            ]
+          }
+        },
+        "example": {
+          "ok": true,
+          "changed": true,
+          "bundle_version": "bundle_2fa07fcadd6575cc",
+          "generated_at": "2026-02-25T14:10:00Z",
+          "defaults": {
+            "heartbeat_interval_seconds": 300
+          },
+          "agent": {
+            "id": 42
+          },
+          "files": [
+            {
+              "id": "skill.md",
+              "path": ".agentmc/skills/skill.md",
+              "content": "# AgentMC Skill\n",
+              "sha256": "f96c95bd27dc9f3415cc0f4d817b5ec6f14185b6fcb5db9f6b6f14f648f8e9e4"
+            }
+          ]
+        },
+        "description": "Agent Instructions Response response schema."
       },
       "AgentRecurringTaskDueRun": {
         "type": "object",
@@ -13902,6 +14121,36 @@
           }
         }
       },
+      "AgentInstructionsResponse": {
+        "description": "Instruction bundle returned.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/AgentInstructionsResponse"
+            },
+            "example": {
+              "ok": true,
+              "changed": true,
+              "bundle_version": "bundle_2fa07fcadd6575cc",
+              "generated_at": "2026-02-25T14:10:00Z",
+              "defaults": {
+                "heartbeat_interval_seconds": 300
+              },
+              "agent": {
+                "id": 42
+              },
+              "files": [
+                {
+                  "id": "skill.md",
+                  "path": ".agentmc/skills/skill.md",
+                  "content": "# AgentMC Skill\n",
+                  "sha256": "f96c95bd27dc9f3415cc0f4d817b5ec6f14185b6fcb5db9f6b6f14f648f8e9e4"
+                }
+              ]
+            }
+          }
+        }
+      },
       "AgentRecurringTaskDueRunsResponse": {
         "description": "Due recurring task runs claimed.",
         "content": {
@@ -14741,6 +14990,10 @@
     {
       "name": "Hosts",
       "description": "Hosts"
+    },
+    {
+      "name": "Agents",
+      "description": "Agents"
     },
     {
       "name": "Briefs",
