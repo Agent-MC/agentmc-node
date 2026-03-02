@@ -26,6 +26,7 @@ const result = await client.operations.agentHeartbeat({
         "openai/gpt-5-codex"
       ],
       "node_version": "v22.14.0",
+      "agentmc_node_package_version": "0.14.2",
       "runtime_mode": "openclaw",
       "tool_availability": {
         "chat_realtime": true,

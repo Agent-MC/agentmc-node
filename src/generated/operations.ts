@@ -44,7 +44,7 @@ export const operations = [
     "method": "post",
     "path": "/hosts/heartbeat",
     "summary": "Record host heartbeat and runtime telemetry.",
-    "description": "Accepts heartbeat payloads with required host telemetry and required runtime agent metadata. Runtime clients should include `meta.models` on every heartbeat as current runtime model inventory.",
+    "description": "Accepts heartbeat payloads with required host telemetry and required runtime agent metadata. Runtime clients should include `meta.models` and `meta.agentmc_node_package_version` on every heartbeat.",
     "tags": [
       "Hosts"
     ],
@@ -82,6 +82,7 @@ export const operations = [
               "openai/gpt-5-codex"
             ],
             "node_version": "v22.14.0",
+            "agentmc_node_package_version": "0.14.2",
             "runtime_mode": "openclaw",
             "tool_availability": {
               "chat_realtime": true,

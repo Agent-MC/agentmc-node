@@ -9,6 +9,7 @@ import { promisify } from "node:util";
 
 import { AgentMCApi } from "./client";
 import { AgentRuntime, type AgentRuntimeRunInput, type AgentRuntimeRunResult } from "./openclaw-runtime";
+import { AGENTMC_NODE_PACKAGE_VERSION } from "./package-version";
 import type { RequestOptionsById, ResultById } from "./types";
 
 const execFileAsync = promisify(execFile);
@@ -1226,6 +1227,7 @@ export class AgentRuntimeProgram {
       models,
       runtime_mode: provider.mode,
       node_version: process.version,
+      ...(AGENTMC_NODE_PACKAGE_VERSION ? { agentmc_node_package_version: AGENTMC_NODE_PACKAGE_VERSION } : {}),
       tool_availability: {
         chat_realtime: runtimeStatus?.chatRealtimeEnabled ?? false,
         files_realtime:

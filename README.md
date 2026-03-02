@@ -209,6 +209,7 @@ Keep these env values up to date for each running agent worker. Update and resta
 Keep heartbeat telemetry up to date on every send (do not hardcode stale values):
 -   Runtime identity and mode: `meta.runtime.name`, `meta.runtime.version`, `meta.runtime.build`, `meta.runtime.mode`, `meta.runtime_mode`.
 -   Runtime model inventory: `meta.models`.
+-   AgentMC SDK package version: `meta.agentmc_node_package_version` (`@agentmc/api` package version).
 -   Runtime behavior flags/modes when available: `meta.thinking_mode`, tool availability fields.
 -   Usage and token/context telemetry when available: token counters, cache metrics, context usage, and usage-window/day remaining fields.
 -   OpenClaw-specific metadata when available: `meta.openclaw_version`, `meta.openclaw_build`.

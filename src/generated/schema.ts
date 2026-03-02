@@ -15,7 +15,7 @@ export interface paths {
         put?: never;
         /**
          * Record host heartbeat and runtime telemetry.
-         * @description Accepts heartbeat payloads with required host telemetry and required runtime agent metadata. Runtime clients should include `meta.models` on every heartbeat as current runtime model inventory.
+         * @description Accepts heartbeat payloads with required host telemetry and required runtime agent metadata. Runtime clients should include `meta.models` and `meta.agentmc_node_package_version` on every heartbeat.
          */
         post: operations["agentHeartbeat"];
         delete?: never;
@@ -6335,7 +6335,7 @@ export interface components {
             checksum_sha256?: string | null;
         };
         /**
-         * @description Heartbeat payload that requires host telemetry and runtime agent state. Runtime clients should send `meta.models` on every heartbeat using current runtime model inventory.
+         * @description Heartbeat payload that requires host telemetry and runtime agent state. Runtime clients should send `meta.models` and `meta.agentmc_node_package_version` on every heartbeat.
          * @example {
          *       "meta": {
          *         "type": "codex",
@@ -6352,6 +6352,7 @@ export interface components {
          *           "openai/gpt-5-codex"
          *         ],
          *         "node_version": "v22.14.0",
+         *         "agentmc_node_package_version": "0.14.2",
          *         "runtime_mode": "openclaw",
          *         "tool_availability": {
          *           "chat_realtime": true,
@@ -6443,6 +6444,7 @@ export interface components {
              *       "usage_day_percent_left": 24,
              *       "usage_day_time_left": "3d 16h",
              *       "node_version": "v22.14.0",
+             *       "agentmc_node_package_version": "0.14.2",
              *       "session": "agent:main:main",
              *       "queue": "collect",
              *       "queue_depth": 1,
@@ -6627,6 +6629,11 @@ export interface components {
                  * @example v22.14.0
                  */
                 node_version?: string;
+                /**
+                 * @description Installed @agentmc/api package version used by the runtime heartbeat client.
+                 * @example 0.14.2
+                 */
+                agentmc_node_package_version?: string;
                 /**
                  * @description Session.
                  * @example agent:main:main
@@ -8803,6 +8810,7 @@ export interface components {
                  *           "openai/gpt-5-codex"
                  *         ],
                  *         "node_version": "v22.14.0",
+                 *         "agentmc_node_package_version": "0.14.2",
                  *         "runtime_mode": "openclaw",
                  *         "tool_availability": {
                  *           "chat_realtime": true,

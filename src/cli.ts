@@ -10,6 +10,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { detectRuntimeAgents, type DiscoveredRuntimeAgent } from "./agent-discovery";
 import { AgentMCApi } from "./client";
 import { operationsById, type OperationId } from "./generated/operations";
+import { AGENTMC_NODE_PACKAGE_VERSION } from "./package-version";
 import { AgentRuntimeProgram } from "./runtime-program";
 
 function parseJson(value: string | undefined, flagName: string): unknown {
@@ -513,6 +514,7 @@ async function sendHostHeartbeat(
       type: runtimeIdentity.type,
       runtime_mode: runtimeIdentity.mode,
       models: models.length > 0 ? models : [`${runtimeIdentity.modelPrefix}/default`],
+      ...(AGENTMC_NODE_PACKAGE_VERSION ? { agentmc_node_package_version: AGENTMC_NODE_PACKAGE_VERSION } : {}),
       ...(runtimeIdentity.openclawVersion ? { openclaw_version: runtimeIdentity.openclawVersion } : {}),
       ...(runtimeIdentity.openclawBuild ? { openclaw_build: runtimeIdentity.openclawBuild } : {})
     },
