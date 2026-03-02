@@ -1746,7 +1746,7 @@ export interface components {
              * @description Identifier for host.
              * @example 42
              */
-            host_id: number;
+            host_id: number | null;
             /**
              * @description Host.
              * @example {

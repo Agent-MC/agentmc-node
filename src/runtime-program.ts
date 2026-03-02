@@ -232,6 +232,12 @@ export class AgentRuntimeProgram {
       );
     }
 
+    if (selectedEntry.apiKey.startsWith("cc_")) {
+      throw new Error(
+        `AGENTMC_API_KEY_${selectedEntry.agentId} contains a team API key (cc_*). Agent runtimes require agent keys (mca_*).`
+      );
+    }
+
     const baseUrl = nonEmpty(env.AGENTMC_BASE_URL) ?? DEFAULT_AGENTMC_API_BASE_URL;
     const workspaceDir = nonEmpty(env[`AGENTMC_WORKSPACE_DIR_${selectedEntry.agentId}`]) ?? undefined;
     const statePath = nonEmpty(env[`AGENTMC_STATE_PATH_${selectedEntry.agentId}`]) ?? undefined;
@@ -888,7 +894,7 @@ export class AgentRuntimeProgram {
     });
 
     if (response.error) {
-      throw new Error(`getAgentInstructions failed with status ${response.status}.`);
+      throw createOperationFailureError("getAgentInstructions", response);
     }
 
     const payload = valueAsObject(response.data) ?? {};
@@ -1205,7 +1211,7 @@ export class AgentRuntimeProgram {
     });
 
     if (response.error) {
-      throw new Error(`agentHeartbeat failed with status ${response.status}.`);
+      throw createOperationFailureError("agentHeartbeat", response);
     }
 
     const responsePayload = valueAsObject(response.data);
@@ -1232,7 +1238,7 @@ export class AgentRuntimeProgram {
     });
 
     if (response.error) {
-      throw new Error(`listDueRecurringTaskRuns failed with status ${response.status}.`);
+      throw createOperationFailureError("listDueRecurringTaskRuns", response);
     }
 
     const payload = (response.data ?? { data: [] }) as DueRecurringTaskRunsResult;
@@ -1319,7 +1325,7 @@ export class AgentRuntimeProgram {
     });
 
     if (response.error) {
-      throw new Error(`completeRecurringTaskRun failed with status ${response.status}.`);
+      throw createOperationFailureError("completeRecurringTaskRun", response);
     }
 
     this.emitInfo("Recurring task run completed", {
@@ -3415,6 +3421,32 @@ function valueAsBoolean(value: unknown): boolean | null {
   }
 
   return null;
+}
+
+function createOperationFailureError(
+  operationId: string,
+  response: { status: number; error?: unknown }
+): Error {
+  const summary = summarizeApiError(response.error);
+  const suffix = summary ? ` (${summary})` : "";
+  return new Error(`${operationId} failed with status ${response.status}${suffix}.`);
+}
+
+function summarizeApiError(error: unknown): string | null {
+  const payload = valueAsObject(error);
+  const root = valueAsObject(payload?.error) ?? payload;
+  const code = nonEmpty(root?.code);
+  const message = nonEmpty(root?.message);
+
+  if (code && message) {
+    return `${code}: ${message}`;
+  }
+
+  if (message) {
+    return message;
+  }
+
+  return code;
 }
 
 function ensureTrailingSlash(value: string): string {

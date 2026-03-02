@@ -186,7 +186,10 @@ Required env:
 -   Agent runtime keys:
     -   One or more `AGENTMC_API_KEY_<AGENT_ID>` values
     -   Example: `AGENTMC_API_KEY_42=mca_...`
--   Optional worker workspace root: `AGENTMC_MULTI_WORKSPACE_ROOT` (defaults to `./.agentmc/runtimes`)
+-   Workspace defaults:
+    -   Single agent key: uses current working directory (`process.cwd()`)
+    -   Multiple agent keys: uses per-agent folders under `./.agentmc/runtimes`
+-   Optional worker workspace root: `AGENTMC_MULTI_WORKSPACE_ROOT` (used for per-agent multi-runtime folders)
 -   Optional per-worker workspace override: `AGENTMC_WORKSPACE_DIR_<AGENT_ID>`
 -   Optional API base URL override: `AGENTMC_BASE_URL` (defaults to `https://agentmc.ai/api/v1`)
 -   Runtime provider inputs:

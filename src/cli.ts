@@ -87,8 +87,9 @@ function resolveMultiAgentConfigs(env: NodeJS.ProcessEnv): MultiAgentRuntimeConf
     return [];
   }
 
-  const runtimeRoot =
-    nonEmpty(env.AGENTMC_MULTI_WORKSPACE_ROOT) ?? resolve(process.cwd(), ".agentmc", "runtimes");
+  const workspaceRootOverride = nonEmpty(env.AGENTMC_MULTI_WORKSPACE_ROOT);
+  const useDefaultWorkspace = keyedEntries.length === 1 && workspaceRootOverride === null;
+  const runtimeRoot = workspaceRootOverride ?? resolve(process.cwd(), ".agentmc", "runtimes");
 
   return keyedEntries.map(({ agentId, apiKey, envName }) => {
     if (apiKey.startsWith("cc_")) {
@@ -96,7 +97,8 @@ function resolveMultiAgentConfigs(env: NodeJS.ProcessEnv): MultiAgentRuntimeConf
     }
 
     const workspaceOverride = nonEmpty(env[`AGENTMC_WORKSPACE_DIR_${agentId}`]);
-    const workspaceDir = workspaceOverride ?? resolve(runtimeRoot, `agent-${agentId}`);
+    const workspaceDir =
+      workspaceOverride ?? (useDefaultWorkspace ? process.cwd() : resolve(runtimeRoot, `agent-${agentId}`));
 
     return {
       agentId,

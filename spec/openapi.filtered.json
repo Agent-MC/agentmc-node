@@ -6137,6 +6137,7 @@
           "host_id": {
             "type": "integer",
             "minimum": 1,
+            "nullable": true,
             "description": "Identifier for host.",
             "example": 42
           },
