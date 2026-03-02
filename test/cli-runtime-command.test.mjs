@@ -16,13 +16,20 @@ test("cli help lists runtime:start", async () => {
 test("runtime:start validates required AGENTMC env", async () => {
   const env = { ...process.env };
   delete env.AGENTMC_BASE_URL;
-  delete env.AGENTMC_API_KEY;
+  for (const key of Object.keys(env)) {
+    if (/^AGENTMC_API_KEY_\d+$/.test(key)) {
+      delete env[key];
+    }
+  }
 
   await assert.rejects(
     () => execFileAsync(process.execPath, [cliPath, "runtime:start"], { env }),
     (error) => {
       assert.equal(error?.code, 1);
-      assert.match(String(error?.stderr), /AGENTMC_API_KEY is required\./);
+      assert.match(
+        String(error?.stderr),
+        /No agent runtime keys found\. Set one or more AGENTMC_API_KEY_<AGENT_ID>=mca_\.\.\. environment variables\./
+      );
       return true;
     }
   );

@@ -233,14 +233,8 @@ export class AgentRuntimeProgram {
     }
 
     const baseUrl = nonEmpty(env.AGENTMC_BASE_URL) ?? DEFAULT_AGENTMC_API_BASE_URL;
-    const workspaceDir =
-      nonEmpty(env[`AGENTMC_WORKSPACE_DIR_${selectedEntry.agentId}`]) ??
-      nonEmpty(env.AGENTMC_WORKSPACE_DIR) ??
-      undefined;
-    const statePath =
-      nonEmpty(env[`AGENTMC_STATE_PATH_${selectedEntry.agentId}`]) ??
-      nonEmpty(env.AGENTMC_STATE_PATH) ??
-      undefined;
+    const workspaceDir = nonEmpty(env[`AGENTMC_WORKSPACE_DIR_${selectedEntry.agentId}`]) ?? undefined;
+    const statePath = nonEmpty(env[`AGENTMC_STATE_PATH_${selectedEntry.agentId}`]) ?? undefined;
 
     return new AgentRuntimeProgram({
       apiKey: selectedEntry.apiKey,

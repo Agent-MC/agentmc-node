@@ -108,14 +108,14 @@ test("resolveOpenClawProvider parses models inventory when JSON is emitted on st
   });
 });
 
-test("resolveRuntimeProvider auto-detects OpenClaw from PATH with API-key-only fromEnv config", async () => {
+test("resolveRuntimeProvider auto-detects OpenClaw from PATH with keyed fromEnv config", async () => {
   await withStubOpenClaw(async ({ dir }) => {
     const previousPath = process.env.PATH;
 
     try {
       process.env.PATH = typeof previousPath === "string" && previousPath !== "" ? `${dir}:${previousPath}` : dir;
       const runtime = AgentRuntimeProgram.fromEnv({
-        AGENTMC_API_KEY: "mca_test_key"
+        AGENTMC_API_KEY_42: "mca_test_key"
       });
 
       const provider = await runtime.resolveRuntimeProvider();
