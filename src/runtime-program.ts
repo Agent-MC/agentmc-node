@@ -1174,10 +1174,10 @@ export class AgentRuntimeProgram {
       heartbeatMeta[key] = value;
     }
 
-    const agentPayload: Record<string, unknown> = {
+    const agentPayload: NonNullable<HeartbeatBody["agent"]> = {
       name: profile.name,
       type: profile.type,
-      identity: profileIdentity as HeartbeatBody["agent"]["identity"]
+      identity: profileIdentity
     };
     if (profile.id !== null) {
       agentPayload.id = profile.id;
@@ -1219,7 +1219,7 @@ export class AgentRuntimeProgram {
           }
         }
       },
-      agent: agentPayload as HeartbeatBody["agent"]
+      agent: agentPayload
     };
   }
 
