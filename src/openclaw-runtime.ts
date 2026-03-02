@@ -1513,29 +1513,47 @@ export class OpenClawAgentRuntime {
     name?: string | null;
     emoji?: string | null;
   }, requestId: string): Promise<{ name: string | null; emoji: string | null }> {
-    const args = ["agents", "set-identity", "--non-interactive", "--agent", this.options.openclawAgent];
+    const fieldArgs: string[] = [];
 
     if (typeof input.name === "string" && input.name.trim() !== "") {
-      args.push("--name", input.name);
+      fieldArgs.push("--name", input.name);
     }
 
     if (Object.prototype.hasOwnProperty.call(input, "emoji")) {
-      args.push("--emoji", input.emoji ?? "");
+      fieldArgs.push("--emoji", input.emoji ?? "");
     }
 
-    if (args.length <= 5) {
+    if (fieldArgs.length === 0) {
       throw new Error("agent profile update requires at least one field.");
     }
 
+    const argsWithNonInteractive = [
+      "agents",
+      "set-identity",
+      "--non-interactive",
+      "--agent",
+      this.options.openclawAgent,
+      ...fieldArgs
+    ];
+    const argsWithoutNonInteractive = [
+      "agents",
+      "set-identity",
+      "--agent",
+      this.options.openclawAgent,
+      ...fieldArgs
+    ];
+
     const startedAtMs = Date.now();
+    let args = argsWithNonInteractive;
     await this.emitDebug("agent.profile.update.exec.command", {
       request_id: requestId,
       command: this.options.openclawCommand,
-      args
+      args,
+      attempt: 1
     });
 
     try {
-      const result = await execFileAsync(this.options.openclawCommand, args, {
+      const result = await execFileAsync(this.options.openclawCommand, argsWithNonInteractive, {
         cwd: this.options.runtimeWorkingDirectory,
         timeout: this.options.openclawProfileUpdateTimeoutMs,
         maxBuffer: this.options.openclawMaxBufferBytes
@@ -1544,9 +1562,53 @@ export class OpenClawAgentRuntime {
         request_id: requestId,
         duration_ms: Date.now() - startedAtMs,
         stdout_preview: previewText(result.stdout),
-        stderr_preview: previewText(result.stderr)
+        stderr_preview: previewText(result.stderr),
+        attempt: 1
       });
     } catch (error) {
+      if (isUnknownNonInteractiveOptionError(error)) {
+        args = argsWithoutNonInteractive;
+        await this.emitDebug("agent.profile.update.exec.command.retry_without_non_interactive", {
+          request_id: requestId,
+          duration_ms: Date.now() - startedAtMs
+        });
+
+        try {
+          const retryResult = await execFileAsync(this.options.openclawCommand, argsWithoutNonInteractive, {
+            cwd: this.options.runtimeWorkingDirectory,
+            timeout: this.options.openclawProfileUpdateTimeoutMs,
+            maxBuffer: this.options.openclawMaxBufferBytes
+          });
+
+          await this.emitDebug("agent.profile.update.exec.command_result", {
+            request_id: requestId,
+            duration_ms: Date.now() - startedAtMs,
+            stdout_preview: previewText(retryResult.stdout),
+            stderr_preview: previewText(retryResult.stderr),
+            attempt: 2
+          });
+
+          return {
+            name: typeof input.name === "string" && input.name.trim() !== "" ? input.name : null,
+            emoji: Object.prototype.hasOwnProperty.call(input, "emoji") ? input.emoji ?? null : null
+          };
+        } catch (retryError) {
+          const normalizedRetryExec = normalizeProfileUpdateExecError(
+            retryError,
+            this.options.openclawProfileUpdateTimeoutMs,
+            this.options.openclawCommand,
+            argsWithoutNonInteractive
+          );
+          await this.emitDebug("agent.profile.update.exec.command_failed", {
+            request_id: requestId,
+            duration_ms: Date.now() - startedAtMs,
+            error: normalizedRetryExec.message,
+            attempt: 2
+          });
+          throw normalizedRetryExec;
+        }
+      }
+
       const normalizedExec = normalizeProfileUpdateExecError(
         error,
         this.options.openclawProfileUpdateTimeoutMs,
@@ -1556,7 +1618,8 @@ export class OpenClawAgentRuntime {
       await this.emitDebug("agent.profile.update.exec.command_failed", {
         request_id: requestId,
         duration_ms: Date.now() - startedAtMs,
-        error: normalizedExec.message
+        error: normalizedExec.message,
+        attempt: 1
       });
       throw normalizedExec;
     }
@@ -2953,11 +3016,34 @@ function normalizeProfileUpdateExecError(
   if (code === "ETIMEDOUT" || signal === "SIGTERM" || killed) {
     return new Error(
       `OpenClaw profile update timed out after ${timeoutMs}ms while running "${commandLabel}". ` +
-      "Ensure OpenClaw can run non-interactively in the runtime environment (auth/session configured)."
+      "Ensure OpenClaw can run in the runtime environment (auth/session configured)."
     );
   }
 
   return normalizeError(value);
+}
+
+function isUnknownNonInteractiveOptionError(value: unknown): boolean {
+  const objectValue = valueAsObject(value);
+  const candidates = [
+    valueAsString(objectValue?.message),
+    valueAsString(objectValue?.stderr),
+    valueAsString(objectValue?.stdout),
+    valueAsString(objectValue?.shortMessage)
+  ]
+    .filter((entry): entry is string => typeof entry === "string" && entry.trim() !== "")
+    .join("\n")
+    .toLowerCase();
+
+  if (!candidates.includes("--non-interactive")) {
+    return false;
+  }
+
+  return (
+    candidates.includes("unknown option") ||
+    candidates.includes("unknown argument") ||
+    candidates.includes("unrecognized option")
+  );
 }
 
 function valueAsObject(value: unknown): JsonObject | null {
