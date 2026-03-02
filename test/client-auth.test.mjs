@@ -7,7 +7,7 @@ test("mixed-scheme operations send only one auth header", async () => {
   let capturedHeaders = null;
 
   const client = new AgentMCApi({
-    apiKey: "mca_test_key",
+    apiKey: "cc_test_key",
     fetch: async (input, init) => {
       const requestHeaders =
         init?.headers ??
@@ -26,6 +26,6 @@ test("mixed-scheme operations send only one auth header", async () => {
   await client.operations.listBoards();
 
   assert.ok(capturedHeaders, "expected request headers to be captured");
-  assert.equal(capturedHeaders.get("x-api-key"), "mca_test_key");
+  assert.equal(capturedHeaders.get("x-api-key"), "cc_test_key");
   assert.equal(capturedHeaders.has("authorization"), false);
 });

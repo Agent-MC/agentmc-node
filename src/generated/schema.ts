@@ -4,27 +4,7 @@
  */
 
 export interface paths {
-    "/agents/instructions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Fetch the AgentMC instruction bundle for the authenticated agent.
-         * @description Returns managed runtime files and bundle metadata. Send current_bundle_version to fetch files only when the bundle has changed.
-         */
-        get: operations["getAgentInstructions"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/agents/heartbeat": {
+    "/hosts/heartbeat": {
         parameters: {
             query?: never;
             header?: never;
@@ -34,7 +14,7 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Record agent heartbeat and runtime host telemetry.
+         * Record host heartbeat and runtime telemetry.
          * @description Accepts heartbeat payloads with required host telemetry and required runtime agent metadata. Runtime clients should include `meta.models` on every heartbeat as current runtime model inventory.
          */
         post: operations["agentHeartbeat"];
@@ -126,14 +106,17 @@ export interface paths {
         patch: operations["updateAgentBrief"];
         trace?: never;
     };
-    "/agents/realtime/sessions/requested": {
+    "/hosts/realtime/sessions/requested": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** List requested realtime sessions for an agent. */
+        /**
+         * List requested realtime sessions for one agent or a host.
+         * @description When X-Agent-Id (or agent_id query) is provided, returns requested sessions for that agent. With a host API key and no agent context, returns requested sessions across all agents assigned to that host.
+         */
         get: operations["listAgentRealtimeRequestedSessions"];
         put?: never;
         post?: never;
@@ -143,7 +126,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/agents/realtime/sessions/{session}/claim": {
+    "/hosts/realtime/sessions/{session}/claim": {
         parameters: {
             query?: never;
             header?: never;
@@ -152,7 +135,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Claim one realtime session for websocket message handling. */
+        /**
+         * Claim one realtime session for websocket message handling (host or agent context).
+         * @description Accepts host API key context by session ownership. X-Agent-Id remains optional for explicit single-agent routing.
+         */
         post: operations["claimAgentRealtimeSession"];
         delete?: never;
         options?: never;
@@ -160,17 +146,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/agents/realtime/sessions/{session}/signals": {
+    "/hosts/realtime/sessions/{session}/signals": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Read realtime events for a realtime session. */
+        /**
+         * Read realtime events for a realtime session (host or agent context).
+         * @description Accepts host API key context by session ownership. X-Agent-Id remains optional for explicit single-agent routing.
+         */
         get: operations["listAgentRealtimeSignals"];
         put?: never;
-        /** Publish one realtime event to a realtime session. */
+        /**
+         * Publish one realtime event to a realtime session (host or agent context).
+         * @description Accepts host API key context by session ownership. X-Agent-Id remains optional for explicit single-agent routing.
+         */
         post: operations["createAgentRealtimeSignal"];
         delete?: never;
         options?: never;
@@ -178,7 +170,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/agents/realtime/sessions/{session}/close": {
+    "/hosts/realtime/sessions/{session}/close": {
         parameters: {
             query?: never;
             header?: never;
@@ -187,7 +179,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Close a realtime session. */
+        /**
+         * Close a realtime session (host or agent context).
+         * @description Accepts host API key context by session ownership. X-Agent-Id remains optional for explicit single-agent routing.
+         */
         post: operations["closeAgentRealtimeSession"];
         delete?: never;
         options?: never;
@@ -195,7 +190,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/agents/realtime/sessions/{session}/socket-auth": {
+    "/hosts/realtime/sessions/{session}/socket-auth": {
         parameters: {
             query?: never;
             header?: never;
@@ -204,7 +199,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Sign one websocket channel subscription for a realtime session. */
+        /**
+         * Sign one websocket channel subscription for a realtime session (host or agent context).
+         * @description Accepts host API key context by session ownership. X-Agent-Id remains optional for explicit single-agent routing.
+         */
         post: operations["authenticateAgentRealtimeSocket"];
         delete?: never;
         options?: never;
@@ -1136,7 +1134,7 @@ export interface components {
          *             "active": true
          *           }
          *         ],
-         *         "path": ".agentmc/skills/skill.md",
+         *         "path": "notes/daily-ops.md",
          *         "per_page": 25,
          *         "total": 0
          *       }
@@ -1198,7 +1196,7 @@ export interface components {
              *           "active": true
              *         }
              *       ],
-             *       "path": ".agentmc/skills/skill.md",
+             *       "path": "notes/daily-ops.md",
              *       "per_page": 25,
              *       "total": 0
              *     }
@@ -1453,7 +1451,7 @@ export interface components {
          *           "active": true
          *         }
          *       ],
-         *       "path": ".agentmc/skills/skill.md",
+         *       "path": "notes/daily-ops.md",
          *       "per_page": 25,
          *       "total": 0
          *     }
@@ -1487,7 +1485,7 @@ export interface components {
             links?: components["schemas"]["PaginationMetaLink"][];
             /**
              * @description Local filesystem path where this file should be written.
-             * @example .agentmc/skills/skill.md
+             * @example notes/daily-ops.md
              */
             path: string;
             /**
@@ -1631,7 +1629,7 @@ export interface components {
          *             "active": true
          *           }
          *         ],
-         *         "path": ".agentmc/skills/skill.md",
+         *         "path": "notes/daily-ops.md",
          *         "per_page": 25,
          *         "total": 0
          *       }
@@ -1675,7 +1673,7 @@ export interface components {
              *           "active": true
              *         }
              *       ],
-             *       "path": ".agentmc/skills/skill.md",
+             *       "path": "notes/daily-ops.md",
              *       "per_page": 25,
              *       "total": 0
              *     }
@@ -1848,7 +1846,7 @@ export interface components {
          *             "active": true
          *           }
          *         ],
-         *         "path": ".agentmc/skills/skill.md",
+         *         "path": "notes/daily-ops.md",
          *         "per_page": 25,
          *         "total": 0
          *       }
@@ -1911,7 +1909,7 @@ export interface components {
              *           "active": true
              *         }
              *       ],
-             *       "path": ".agentmc/skills/skill.md",
+             *       "path": "notes/daily-ops.md",
              *       "per_page": 25,
              *       "total": 0
              *     }
@@ -1974,7 +1972,7 @@ export interface components {
             };
         };
         /**
-         * @description Heartbeat acknowledgement with resolved host record from required host telemetry.
+         * @description Heartbeat acknowledgement with resolved host and agent records from runtime telemetry.
          * @example {
          *       "ok": true,
          *       "server_time": "2026-02-22T17:21:02Z",
@@ -1999,6 +1997,11 @@ export interface components {
          *         "agents_online": 1,
          *         "created_at": "2026-02-22T17:21:02Z",
          *         "updated_at": "2026-02-22T17:21:02Z"
+         *       },
+         *       "agent": {
+         *         "id": 42,
+         *         "name": "Solomon",
+         *         "type": "openclaw"
          *       }
          *     }
          */
@@ -2043,6 +2046,31 @@ export interface components {
              *     }
              */
             host?: components["schemas"]["Host"] | null;
+            /**
+             * @description Resolved agent snapshot after heartbeat processing (auto-created when needed).
+             * @example {
+             *       "id": 42,
+             *       "name": "Example Name",
+             *       "type": "example"
+             *     }
+             */
+            agent?: {
+                /**
+                 * @description Unique identifier for this record.
+                 * @example 42
+                 */
+                id: number;
+                /**
+                 * @description Human-readable name.
+                 * @example Example Name
+                 */
+                name: string;
+                /**
+                 * @description Type discriminator for this record.
+                 * @example example
+                 */
+                type?: string | null;
+            } | null;
         };
         /**
          * @description Agent Recurring Task Due Run schema.
@@ -2946,7 +2974,7 @@ export interface components {
          *             "active": true
          *           }
          *         ],
-         *         "path": ".agentmc/skills/skill.md",
+         *         "path": "notes/daily-ops.md",
          *         "per_page": 25,
          *         "total": 0
          *       }
@@ -3037,7 +3065,7 @@ export interface components {
              *           "active": true
              *         }
              *       ],
-             *       "path": ".agentmc/skills/skill.md",
+             *       "path": "notes/daily-ops.md",
              *       "per_page": 25,
              *       "total": 0
              *     }
@@ -3224,7 +3252,7 @@ export interface components {
              *         "host": "ip-10-0-3-42",
              *         "port": 1,
              *         "scheme": "example",
-             *         "path": ".agentmc/skills/skill.md"
+             *         "path": "notes/daily-ops.md"
              *       },
              *       "channel": "example",
              *       "event": "example",
@@ -3241,7 +3269,7 @@ export interface components {
                  *       "host": "ip-10-0-3-42",
                  *       "port": 1,
                  *       "scheme": "example",
-                 *       "path": ".agentmc/skills/skill.md"
+                 *       "path": "notes/daily-ops.md"
                  *     }
                  */
                 connection: {
@@ -3277,7 +3305,7 @@ export interface components {
                     scheme: string;
                     /**
                      * @description Local filesystem path where this file should be written.
-                     * @example .agentmc/skills/skill.md
+                     * @example notes/daily-ops.md
                      */
                     path: string;
                 };
@@ -4548,121 +4576,6 @@ export interface components {
             agents_meta: components["schemas"]["HostAgentsMeta"];
         };
         /**
-         * @description Agent Instruction File schema.
-         * @example {
-         *       "id": "example",
-         *       "path": ".agentmc/skills/skill.md",
-         *       "content": "Example content.",
-         *       "sha256": "f96c95bd27dc9f3415cc0f4d817b5ec6f14185b6fcb5db9f6b6f14f648f8e9e4"
-         *     }
-         */
-        AgentInstructionFile: {
-            /**
-             * @description Unique identifier for this record.
-             * @example example
-             */
-            id: string;
-            /**
-             * @description Local filesystem path where this file should be written.
-             * @example .agentmc/skills/skill.md
-             */
-            path: string;
-            /**
-             * @description Content.
-             * @example Example content.
-             */
-            content: string;
-            /**
-             * @description SHA-256 checksum for file content.
-             * @example f96c95bd27dc9f3415cc0f4d817b5ec6f14185b6fcb5db9f6b6f14f648f8e9e4
-             */
-            sha256: string;
-        };
-        /**
-         * @description Agent Instructions Response response schema.
-         * @example {
-         *       "ok": true,
-         *       "changed": true,
-         *       "bundle_version": "bundle_2fa07fcadd6575cc",
-         *       "generated_at": "2026-02-25T14:10:00Z",
-         *       "defaults": {
-         *         "heartbeat_interval_seconds": 300
-         *       },
-         *       "agent": {
-         *         "id": 42
-         *       },
-         *       "files": [
-         *         {
-         *           "id": "skill.md",
-         *           "path": ".agentmc/skills/skill.md",
-         *           "content": "# AgentMC\n",
-         *           "sha256": "f96c95bd27dc9f3415cc0f4d817b5ec6f14185b6fcb5db9f6b6f14f648f8e9e4"
-         *         }
-         *       ]
-         *     }
-         */
-        AgentInstructionsResponse: {
-            /**
-             * @description Boolean flag for ok.
-             * @example true
-             */
-            ok: boolean;
-            /**
-             * @description True when the runtime should rewrite local managed files from this response.
-             * @example true
-             */
-            changed: boolean;
-            /**
-             * @description Current instruction bundle version.
-             * @example bundle_2fa07fcadd6575cc
-             */
-            bundle_version: string;
-            /**
-             * Format: date-time
-             * @description ISO-8601 generation timestamp.
-             * @example 2026-02-22T17:21:00Z
-             */
-            generated_at: string;
-            /**
-             * @description Defaults.
-             * @example {
-             *       "heartbeat_interval_seconds": 5
-             *     }
-             */
-            defaults: {
-                /**
-                 * @description Heartbeat interval seconds.
-                 * @example 5
-                 */
-                heartbeat_interval_seconds: number;
-            };
-            /**
-             * @description Agent.
-             * @example {
-             *       "id": 42
-             *     }
-             */
-            agent: {
-                /**
-                 * @description Unique identifier for this record.
-                 * @example 42
-                 */
-                id: number;
-            };
-            /**
-             * @description Managed instruction bundle files to write locally.
-             * @example [
-             *       {
-             *         "id": "example",
-             *         "path": ".agentmc/skills/skill.md",
-             *         "content": "Example content.",
-             *         "sha256": "f96c95bd27dc9f3415cc0f4d817b5ec6f14185b6fcb5db9f6b6f14f648f8e9e4"
-             *       }
-             *     ]
-             */
-            files: components["schemas"]["AgentInstructionFile"][];
-        };
-        /**
          * @description Agent Realtime Requested Sessions Response response schema.
          * @example {
          *       "data": [
@@ -5425,7 +5338,7 @@ export interface components {
          *             "active": true
          *           }
          *         ],
-         *         "path": ".agentmc/skills/skill.md",
+         *         "path": "notes/daily-ops.md",
          *         "per_page": 25,
          *         "total": 0
          *       }
@@ -5472,7 +5385,7 @@ export interface components {
              *           "active": true
              *         }
              *       ],
-             *       "path": ".agentmc/skills/skill.md",
+             *       "path": "notes/daily-ops.md",
              *       "per_page": 25,
              *       "total": 0
              *     }
@@ -5519,7 +5432,7 @@ export interface components {
          *             "active": true
          *           }
          *         ],
-         *         "path": ".agentmc/skills/skill.md",
+         *         "path": "notes/daily-ops.md",
          *         "per_page": 25,
          *         "total": 0
          *       }
@@ -5573,7 +5486,7 @@ export interface components {
              *           "active": true
              *         }
              *       ],
-             *       "path": ".agentmc/skills/skill.md",
+             *       "path": "notes/daily-ops.md",
              *       "per_page": 25,
              *       "total": 0
              *     }
@@ -5622,7 +5535,7 @@ export interface components {
          *             "active": true
          *           }
          *         ],
-         *         "path": ".agentmc/skills/skill.md",
+         *         "path": "notes/daily-ops.md",
          *         "per_page": 25,
          *         "total": 0
          *       }
@@ -5678,7 +5591,7 @@ export interface components {
              *           "active": true
              *         }
              *       ],
-             *       "path": ".agentmc/skills/skill.md",
+             *       "path": "notes/daily-ops.md",
              *       "per_page": 25,
              *       "total": 0
              *     }
@@ -5720,7 +5633,7 @@ export interface components {
          *             "active": true
          *           }
          *         ],
-         *         "path": ".agentmc/skills/skill.md",
+         *         "path": "notes/daily-ops.md",
          *         "per_page": 25,
          *         "total": 0
          *       }
@@ -5769,7 +5682,7 @@ export interface components {
              *           "active": true
              *         }
              *       ],
-             *       "path": ".agentmc/skills/skill.md",
+             *       "path": "notes/daily-ops.md",
              *       "per_page": 25,
              *       "total": 0
              *     }
@@ -5830,7 +5743,7 @@ export interface components {
          *             "active": true
          *           }
          *         ],
-         *         "path": ".agentmc/skills/skill.md",
+         *         "path": "notes/daily-ops.md",
          *         "per_page": 25,
          *         "total": 0
          *       }
@@ -5898,7 +5811,7 @@ export interface components {
              *           "active": true
              *         }
              *       ],
-             *       "path": ".agentmc/skills/skill.md",
+             *       "path": "notes/daily-ops.md",
              *       "per_page": 25,
              *       "total": 0
              *     }
@@ -5952,7 +5865,7 @@ export interface components {
          *             "active": true
          *           }
          *         ],
-         *         "path": ".agentmc/skills/skill.md",
+         *         "path": "notes/daily-ops.md",
          *         "per_page": 25,
          *         "total": 0
          *       }
@@ -6013,7 +5926,7 @@ export interface components {
              *           "active": true
              *         }
              *       ],
-             *       "path": ".agentmc/skills/skill.md",
+             *       "path": "notes/daily-ops.md",
              *       "per_page": 25,
              *       "total": 0
              *     }
@@ -6073,7 +5986,7 @@ export interface components {
          *             "active": true
          *           }
          *         ],
-         *         "path": ".agentmc/skills/skill.md",
+         *         "path": "notes/daily-ops.md",
          *         "per_page": 25,
          *         "total": 0
          *       }
@@ -6140,7 +6053,7 @@ export interface components {
              *           "active": true
              *         }
              *       ],
-             *       "path": ".agentmc/skills/skill.md",
+             *       "path": "notes/daily-ops.md",
              *       "per_page": 25,
              *       "total": 0
              *     }
@@ -6781,12 +6694,12 @@ export interface components {
                 };
             };
             /**
-             * @description Required runtime agent profile metadata.
+             * @description Required runtime agent profile metadata. Omit `agent.id` when using host keys to auto-resolve or auto-create agents from runtime identity.
              * @example {
-             *       "id": 42,
              *       "name": "Jarvis",
              *       "identity": {
              *         "name": "Jarvis",
+             *         "agent_key": "solomon",
              *         "creature": "robot",
              *         "vibe": "calm",
              *         "emoji": "🤖"
@@ -6795,17 +6708,17 @@ export interface components {
              */
             agent: {
                 /**
-                 * @description Required agent id. Must match the authenticated agent scope.
+                 * @description Optional existing AgentMC agent id. When omitted with host API keys, AgentMC auto-resolves/creates the agent.
                  * @example 42
                  */
-                id: number;
+                id?: number | null;
                 /**
                  * @description Required display name persisted to the agent record.
                  * @example Jarvis
                  */
                 name: string;
                 /**
-                 * @description Optional legacy runtime agent type identifier. Prefer sending this as `meta.type`.
+                 * @description Optional runtime agent type identifier. Prefer sending this as `meta.type`.
                  * @example codex
                  */
                 type?: string;
@@ -6823,7 +6736,45 @@ export interface components {
                 } & (string | {
                     [key: string]: unknown;
                 });
-            };
+            } | null;
+            /**
+             * @description Agents.
+             * @example [
+             *       {
+             *         "key": "value"
+             *       }
+             *     ]
+             */
+            agents?: ({
+                /**
+                 * @description Unique identifier for this record.
+                 * @example 42
+                 */
+                id?: number | null;
+                /**
+                 * @description Human-readable name.
+                 * @example Example Name
+                 */
+                name: string;
+                /**
+                 * @description Type discriminator for this record.
+                 * @example example
+                 */
+                type?: string;
+                /**
+                 * @description Identity.
+                 * @example {
+                 *       "key": "value"
+                 *     }
+                 */
+                identity: {
+                    [key: string]: unknown;
+                };
+            } & ({
+                [key: string]: unknown;
+            } | {
+                [key: string]: unknown;
+            }[]))[];
         };
         /**
          * @description Payload for upserting one brief parent by key and appending one child entry.
@@ -7732,6 +7683,11 @@ export interface components {
                  *         "agents_online": 1,
                  *         "created_at": "2026-02-22T17:21:02Z",
                  *         "updated_at": "2026-02-22T17:21:02Z"
+                 *       },
+                 *       "agent": {
+                 *         "id": 42,
+                 *         "name": "Solomon",
+                 *         "type": "openclaw"
                  *       }
                  *     }
                  */
@@ -8014,7 +7970,7 @@ export interface components {
                  *             "active": true
                  *           }
                  *         ],
-                 *         "path": ".agentmc/skills/skill.md",
+                 *         "path": "notes/daily-ops.md",
                  *         "per_page": 25,
                  *         "total": 0
                  *       }
@@ -8191,37 +8147,6 @@ export interface components {
                 "application/json": components["schemas"]["AgentRealtimeSocketAuthResponse"];
             };
         };
-        /** @description Instruction bundle returned. */
-        AgentInstructionsResponse: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                /**
-                 * @example {
-                 *       "ok": true,
-                 *       "changed": true,
-                 *       "bundle_version": "bundle_2fa07fcadd6575cc",
-                 *       "generated_at": "2026-02-25T14:10:00Z",
-                 *       "defaults": {
-                 *         "heartbeat_interval_seconds": 300
-                 *       },
-                 *       "agent": {
-                 *         "id": 42
-                 *       },
-                 *       "files": [
-                 *         {
-                 *           "id": "skill.md",
-                 *           "path": ".agentmc/skills/skill.md",
-                 *           "content": "# AgentMC\n",
-                 *           "sha256": "f96c95bd27dc9f3415cc0f4d817b5ec6f14185b6fcb5db9f6b6f14f648f8e9e4"
-                 *         }
-                 *       ]
-                 *     }
-                 */
-                "application/json": components["schemas"]["AgentInstructionsResponse"];
-            };
-        };
         /** @description Host returned. */
         HostDetailResponse: {
             headers: {
@@ -8335,7 +8260,7 @@ export interface components {
                  *             "active": true
                  *           }
                  *         ],
-                 *         "path": ".agentmc/skills/skill.md",
+                 *         "path": "notes/daily-ops.md",
                  *         "per_page": 25,
                  *         "total": 0
                  *       }
@@ -8737,10 +8662,10 @@ export interface components {
                  *         }
                  *       },
                  *       "agent": {
-                 *         "id": 42,
                  *         "name": "Jarvis",
                  *         "identity": {
                  *           "name": "Jarvis",
+                 *           "agent_key": "solomon",
                  *           "creature": "robot",
                  *           "vibe": "calm"
                  *         }
@@ -9052,57 +8977,6 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    getAgentInstructions: {
-        parameters: {
-            query?: {
-                /**
-                 * @description Last applied instruction bundle version from local runtime state.
-                 * @example bundle_2fa07fcadd6575cc
-                 */
-                current_bundle_version?: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Instruction bundle returned. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    /**
-                     * @example {
-                     *       "ok": true,
-                     *       "changed": true,
-                     *       "bundle_version": "bundle_2fa07fcadd6575cc",
-                     *       "generated_at": "2026-02-25T14:10:00Z",
-                     *       "defaults": {
-                     *         "heartbeat_interval_seconds": 300
-                     *       },
-                     *       "agent": {
-                     *         "id": 42
-                     *       },
-                     *       "files": [
-                     *         {
-                     *           "id": "skill.md",
-                     *           "path": ".agentmc/skills/skill.md",
-                     *           "content": "# AgentMC\n",
-                     *           "sha256": "f96c95bd27dc9f3415cc0f4d817b5ec6f14185b6fcb5db9f6b6f14f648f8e9e4"
-                     *         }
-                     *       ]
-                     *     }
-                     */
-                    "application/json": components["schemas"]["AgentInstructionsResponse"];
-                };
-            };
-            401: components["responses"]["ApiError401"];
-            403: components["responses"]["ApiError403"];
-            422: components["responses"]["ApiError422"];
-        };
-    };
     agentHeartbeat: {
         parameters: {
             query?: never;
@@ -9149,6 +9023,11 @@ export interface operations {
                      *         "agents_online": 1,
                      *         "created_at": "2026-02-22T17:21:02Z",
                      *         "updated_at": "2026-02-22T17:21:02Z"
+                     *       },
+                     *       "agent": {
+                     *         "id": 42,
+                     *         "name": "Solomon",
+                     *         "type": "openclaw"
                      *       }
                      *     }
                      */
@@ -9238,7 +9117,7 @@ export interface operations {
                      *             "active": true
                      *           }
                      *         ],
-                     *         "path": ".agentmc/skills/skill.md",
+                     *         "path": "notes/daily-ops.md",
                      *         "per_page": 25,
                      *         "total": 0
                      *       }
@@ -9449,7 +9328,7 @@ export interface operations {
                      *             "active": true
                      *           }
                      *         ],
-                     *         "path": ".agentmc/skills/skill.md",
+                     *         "path": "notes/daily-ops.md",
                      *         "per_page": 25,
                      *         "total": 0
                      *       }
@@ -10097,7 +9976,7 @@ export interface operations {
                      *             "active": true
                      *           }
                      *         ],
-                     *         "path": ".agentmc/skills/skill.md",
+                     *         "path": "notes/daily-ops.md",
                      *         "per_page": 25,
                      *         "total": 0
                      *       }
@@ -10515,7 +10394,7 @@ export interface operations {
                      *             "active": true
                      *           }
                      *         ],
-                     *         "path": ".agentmc/skills/skill.md",
+                     *         "path": "notes/daily-ops.md",
                      *         "per_page": 25,
                      *         "total": 0
                      *       }
@@ -10794,7 +10673,7 @@ export interface operations {
                      *             "active": true
                      *           }
                      *         ],
-                     *         "path": ".agentmc/skills/skill.md",
+                     *         "path": "notes/daily-ops.md",
                      *         "per_page": 25,
                      *         "total": 0
                      *       }
@@ -11036,7 +10915,7 @@ export interface operations {
                      *             "active": true
                      *           }
                      *         ],
-                     *         "path": ".agentmc/skills/skill.md",
+                     *         "path": "notes/daily-ops.md",
                      *         "per_page": 25,
                      *         "total": 0
                      *       }
@@ -11104,7 +10983,7 @@ export interface operations {
                      *             "active": true
                      *           }
                      *         ],
-                     *         "path": ".agentmc/skills/skill.md",
+                     *         "path": "notes/daily-ops.md",
                      *         "per_page": 25,
                      *         "total": 0
                      *       }
@@ -11172,7 +11051,7 @@ export interface operations {
                      *             "active": true
                      *           }
                      *         ],
-                     *         "path": ".agentmc/skills/skill.md",
+                     *         "path": "notes/daily-ops.md",
                      *         "per_page": 25,
                      *         "total": 0
                      *       }
@@ -11283,7 +11162,7 @@ export interface operations {
                      *             "active": true
                      *           }
                      *         ],
-                     *         "path": ".agentmc/skills/skill.md",
+                     *         "path": "notes/daily-ops.md",
                      *         "per_page": 25,
                      *         "total": 0
                      *       }
@@ -11866,7 +11745,7 @@ export interface operations {
                      *             "active": true
                      *           }
                      *         ],
-                     *         "path": ".agentmc/skills/skill.md",
+                     *         "path": "notes/daily-ops.md",
                      *         "per_page": 25,
                      *         "total": 0
                      *       }
@@ -12098,7 +11977,7 @@ export interface operations {
                      *             "active": true
                      *           }
                      *         ],
-                     *         "path": ".agentmc/skills/skill.md",
+                     *         "path": "notes/daily-ops.md",
                      *         "per_page": 25,
                      *         "total": 0
                      *       }

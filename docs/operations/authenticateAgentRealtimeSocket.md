@@ -1,13 +1,13 @@
 # authenticateAgentRealtimeSocket
 
 - Method: `POST`
-- Path: `/agents/realtime/sessions/{session}/socket-auth`
-- Summary: Sign one websocket channel subscription for a realtime session.
+- Path: `/hosts/realtime/sessions/{session}/socket-auth`
+- Summary: Sign one websocket channel subscription for a realtime session (host or agent context).
 - Auth: ApiKeyAuth
 
 ## Description
 
-No additional description.
+Accepts host API key context by session ownership. X-Agent-Id remains optional for explicit single-agent routing.
 
 ## Parameters
 

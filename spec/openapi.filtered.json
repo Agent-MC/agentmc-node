@@ -12,80 +12,12 @@
     }
   ],
   "paths": {
-    "/agents/instructions": {
-      "get": {
-        "tags": [
-          "Agents"
-        ],
-        "summary": "Fetch the AgentMC instruction bundle for the authenticated agent.",
-        "description": "Returns managed runtime files and bundle metadata. Send current_bundle_version to fetch files only when the bundle has changed.",
-        "operationId": "getAgentInstructions",
-        "parameters": [
-          {
-            "name": "current_bundle_version",
-            "in": "query",
-            "required": false,
-            "description": "Last applied instruction bundle version from local runtime state.",
-            "schema": {
-              "type": "string"
-            },
-            "example": "bundle_2fa07fcadd6575cc"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Instruction bundle returned.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AgentInstructionsResponse"
-                },
-                "example": {
-                  "ok": true,
-                  "changed": true,
-                  "bundle_version": "bundle_2fa07fcadd6575cc",
-                  "generated_at": "2026-02-25T14:10:00Z",
-                  "defaults": {
-                    "heartbeat_interval_seconds": 300
-                  },
-                  "agent": {
-                    "id": 42
-                  },
-                  "files": [
-                    {
-                      "id": "skill.md",
-                      "path": ".agentmc/skills/skill.md",
-                      "content": "# AgentMC\n",
-                      "sha256": "f96c95bd27dc9f3415cc0f4d817b5ec6f14185b6fcb5db9f6b6f14f648f8e9e4"
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/ApiError401"
-          },
-          "403": {
-            "$ref": "#/components/responses/ApiError403"
-          },
-          "422": {
-            "$ref": "#/components/responses/ApiError422"
-          }
-        },
-        "security": [
-          {
-            "ApiKeyAuth": []
-          }
-        ]
-      }
-    },
-    "/agents/heartbeat": {
+    "/hosts/heartbeat": {
       "post": {
         "tags": [
-          "Agents"
+          "Hosts"
         ],
-        "summary": "Record agent heartbeat and runtime host telemetry.",
+        "summary": "Record host heartbeat and runtime telemetry.",
         "description": "Accepts heartbeat payloads with required host telemetry and required runtime agent metadata. Runtime clients should include `meta.models` on every heartbeat as current runtime model inventory.",
         "operationId": "agentHeartbeat",
         "parameters": [
@@ -135,6 +67,11 @@
                     "agents_online": 1,
                     "created_at": "2026-02-22T17:21:02Z",
                     "updated_at": "2026-02-22T17:21:02Z"
+                  },
+                  "agent": {
+                    "id": 42,
+                    "name": "Solomon",
+                    "type": "openclaw"
                   }
                 }
               }
@@ -224,7 +161,7 @@
                         "active": true
                       }
                     ],
-                    "path": ".agentmc/skills/skill.md",
+                    "path": "notes/daily-ops.md",
                     "per_page": 25,
                     "total": 0
                   }
@@ -494,7 +431,7 @@
                         "active": true
                       }
                     ],
-                    "path": ".agentmc/skills/skill.md",
+                    "path": "notes/daily-ops.md",
                     "per_page": 25,
                     "total": 0
                   }
@@ -843,12 +780,13 @@
         }
       }
     },
-    "/agents/realtime/sessions/requested": {
+    "/hosts/realtime/sessions/requested": {
       "get": {
         "tags": [
-          "Agents"
+          "Hosts"
         ],
-        "summary": "List requested realtime sessions for an agent.",
+        "summary": "List requested realtime sessions for one agent or a host.",
+        "description": "When X-Agent-Id (or agent_id query) is provided, returns requested sessions for that agent. With a host API key and no agent context, returns requested sessions across all agents assigned to that host.",
         "operationId": "listAgentRealtimeRequestedSessions",
         "responses": {
           "200": {
@@ -918,12 +856,13 @@
         ]
       }
     },
-    "/agents/realtime/sessions/{session}/claim": {
+    "/hosts/realtime/sessions/{session}/claim": {
       "post": {
         "tags": [
-          "Agents"
+          "Hosts"
         ],
-        "summary": "Claim one realtime session for websocket message handling.",
+        "summary": "Claim one realtime session for websocket message handling (host or agent context).",
+        "description": "Accepts host API key context by session ownership. X-Agent-Id remains optional for explicit single-agent routing.",
         "operationId": "claimAgentRealtimeSession",
         "parameters": [
           {
@@ -1000,12 +939,13 @@
         }
       }
     },
-    "/agents/realtime/sessions/{session}/signals": {
+    "/hosts/realtime/sessions/{session}/signals": {
       "get": {
         "tags": [
-          "Agents"
+          "Hosts"
         ],
-        "summary": "Read realtime events for a realtime session.",
+        "summary": "Read realtime events for a realtime session (host or agent context).",
+        "description": "Accepts host API key context by session ownership. X-Agent-Id remains optional for explicit single-agent routing.",
         "operationId": "listAgentRealtimeSignals",
         "parameters": [
           {
@@ -1128,9 +1068,10 @@
       },
       "post": {
         "tags": [
-          "Agents"
+          "Hosts"
         ],
-        "summary": "Publish one realtime event to a realtime session.",
+        "summary": "Publish one realtime event to a realtime session (host or agent context).",
+        "description": "Accepts host API key context by session ownership. X-Agent-Id remains optional for explicit single-agent routing.",
         "operationId": "createAgentRealtimeSignal",
         "parameters": [
           {
@@ -1215,12 +1156,13 @@
         }
       }
     },
-    "/agents/realtime/sessions/{session}/close": {
+    "/hosts/realtime/sessions/{session}/close": {
       "post": {
         "tags": [
-          "Agents"
+          "Hosts"
         ],
-        "summary": "Close a realtime session.",
+        "summary": "Close a realtime session (host or agent context).",
+        "description": "Accepts host API key context by session ownership. X-Agent-Id remains optional for explicit single-agent routing.",
         "operationId": "closeAgentRealtimeSession",
         "parameters": [
           {
@@ -1307,12 +1249,13 @@
         }
       }
     },
-    "/agents/realtime/sessions/{session}/socket-auth": {
+    "/hosts/realtime/sessions/{session}/socket-auth": {
       "post": {
         "tags": [
-          "Agents"
+          "Hosts"
         ],
-        "summary": "Sign one websocket channel subscription for a realtime session.",
+        "summary": "Sign one websocket channel subscription for a realtime session (host or agent context).",
+        "description": "Accepts host API key context by session ownership. X-Agent-Id remains optional for explicit single-agent routing.",
         "operationId": "authenticateAgentRealtimeSocket",
         "parameters": [
           {
@@ -1413,7 +1356,7 @@
                         "active": true
                       }
                     ],
-                    "path": ".agentmc/skills/skill.md",
+                    "path": "notes/daily-ops.md",
                     "per_page": 25,
                     "total": 0
                   }
@@ -1992,7 +1935,7 @@
                         "active": true
                       }
                     ],
-                    "path": ".agentmc/skills/skill.md",
+                    "path": "notes/daily-ops.md",
                     "per_page": 25,
                     "total": 0
                   }
@@ -2465,7 +2408,7 @@
                         "active": true
                       }
                     ],
-                    "path": ".agentmc/skills/skill.md",
+                    "path": "notes/daily-ops.md",
                     "per_page": 25,
                     "total": 0
                   }
@@ -2787,7 +2730,7 @@
                         "active": true
                       }
                     ],
-                    "path": ".agentmc/skills/skill.md",
+                    "path": "notes/daily-ops.md",
                     "per_page": 25,
                     "total": 0
                   }
@@ -2882,7 +2825,7 @@
                         "active": true
                       }
                     ],
-                    "path": ".agentmc/skills/skill.md",
+                    "path": "notes/daily-ops.md",
                     "per_page": 25,
                     "total": 0
                   }
@@ -2982,7 +2925,7 @@
                         "active": true
                       }
                     ],
-                    "path": ".agentmc/skills/skill.md",
+                    "path": "notes/daily-ops.md",
                     "per_page": 25,
                     "total": 0
                   }
@@ -3082,7 +3025,7 @@
                         "active": true
                       }
                     ],
-                    "path": ".agentmc/skills/skill.md",
+                    "path": "notes/daily-ops.md",
                     "per_page": 25,
                     "total": 0
                   }
@@ -3996,7 +3939,7 @@
                         "active": true
                       }
                     ],
-                    "path": ".agentmc/skills/skill.md",
+                    "path": "notes/daily-ops.md",
                     "per_page": 25,
                     "total": 0
                   }
@@ -4264,7 +4207,7 @@
                         "active": true
                       }
                     ],
-                    "path": ".agentmc/skills/skill.md",
+                    "path": "notes/daily-ops.md",
                     "per_page": 25,
                     "total": 0
                   }
@@ -4939,7 +4882,7 @@
     "securitySchemes": {
       "ApiKeyAuth": {
         "type": "apiKey",
-        "description": "API key sent in X-Api-Key. Use agent keys (mca_*) for /agents/* routes; team keys are valid on team-scoped routes.",
+        "description": "API key sent in X-Api-Key. Use host/team keys (cc_*). For agent-context endpoints, provide X-Agent-Id (or agent_id query).",
         "name": "X-Api-Key",
         "in": "header"
       },
@@ -5423,7 +5366,7 @@
                   "active": true
                 }
               ],
-              "path": ".agentmc/skills/skill.md",
+              "path": "notes/daily-ops.md",
               "per_page": 25,
               "total": 0
             }
@@ -5476,7 +5419,7 @@
                 "active": true
               }
             ],
-            "path": ".agentmc/skills/skill.md",
+            "path": "notes/daily-ops.md",
             "per_page": 25,
             "total": 0
           }
@@ -5801,7 +5744,7 @@
           "path": {
             "type": "string",
             "description": "Local filesystem path where this file should be written.",
-            "example": ".agentmc/skills/skill.md"
+            "example": "notes/daily-ops.md"
           },
           "per_page": {
             "type": "integer",
@@ -5834,7 +5777,7 @@
               "active": true
             }
           ],
-          "path": ".agentmc/skills/skill.md",
+          "path": "notes/daily-ops.md",
           "per_page": 25,
           "total": 0
         }
@@ -6012,7 +5955,7 @@
                   "active": true
                 }
               ],
-              "path": ".agentmc/skills/skill.md",
+              "path": "notes/daily-ops.md",
               "per_page": 25,
               "total": 0
             }
@@ -6047,7 +5990,7 @@
                 "active": true
               }
             ],
-            "path": ".agentmc/skills/skill.md",
+            "path": "notes/daily-ops.md",
             "per_page": 25,
             "total": 0
           }
@@ -6275,7 +6218,7 @@
                   "active": true
                 }
               ],
-              "path": ".agentmc/skills/skill.md",
+              "path": "notes/daily-ops.md",
               "per_page": 25,
               "total": 0
             }
@@ -6329,7 +6272,7 @@
                 "active": true
               }
             ],
-            "path": ".agentmc/skills/skill.md",
+            "path": "notes/daily-ops.md",
             "per_page": 25,
             "total": 0
           }
@@ -6450,9 +6393,42 @@
               "created_at": "2026-02-22T17:21:00Z",
               "updated_at": "2026-02-22T17:21:00Z"
             }
+          },
+          "agent": {
+            "type": "object",
+            "nullable": true,
+            "required": [
+              "id",
+              "name"
+            ],
+            "properties": {
+              "id": {
+                "type": "integer",
+                "minimum": 1,
+                "description": "Unique identifier for this record.",
+                "example": 42
+              },
+              "name": {
+                "type": "string",
+                "description": "Human-readable name.",
+                "example": "Example Name"
+              },
+              "type": {
+                "type": "string",
+                "nullable": true,
+                "description": "Type discriminator for this record.",
+                "example": "example"
+              }
+            },
+            "description": "Resolved agent snapshot after heartbeat processing (auto-created when needed).",
+            "example": {
+              "id": 42,
+              "name": "Example Name",
+              "type": "example"
+            }
           }
         },
-        "description": "Heartbeat acknowledgement with resolved host record from required host telemetry.",
+        "description": "Heartbeat acknowledgement with resolved host and agent records from runtime telemetry.",
         "example": {
           "ok": true,
           "server_time": "2026-02-22T17:21:02Z",
@@ -6477,6 +6453,11 @@
             "agents_online": 1,
             "created_at": "2026-02-22T17:21:02Z",
             "updated_at": "2026-02-22T17:21:02Z"
+          },
+          "agent": {
+            "id": 42,
+            "name": "Solomon",
+            "type": "openclaw"
           }
         }
       },
@@ -7540,7 +7521,7 @@
                   "active": true
                 }
               ],
-              "path": ".agentmc/skills/skill.md",
+              "path": "notes/daily-ops.md",
               "per_page": 25,
               "total": 0
             }
@@ -7622,7 +7603,7 @@
                 "active": true
               }
             ],
-            "path": ".agentmc/skills/skill.md",
+            "path": "notes/daily-ops.md",
             "per_page": 25,
             "total": 0
           }
@@ -7886,7 +7867,7 @@
                   "path": {
                     "type": "string",
                     "description": "Local filesystem path where this file should be written.",
-                    "example": ".agentmc/skills/skill.md"
+                    "example": "notes/daily-ops.md"
                   }
                 },
                 "description": "Connection.",
@@ -7897,7 +7878,7 @@
                   "host": "ip-10-0-3-42",
                   "port": 1,
                   "scheme": "example",
-                  "path": ".agentmc/skills/skill.md"
+                  "path": "notes/daily-ops.md"
                 }
               },
               "channel": {
@@ -7925,7 +7906,7 @@
                 "host": "ip-10-0-3-42",
                 "port": 1,
                 "scheme": "example",
-                "path": ".agentmc/skills/skill.md"
+                "path": "notes/daily-ops.md"
               },
               "channel": "example",
               "event": "example",
@@ -9548,151 +9529,6 @@
           }
         }
       },
-      "AgentInstructionFile": {
-        "type": "object",
-        "required": [
-          "id",
-          "path",
-          "content",
-          "sha256"
-        ],
-        "properties": {
-          "id": {
-            "type": "string",
-            "description": "Unique identifier for this record.",
-            "example": "example"
-          },
-          "path": {
-            "type": "string",
-            "description": "Local filesystem path where this file should be written.",
-            "example": ".agentmc/skills/skill.md"
-          },
-          "content": {
-            "type": "string",
-            "description": "Content.",
-            "example": "Example content."
-          },
-          "sha256": {
-            "type": "string",
-            "description": "SHA-256 checksum for file content.",
-            "example": "f96c95bd27dc9f3415cc0f4d817b5ec6f14185b6fcb5db9f6b6f14f648f8e9e4"
-          }
-        },
-        "description": "Agent Instruction File schema.",
-        "example": {
-          "id": "example",
-          "path": ".agentmc/skills/skill.md",
-          "content": "Example content.",
-          "sha256": "f96c95bd27dc9f3415cc0f4d817b5ec6f14185b6fcb5db9f6b6f14f648f8e9e4"
-        }
-      },
-      "AgentInstructionsResponse": {
-        "type": "object",
-        "required": [
-          "ok",
-          "changed",
-          "bundle_version",
-          "generated_at",
-          "defaults",
-          "agent",
-          "files"
-        ],
-        "properties": {
-          "ok": {
-            "type": "boolean",
-            "description": "Boolean flag for ok.",
-            "example": true
-          },
-          "changed": {
-            "type": "boolean",
-            "description": "True when the runtime should rewrite local managed files from this response.",
-            "example": true
-          },
-          "bundle_version": {
-            "type": "string",
-            "description": "Current instruction bundle version.",
-            "example": "bundle_2fa07fcadd6575cc"
-          },
-          "generated_at": {
-            "type": "string",
-            "format": "date-time",
-            "description": "ISO-8601 generation timestamp.",
-            "example": "2026-02-22T17:21:00Z"
-          },
-          "defaults": {
-            "type": "object",
-            "required": [
-              "heartbeat_interval_seconds"
-            ],
-            "properties": {
-              "heartbeat_interval_seconds": {
-                "type": "integer",
-                "minimum": 5,
-                "description": "Heartbeat interval seconds.",
-                "example": 5
-              }
-            },
-            "description": "Defaults.",
-            "example": {
-              "heartbeat_interval_seconds": 5
-            }
-          },
-          "agent": {
-            "type": "object",
-            "required": [
-              "id"
-            ],
-            "properties": {
-              "id": {
-                "type": "integer",
-                "minimum": 1,
-                "description": "Unique identifier for this record.",
-                "example": 42
-              }
-            },
-            "description": "Agent.",
-            "example": {
-              "id": 42
-            }
-          },
-          "files": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/AgentInstructionFile"
-            },
-            "description": "Managed instruction bundle files to write locally.",
-            "example": [
-              {
-                "id": "example",
-                "path": ".agentmc/skills/skill.md",
-                "content": "Example content.",
-                "sha256": "f96c95bd27dc9f3415cc0f4d817b5ec6f14185b6fcb5db9f6b6f14f648f8e9e4"
-              }
-            ]
-          }
-        },
-        "example": {
-          "ok": true,
-          "changed": true,
-          "bundle_version": "bundle_2fa07fcadd6575cc",
-          "generated_at": "2026-02-25T14:10:00Z",
-          "defaults": {
-            "heartbeat_interval_seconds": 300
-          },
-          "agent": {
-            "id": 42
-          },
-          "files": [
-            {
-              "id": "skill.md",
-              "path": ".agentmc/skills/skill.md",
-              "content": "# AgentMC\n",
-              "sha256": "f96c95bd27dc9f3415cc0f4d817b5ec6f14185b6fcb5db9f6b6f14f648f8e9e4"
-            }
-          ]
-        },
-        "description": "Agent Instructions Response response schema."
-      },
       "AgentRealtimeRequestedSessionsResponse": {
         "type": "object",
         "required": [
@@ -10550,7 +10386,7 @@
                   "active": true
                 }
               ],
-              "path": ".agentmc/skills/skill.md",
+              "path": "notes/daily-ops.md",
               "per_page": 25,
               "total": 0
             }
@@ -10588,7 +10424,7 @@
                 "active": true
               }
             ],
-            "path": ".agentmc/skills/skill.md",
+            "path": "notes/daily-ops.md",
             "per_page": 25,
             "total": 0
           }
@@ -10653,7 +10489,7 @@
                   "active": true
                 }
               ],
-              "path": ".agentmc/skills/skill.md",
+              "path": "notes/daily-ops.md",
               "per_page": 25,
               "total": 0
             }
@@ -10698,7 +10534,7 @@
                 "active": true
               }
             ],
-            "path": ".agentmc/skills/skill.md",
+            "path": "notes/daily-ops.md",
             "per_page": 25,
             "total": 0
           }
@@ -10765,7 +10601,7 @@
                   "active": true
                 }
               ],
-              "path": ".agentmc/skills/skill.md",
+              "path": "notes/daily-ops.md",
               "per_page": 25,
               "total": 0
             }
@@ -10812,7 +10648,7 @@
                 "active": true
               }
             ],
-            "path": ".agentmc/skills/skill.md",
+            "path": "notes/daily-ops.md",
             "per_page": 25,
             "total": 0
           }
@@ -10872,7 +10708,7 @@
                   "active": true
                 }
               ],
-              "path": ".agentmc/skills/skill.md",
+              "path": "notes/daily-ops.md",
               "per_page": 25,
               "total": 0
             }
@@ -10912,7 +10748,7 @@
                 "active": true
               }
             ],
-            "path": ".agentmc/skills/skill.md",
+            "path": "notes/daily-ops.md",
             "per_page": 25,
             "total": 0
           }
@@ -10991,7 +10827,7 @@
                   "active": true
                 }
               ],
-              "path": ".agentmc/skills/skill.md",
+              "path": "notes/daily-ops.md",
               "per_page": 25,
               "total": 0
             }
@@ -11050,7 +10886,7 @@
                 "active": true
               }
             ],
-            "path": ".agentmc/skills/skill.md",
+            "path": "notes/daily-ops.md",
             "per_page": 25,
             "total": 0
           }
@@ -11122,7 +10958,7 @@
                   "active": true
                 }
               ],
-              "path": ".agentmc/skills/skill.md",
+              "path": "notes/daily-ops.md",
               "per_page": 25,
               "total": 0
             }
@@ -11174,7 +11010,7 @@
                 "active": true
               }
             ],
-            "path": ".agentmc/skills/skill.md",
+            "path": "notes/daily-ops.md",
             "per_page": 25,
             "total": 0
           }
@@ -11252,7 +11088,7 @@
                   "active": true
                 }
               ],
-              "path": ".agentmc/skills/skill.md",
+              "path": "notes/daily-ops.md",
               "per_page": 25,
               "total": 0
             }
@@ -11310,7 +11146,7 @@
                 "active": true
               }
             ],
-            "path": ".agentmc/skills/skill.md",
+            "path": "notes/daily-ops.md",
             "per_page": 25,
             "total": 0
           }
@@ -12093,12 +11929,14 @@
             }
           },
           "agent": {
+            "nullable": true,
             "type": "object",
             "properties": {
               "id": {
+                "nullable": true,
                 "type": "integer",
                 "minimum": 1,
-                "description": "Required agent id. Must match the authenticated agent scope.",
+                "description": "Optional existing AgentMC agent id. When omitted with host API keys, AgentMC auto-resolves/creates the agent.",
                 "example": 42
               },
               "name": {
@@ -12110,7 +11948,7 @@
               "type": {
                 "type": "string",
                 "maxLength": 120,
-                "description": "Optional legacy runtime agent type identifier. Prefer sending this as `meta.type`.",
+                "description": "Optional runtime agent type identifier. Prefer sending this as `meta.type`.",
                 "example": "codex"
               },
               "identity": {
@@ -12133,22 +11971,80 @@
                 }
               }
             },
+            "description": "Required runtime agent profile metadata. Omit `agent.id` when using host keys to auto-resolve or auto-create agents from runtime identity.",
             "required": [
-              "id",
               "name",
               "identity"
             ],
-            "description": "Required runtime agent profile metadata.",
             "example": {
-              "id": 42,
               "name": "Jarvis",
               "identity": {
                 "name": "Jarvis",
+                "agent_key": "solomon",
                 "creature": "robot",
                 "vibe": "calm",
                 "emoji": "🤖"
               }
             }
+          },
+          "agents": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                  }
+                }
+              ],
+              "type": "object",
+              "properties": {
+                "id": {
+                  "nullable": true,
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "Unique identifier for this record.",
+                  "example": 42
+                },
+                "name": {
+                  "type": "string",
+                  "maxLength": 255,
+                  "description": "Human-readable name.",
+                  "example": "Example Name"
+                },
+                "type": {
+                  "type": "string",
+                  "maxLength": 120,
+                  "description": "Type discriminator for this record.",
+                  "example": "example"
+                },
+                "identity": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "description": "Identity.",
+                  "example": {
+                    "key": "value"
+                  }
+                }
+              },
+              "required": [
+                "name",
+                "identity"
+              ]
+            },
+            "minItems": 1,
+            "description": "Agents.",
+            "example": [
+              {
+                "key": "value"
+              }
+            ]
           }
         },
         "required": [
@@ -13593,10 +13489,10 @@
                 }
               },
               "agent": {
-                "id": 42,
                 "name": "Jarvis",
                 "identity": {
                   "name": "Jarvis",
+                  "agent_key": "solomon",
                   "creature": "robot",
                   "vibe": "calm"
                 }
@@ -13996,6 +13892,11 @@
                 "agents_online": 1,
                 "created_at": "2026-02-22T17:21:02Z",
                 "updated_at": "2026-02-22T17:21:02Z"
+              },
+              "agent": {
+                "id": 42,
+                "name": "Solomon",
+                "type": "openclaw"
               }
             }
           }
@@ -14273,7 +14174,7 @@
                     "active": true
                   }
                 ],
-                "path": ".agentmc/skills/skill.md",
+                "path": "notes/daily-ops.md",
                 "per_page": 25,
                 "total": 0
               }
@@ -14444,36 +14345,6 @@
           }
         }
       },
-      "AgentInstructionsResponse": {
-        "description": "Instruction bundle returned.",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/AgentInstructionsResponse"
-            },
-            "example": {
-              "ok": true,
-              "changed": true,
-              "bundle_version": "bundle_2fa07fcadd6575cc",
-              "generated_at": "2026-02-25T14:10:00Z",
-              "defaults": {
-                "heartbeat_interval_seconds": 300
-              },
-              "agent": {
-                "id": 42
-              },
-              "files": [
-                {
-                  "id": "skill.md",
-                  "path": ".agentmc/skills/skill.md",
-                  "content": "# AgentMC\n",
-                  "sha256": "f96c95bd27dc9f3415cc0f4d817b5ec6f14185b6fcb5db9f6b6f14f648f8e9e4"
-                }
-              ]
-            }
-          }
-        }
-      },
       "HostDetailResponse": {
         "description": "Host returned.",
         "content": {
@@ -14586,7 +14457,7 @@
                     "active": true
                   }
                 ],
-                "path": ".agentmc/skills/skill.md",
+                "path": "notes/daily-ops.md",
                 "per_page": 25,
                 "total": 0
               }
@@ -14867,10 +14738,6 @@
     }
   },
   "tags": [
-    {
-      "name": "Agents",
-      "description": "Agents"
-    },
     {
       "name": "Hosts",
       "description": "Hosts"

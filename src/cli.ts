@@ -1,8 +1,12 @@
 import { Command } from "commander";
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
+import { arch, cpus, hostname, networkInterfaces, platform, release, totalmem, uptime } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { setTimeout as sleep } from "node:timers/promises";
 
+import { detectRuntimeAgents, type DiscoveredRuntimeAgent } from "./agent-discovery";
 import { AgentMCApi } from "./client";
 import { operationsById, type OperationId } from "./generated/operations";
 import { AgentRuntimeProgram } from "./runtime-program";
@@ -35,11 +39,34 @@ function operationDocPath(operationId: OperationId): string {
   return resolve(packageRoot, "docs/operations", `${operationId}.md`);
 }
 
-interface MultiAgentRuntimeConfig {
-  agentId: number;
+interface RuntimeWorkerConfig {
+  agentId: number | null;
   apiKey: string;
   workspaceDir: string;
+  statePath: string;
+  localKey: string;
+  openclawAgent?: string;
+  localName?: string;
+  provider?: string;
 }
+
+interface RuntimeEntry {
+  worker: RuntimeWorkerConfig;
+  runtimeEnv: NodeJS.ProcessEnv;
+}
+
+interface HostHeartbeatAgentRow {
+  id: number;
+  runtimeKey: string | null;
+  name: string | null;
+}
+
+const DEFAULT_WORKER_RESTART_DELAY_MS = 2_000;
+const DEFAULT_WORKER_RESTART_MAX_DELAY_MS = 30_000;
+const WORKER_RESTART_RESET_WINDOW_MS = 60_000;
+const DEFAULT_HOST_HEARTBEAT_INTERVAL_SECONDS = 300;
+const DEFAULT_HOST_REQUESTED_SESSION_LIMIT = 20;
+const DEFAULT_HOST_REQUEST_POLL_MS = 250;
 
 function nonEmpty(value: unknown): string | null {
   if (typeof value !== "string" && typeof value !== "number") {
@@ -63,76 +90,68 @@ function toPositiveInt(value: unknown): number | null {
   return parsed;
 }
 
-function resolveMultiAgentConfigs(env: NodeJS.ProcessEnv): MultiAgentRuntimeConfig[] {
-  const keyedEntries = Object.entries(env)
-    .map(([name, value]) => {
-      const match = name.match(/^AGENTMC_API_KEY_(\d+)$/);
-      if (!match) {
-        return null;
-      }
+function toBoolean(value: unknown): boolean | null {
+  if (typeof value === "boolean") {
+    return value;
+  }
+  if (typeof value === "number") {
+    if (value === 1) {
+      return true;
+    }
+    if (value === 0) {
+      return false;
+    }
+    return null;
+  }
+  if (typeof value !== "string") {
+    return null;
+  }
+  const normalized = value.trim().toLowerCase();
+  if (["true", "1", "yes", "on"].includes(normalized)) {
+    return true;
+  }
+  if (["false", "0", "no", "off"].includes(normalized)) {
+    return false;
+  }
+  return null;
+}
 
-      const agentId = toPositiveInt(match[1]);
-      const apiKey = nonEmpty(value);
-
-      if (agentId === null || !apiKey) {
-        return null;
-      }
-
-      return { agentId, apiKey, envName: name };
-    })
-    .filter((entry): entry is { agentId: number; apiKey: string; envName: string } => entry !== null)
-    .sort((a, b) => a.agentId - b.agentId);
-
-  if (keyedEntries.length === 0) {
+function parseCommaSeparatedList(value: unknown): string[] {
+  const raw = nonEmpty(value);
+  if (!raw) {
     return [];
   }
 
-  const workspaceRootOverride = nonEmpty(env.AGENTMC_MULTI_WORKSPACE_ROOT);
-  const useDefaultWorkspace = keyedEntries.length === 1 && workspaceRootOverride === null;
-  const runtimeRoot = workspaceRootOverride ?? resolve(process.cwd(), ".agentmc", "runtimes");
-
-  return keyedEntries.map(({ agentId, apiKey, envName }) => {
-    if (apiKey.startsWith("cc_")) {
-      throw new Error(`${envName} contains a team API key (cc_*). Agent runtimes require agent keys (mca_*).`);
-    }
-
-    const workspaceOverride = nonEmpty(env[`AGENTMC_WORKSPACE_DIR_${agentId}`]);
-    const workspaceDir =
-      workspaceOverride ?? (useDefaultWorkspace ? process.cwd() : resolve(runtimeRoot, `agent-${agentId}`));
-
-    return {
-      agentId,
-      apiKey,
-      workspaceDir
-    };
-  });
+  return raw
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
 }
 
 async function runMultiAgentRuntimeFromEnv(env: NodeJS.ProcessEnv): Promise<boolean> {
-  const configs = resolveMultiAgentConfigs(env);
-  if (configs.length === 0) {
+  const hostApiKey = nonEmpty(env.AGENTMC_API_KEY);
+  if (!hostApiKey) {
     return false;
   }
 
-  const baseUrl = nonEmpty(env.AGENTMC_BASE_URL) ?? undefined;
-  const runtimeEntries = configs.map((config) => ({
-    ...config,
-    runtime: new AgentRuntimeProgram({
-      apiKey: config.apiKey,
-      baseUrl,
-      agentId: config.agentId,
-      workspaceDir: config.workspaceDir
-    })
-  }));
+  const workerRestartDelayMs = toPositiveInt(env.AGENTMC_WORKER_RESTART_DELAY_MS) ?? DEFAULT_WORKER_RESTART_DELAY_MS;
+  const workerRestartMaxDelayMs = Math.max(
+    workerRestartDelayMs,
+    toPositiveInt(env.AGENTMC_WORKER_RESTART_MAX_DELAY_MS) ?? DEFAULT_WORKER_RESTART_MAX_DELAY_MS
+  );
 
   let stopping = false;
+  const activeRuntimes = new Map<string, AgentRuntimeProgram>();
+  let hostHeartbeatLoopPromise: Promise<void> | null = null;
+  let hostRequestedSessionLoopPromise: Promise<void> | null = null;
+
   const stopAll = async (): Promise<void> => {
     if (stopping) {
       return;
     }
 
     stopping = true;
-    await Promise.allSettled(runtimeEntries.map((entry) => entry.runtime.stop()));
+    await Promise.allSettled(Array.from(activeRuntimes.values()).map((runtime) => runtime.stop()));
   };
 
   const handleSignal = (signal: NodeJS.Signals): void => {
@@ -144,23 +163,656 @@ async function runMultiAgentRuntimeFromEnv(env: NodeJS.ProcessEnv): Promise<bool
   process.once("SIGTERM", handleSignal);
 
   try {
-    await Promise.all(
-      runtimeEntries.map(async (entry) => {
+    const baseUrl = nonEmpty(env.AGENTMC_BASE_URL) ?? undefined;
+    const explicitAgentId = toPositiveInt(env.AGENTMC_AGENT_ID);
+    if (explicitAgentId !== null) {
+      const runtimeEnv: NodeJS.ProcessEnv = {
+        ...env,
+        AGENTMC_API_KEY: hostApiKey,
+        AGENTMC_AGENT_ID: String(explicitAgentId)
+      };
+      const entry: RuntimeEntry = {
+        worker: {
+          agentId: explicitAgentId,
+          apiKey: hostApiKey,
+          workspaceDir: nonEmpty(runtimeEnv.AGENTMC_WORKSPACE_DIR) ?? process.cwd(),
+          statePath:
+            nonEmpty(runtimeEnv.AGENTMC_STATE_PATH) ??
+            resolve(process.cwd(), ".agentmc", `state.agent-${explicitAgentId}.json`),
+          localKey: `agent-${explicitAgentId}`,
+          localName: `agent-${explicitAgentId}`,
+          provider: normalizeRuntimeProvider(env.AGENTMC_RUNTIME_PROVIDER)
+        },
+        runtimeEnv
+      };
+
+      if (toBoolean(env.AGENTMC_DISABLE_HEARTBEAT) !== true) {
         process.stderr.write(
-          `[agentmc-runtime] worker start agent=${entry.agentId} workspace=${entry.workspaceDir}\n`
+          "[agentmc-runtime] explicit AGENTMC_AGENT_ID mode enabled; per-agent heartbeat remains enabled.\n"
         );
-        await entry.runtime.run();
-      })
+      }
+
+      await runRuntimeEntryWithRestart({
+        entry,
+        activeRuntimes,
+        workerRestartDelayMs,
+        workerRestartMaxDelayMs,
+        shouldStop: () => stopping
+      });
+
+      return true;
+    }
+
+    const runtimeProvider = normalizeRuntimeProvider(env.AGENTMC_RUNTIME_PROVIDER);
+    const discoveredAgents = await detectRuntimeAgents({
+      runtimeProvider,
+      workspaceDir: process.cwd(),
+      env
+    });
+    if (discoveredAgents.length === 0) {
+      throw new Error("Runtime bootstrap failed. No runtime agents detected from OpenClaw config/discovery.");
+    }
+
+    const resolved = resolveWorkerConfigs({
+      hostApiKey,
+      discoveredAgents
+    });
+    if (resolved.workers.length === 0) {
+      throw new Error("Detected runtime agents but failed to build worker runtime configs.");
+    }
+
+    const hostHeartbeatIntervalSeconds =
+      toPositiveInt(env.AGENTMC_HOST_HEARTBEAT_INTERVAL_SECONDS) ??
+      toPositiveInt(env.AGENTMC_HEARTBEAT_INTERVAL_SECONDS) ??
+      DEFAULT_HOST_HEARTBEAT_INTERVAL_SECONDS;
+    const hostRequestPollMs = Math.max(
+      150,
+      toPositiveInt(env.AGENTMC_REQUEST_POLL_MS) ?? DEFAULT_HOST_REQUEST_POLL_MS
     );
-  } catch (error) {
-    await stopAll();
-    throw error;
+    const hostRequestedSessionLimit = Math.max(
+      1,
+      Math.min(100, toPositiveInt(env.AGENTMC_REQUESTED_SESSION_LIMIT) ?? DEFAULT_HOST_REQUESTED_SESSION_LIMIT)
+    );
+
+    const heartbeatClient = new AgentMCApi({
+      baseUrl,
+      apiKey: hostApiKey
+    });
+    const hostFingerprint = resolveHostFingerprint(env);
+
+    const initialHeartbeat = await sendHostHeartbeat(heartbeatClient, env, resolved.workers, hostFingerprint);
+    applyHeartbeatAgentMapping(resolved.workers, initialHeartbeat);
+
+    const unresolvedWorkers = resolved.workers.filter((worker) => worker.agentId === null);
+    if (unresolvedWorkers.length > 0) {
+      const unresolved = unresolvedWorkers.map((worker) => worker.localKey).join(", ");
+      throw new Error(`Host heartbeat did not resolve AgentMC ids for runtime agents: ${unresolved}`);
+    }
+
+    for (const warning of resolved.warnings) {
+      process.stderr.write(`[agentmc-runtime] ${warning}\n`);
+    }
+
+    process.stderr.write(
+      `[agentmc-runtime] host heartbeat active interval=${hostHeartbeatIntervalSeconds}s host=${hostFingerprint}\n`
+    );
+    process.stderr.write(
+      `[agentmc-runtime] host realtime requested-session poll active interval=${hostRequestPollMs}ms limit=${hostRequestedSessionLimit}\n`
+    );
+
+    const runtimeEntries: RuntimeEntry[] = resolved.workers.map((worker) => ({
+      worker,
+      runtimeEnv: buildRuntimeEnv(env, worker, true)
+    }));
+    const runtimeEntriesByLocalKey = new Map(runtimeEntries.map((entry) => [entry.worker.localKey, entry]));
+
+    hostHeartbeatLoopPromise = runHostHeartbeatLoop({
+      client: heartbeatClient,
+      env,
+      workers: resolved.workers,
+      hostFingerprint,
+      intervalSeconds: hostHeartbeatIntervalSeconds,
+      onAgentMappingChanged: async (changedWorkerKeys) => {
+        if (changedWorkerKeys.length === 0) {
+          return;
+        }
+
+        for (const workerKey of changedWorkerKeys) {
+          const entry = runtimeEntriesByLocalKey.get(workerKey);
+          if (!entry) {
+            continue;
+          }
+
+          entry.runtimeEnv = buildRuntimeEnv(env, entry.worker, true);
+          const runtime = activeRuntimes.get(workerKey);
+          if (!runtime) {
+            continue;
+          }
+
+          process.stderr.write(
+            `[agentmc-runtime] worker mapping changed; restarting runtime local=${workerKey} agent=${entry.worker.agentId ?? "unresolved"}\n`
+          );
+          try {
+            await runtime.stop();
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            process.stderr.write(`[agentmc-runtime] worker restart after mapping change failed: ${message}\n`);
+          }
+        }
+      },
+      shouldStop: () => stopping
+    });
+    hostRequestedSessionLoopPromise = runHostRequestedSessionLoop({
+      client: heartbeatClient,
+      workers: resolved.workers,
+      activeRuntimes,
+      pollMs: hostRequestPollMs,
+      sessionLimit: hostRequestedSessionLimit,
+      shouldStop: () => stopping
+    });
+
+    await Promise.all(
+      [
+        ...runtimeEntries.map((entry) =>
+          runRuntimeEntryWithRestart({
+            entry,
+            activeRuntimes,
+            workerRestartDelayMs,
+            workerRestartMaxDelayMs,
+            shouldStop: () => stopping
+          })
+        ),
+        hostHeartbeatLoopPromise,
+        hostRequestedSessionLoopPromise
+      ]
+    );
+
+    return true;
   } finally {
+    stopping = true;
+    if (hostHeartbeatLoopPromise) {
+      await Promise.allSettled([hostHeartbeatLoopPromise]);
+    }
+    if (hostRequestedSessionLoopPromise) {
+      await Promise.allSettled([hostRequestedSessionLoopPromise]);
+    }
+    await stopAll();
     process.off("SIGINT", handleSignal);
     process.off("SIGTERM", handleSignal);
   }
+}
 
-  return true;
+async function runHostHeartbeatLoop(input: {
+  client: AgentMCApi;
+  env: NodeJS.ProcessEnv;
+  workers: RuntimeWorkerConfig[];
+  hostFingerprint: string;
+  intervalSeconds: number;
+  onAgentMappingChanged?: (changedWorkerKeys: string[]) => Promise<void> | void;
+  shouldStop: () => boolean;
+}): Promise<void> {
+  while (!input.shouldStop()) {
+    await sleepWithStop(Math.max(1_000, input.intervalSeconds * 1000), input.shouldStop);
+    if (input.shouldStop()) {
+      break;
+    }
+
+    try {
+      const heartbeat = await sendHostHeartbeat(input.client, input.env, input.workers, input.hostFingerprint);
+      const changedWorkerKeys = applyHeartbeatAgentMapping(input.workers, heartbeat);
+      if (input.onAgentMappingChanged && changedWorkerKeys.length > 0) {
+        await input.onAgentMappingChanged(changedWorkerKeys);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      process.stderr.write(`[agentmc-runtime] host heartbeat failed: ${message}\n`);
+    }
+  }
+}
+
+async function runHostRequestedSessionLoop(input: {
+  client: AgentMCApi;
+  workers: RuntimeWorkerConfig[];
+  activeRuntimes: Map<string, AgentRuntimeProgram>;
+  pollMs: number;
+  sessionLimit: number;
+  shouldStop: () => boolean;
+}): Promise<void> {
+  let nextPollAtMs = 0;
+  let lastRateLimitLogAtMs = 0;
+
+  while (!input.shouldStop()) {
+    const nowMs = Date.now();
+    if (nowMs < nextPollAtMs) {
+      await sleepWithStop(Math.min(1_000, nextPollAtMs - nowMs), input.shouldStop);
+      continue;
+    }
+
+    try {
+      const response = await input.client.operations.listAgentRealtimeRequestedSessions({
+        params: {
+          query: {
+            limit: input.sessionLimit
+          }
+        }
+      });
+
+      if (response.error) {
+        const status = Number(response.status || 0);
+        if (status === 429) {
+          const backoffMs = Math.max(input.pollMs * 3, 4_000);
+          nextPollAtMs = Date.now() + backoffMs;
+          if (Date.now() - lastRateLimitLogAtMs >= 5_000) {
+            lastRateLimitLogAtMs = Date.now();
+            process.stderr.write(
+              `[agentmc-runtime] listAgentRealtimeRequestedSessions rate limited (429); backing off for ${backoffMs}ms.\n`
+            );
+          }
+          continue;
+        }
+
+        const summary = summarizeApiError(response.error);
+        throw new Error(
+          `listAgentRealtimeRequestedSessions failed with status ${response.status}${summary ? ` (${summary})` : ""}`
+        );
+      }
+
+      nextPollAtMs = Date.now() + input.pollMs;
+
+      const sessions = Array.isArray(response.data?.data) ? response.data.data : [];
+      const orderedSessions = [...sessions].sort(
+        (left, right) => (toPositiveInt((right as { id?: unknown }).id) ?? 0) - (toPositiveInt((left as { id?: unknown }).id) ?? 0)
+      );
+      const workersByAgentId = new Map<number, RuntimeWorkerConfig>();
+      for (const worker of input.workers) {
+        if (worker.agentId !== null && worker.agentId > 0 && !workersByAgentId.has(worker.agentId)) {
+          workersByAgentId.set(worker.agentId, worker);
+        }
+      }
+
+      for (const session of orderedSessions) {
+        const row = valueAsObject(session);
+        if (!row) {
+          continue;
+        }
+
+        const sessionId = toPositiveInt(row.id);
+        const agentId = toPositiveInt(row.agent_id ?? row.agentId);
+        if (sessionId === null || agentId === null) {
+          continue;
+        }
+
+        const worker = workersByAgentId.get(agentId);
+        if (!worker) {
+          continue;
+        }
+
+        const runtime = input.activeRuntimes.get(worker.localKey);
+        if (!runtime) {
+          continue;
+        }
+
+        runtime.enqueueRequestedRealtimeSession(sessionId);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      process.stderr.write(`[agentmc-runtime] host realtime requested-session poll failed: ${message}\n`);
+      nextPollAtMs = Date.now() + Math.max(input.pollMs, 1_000);
+    }
+
+    const waitMs = Math.max(150, Math.min(1_000, Math.max(0, nextPollAtMs - Date.now())));
+    await sleepWithStop(waitMs, input.shouldStop);
+  }
+}
+
+async function sleepWithStop(totalMs: number, shouldStop: () => boolean): Promise<void> {
+  let remaining = Math.max(0, totalMs);
+  while (remaining > 0 && !shouldStop()) {
+    const stepMs = Math.min(1_000, remaining);
+    await sleep(stepMs);
+    remaining -= stepMs;
+  }
+}
+
+async function sendHostHeartbeat(
+  client: AgentMCApi,
+  env: NodeJS.ProcessEnv,
+  workers: RuntimeWorkerConfig[],
+  hostFingerprint: string
+): Promise<HostHeartbeatAgentRow[]> {
+  const models = parseCommaSeparatedList(env.AGENTMC_MODELS);
+  const privateIp = resolvePrivateIp();
+  const configuredPublicIp = nonEmpty(env.AGENTMC_PUBLIC_IP);
+  const publicIp = configuredPublicIp ?? privateIp ?? "127.0.0.1";
+  const runtimeProvider = normalizeRuntimeProvider(env.AGENTMC_RUNTIME_PROVIDER);
+  const runtimeName = nonEmpty(env.AGENTMC_RUNTIME_NAME) ?? "agentmc-node-host";
+  const runtimeVersion = nonEmpty(env.AGENTMC_RUNTIME_VERSION) ?? process.version;
+  const runtimeBuild = nonEmpty(env.AGENTMC_RUNTIME_BUILD) ?? null;
+
+  const payload = {
+    meta: {
+      runtime: {
+        name: runtimeName,
+        version: runtimeVersion,
+        ...(runtimeBuild ? { build: runtimeBuild } : {})
+      },
+      type: "host-runtime",
+      runtime_mode: runtimeProvider,
+      models: models.length > 0 ? models : [`${runtimeProvider}/default`]
+    },
+    host: {
+      fingerprint: hostFingerprint,
+      name: nonEmpty(env.AGENTMC_HOST_NAME) ?? hostname(),
+      meta: {
+        hostname: hostname(),
+        ip: privateIp ?? publicIp,
+        network: {
+          private_ip: privateIp ?? publicIp,
+          public_ip: publicIp
+        },
+        os: platform(),
+        os_version: release(),
+        arch: arch(),
+        cpu: {
+          model: cpus()[0]?.model ?? "unknown"
+        },
+        cpu_cores: Math.max(1, cpus().length),
+        ram_gb: Number((totalmem() / (1024 ** 3)).toFixed(2)),
+        disk: {
+          total_bytes: 0,
+          free_bytes: 0
+        },
+        uptime_seconds: Math.max(0, Math.trunc(uptime())),
+        runtime: {
+          name: runtimeName,
+          version: runtimeVersion
+        }
+      }
+    },
+    agents: workers.map((worker) => ({
+      ...(worker.agentId !== null ? { id: worker.agentId } : {}),
+      name: worker.localName ?? worker.localKey,
+      type: worker.provider ?? "runtime",
+      identity: {
+        name: worker.localName ?? worker.localKey,
+        agent_key: worker.localKey,
+        openclaw_agent: worker.openclawAgent ?? worker.localKey
+      }
+    }))
+  };
+
+  const response = await client.request("agentHeartbeat", {
+    body: payload as never
+  });
+
+  if (response.error) {
+    const summary = summarizeApiError(response.error);
+    throw new Error(`agentHeartbeat failed with status ${response.status}${summary ? ` (${summary})` : ""}`);
+  }
+
+  const responseData = valueAsObject(response.data);
+  const responseAgents = Array.isArray(responseData?.agents)
+    ? responseData.agents
+    : responseData?.agent
+      ? [responseData.agent]
+      : [];
+
+  const rows: HostHeartbeatAgentRow[] = [];
+  for (const row of responseAgents) {
+    const objectRow = valueAsObject(row);
+    const id = toPositiveInt(objectRow?.id);
+    if (id === null) {
+      continue;
+    }
+
+    rows.push({
+      id,
+      runtimeKey:
+        nonEmpty(objectRow?.runtime_key) ??
+        nonEmpty(objectRow?.runtimeKey) ??
+        nonEmpty(objectRow?.agent_key) ??
+        null,
+      name: nonEmpty(objectRow?.name)
+    });
+  }
+
+  process.stderr.write(
+    `[agentmc-runtime] host heartbeat sent agents=${workers.length} resolved=${rows.length}\n`
+  );
+
+  return rows;
+}
+
+function applyHeartbeatAgentMapping(workers: RuntimeWorkerConfig[], rows: HostHeartbeatAgentRow[]): string[] {
+  const byRuntimeKey = new Map<string, number>();
+  const byName = new Map<string, number>();
+  const changedWorkerKeys: string[] = [];
+
+  for (const row of rows) {
+    if (row.runtimeKey) {
+      byRuntimeKey.set(row.runtimeKey.toLowerCase(), row.id);
+    }
+    if (row.name) {
+      byName.set(row.name.toLowerCase(), row.id);
+    }
+  }
+
+  for (const worker of workers) {
+    const resolvedFromKey =
+      byRuntimeKey.get(worker.localKey.toLowerCase()) ??
+      (worker.openclawAgent ? byRuntimeKey.get(worker.openclawAgent.toLowerCase()) : undefined);
+    const resolvedFromName = worker.localName ? byName.get(worker.localName.toLowerCase()) : undefined;
+    const resolvedId = resolvedFromKey ?? resolvedFromName ?? null;
+    if (resolvedId !== null && resolvedId > 0 && worker.agentId !== resolvedId) {
+      worker.agentId = resolvedId;
+      changedWorkerKeys.push(worker.localKey);
+    }
+  }
+
+  return changedWorkerKeys;
+}
+
+function resolveHostFingerprint(env: NodeJS.ProcessEnv): string {
+  const configured = nonEmpty(env.AGENTMC_HOST_FINGERPRINT);
+  if (configured && configured.length >= 64) {
+    return configured.slice(0, 128);
+  }
+
+  const seed = [
+    hostname(),
+    platform(),
+    arch(),
+    String(cpus().length),
+    nonEmpty(env.AGENTMC_BASE_URL) ?? "",
+    process.cwd()
+  ].join("|");
+
+  return createHash("sha256").update(seed).digest("hex");
+}
+
+function resolvePrivateIp(): string | null {
+  const interfaces = networkInterfaces();
+  for (const rows of Object.values(interfaces)) {
+    for (const row of rows ?? []) {
+      if (!row || row.internal || row.family !== "IPv4") {
+        continue;
+      }
+      if (nonEmpty(row.address)) {
+        return row.address;
+      }
+    }
+  }
+
+  return null;
+}
+
+function summarizeApiError(error: unknown): string | null {
+  const payload = valueAsObject(error);
+  const root = valueAsObject(payload?.error) ?? payload;
+  const code = nonEmpty(root?.code);
+  const message = nonEmpty(root?.message);
+
+  if (code && message) {
+    return `${code}: ${message}`;
+  }
+  if (message) {
+    return message;
+  }
+  return code;
+}
+
+function buildRuntimeEnv(baseEnv: NodeJS.ProcessEnv, worker: RuntimeWorkerConfig, disableHeartbeat = false): NodeJS.ProcessEnv {
+  const runtimeEnv: NodeJS.ProcessEnv = {
+    ...baseEnv,
+    AGENTMC_API_KEY: worker.apiKey,
+    AGENTMC_WORKSPACE_DIR: worker.workspaceDir,
+    AGENTMC_STATE_PATH: worker.statePath
+  };
+
+  if (worker.agentId !== null) {
+    runtimeEnv.AGENTMC_AGENT_ID = String(worker.agentId);
+  } else {
+    delete runtimeEnv.AGENTMC_AGENT_ID;
+  }
+
+  if (worker.openclawAgent) {
+    runtimeEnv.OPENCLAW_AGENT = worker.openclawAgent;
+  }
+
+  if (disableHeartbeat) {
+    runtimeEnv.AGENTMC_DISABLE_HEARTBEAT = "1";
+    runtimeEnv.AGENTMC_DISABLE_REQUESTED_SESSION_POLLING = "1";
+  } else {
+    delete runtimeEnv.AGENTMC_DISABLE_HEARTBEAT;
+    delete runtimeEnv.AGENTMC_DISABLE_REQUESTED_SESSION_POLLING;
+  }
+
+  return runtimeEnv;
+}
+
+async function runRuntimeEntryWithRestart(input: {
+  entry: RuntimeEntry;
+  activeRuntimes: Map<string, AgentRuntimeProgram>;
+  workerRestartDelayMs: number;
+  workerRestartMaxDelayMs: number;
+  shouldStop: () => boolean;
+}): Promise<void> {
+  const { entry, activeRuntimes, shouldStop } = input;
+  let consecutiveFailures = 0;
+
+  while (!shouldStop()) {
+    const workerLabel =
+      `agent=${entry.worker.agentId ?? `auto:${entry.worker.localKey}`} provider=${entry.worker.provider ?? "unknown"} ` +
+      `local=${entry.worker.localName ?? "unknown"} workspace=${entry.worker.workspaceDir}`;
+    const runtime = AgentRuntimeProgram.fromEnv(entry.runtimeEnv);
+    activeRuntimes.set(entry.worker.localKey, runtime);
+    const startedAtMs = Date.now();
+    process.stderr.write(`[agentmc-runtime] worker start ${workerLabel}\n`);
+
+    try {
+      await runtime.run();
+
+      if (shouldStop()) {
+        break;
+      }
+
+      process.stderr.write(`[agentmc-runtime] worker exited unexpectedly; restarting ${workerLabel}\n`);
+    } catch (error) {
+      if (shouldStop()) {
+        break;
+      }
+
+      const message = error instanceof Error ? error.message : String(error);
+      process.stderr.write(`[agentmc-runtime] worker crashed ${workerLabel}: ${message}\n`);
+    } finally {
+      if (activeRuntimes.get(entry.worker.localKey) === runtime) {
+        activeRuntimes.delete(entry.worker.localKey);
+      }
+    }
+
+    if (shouldStop()) {
+      break;
+    }
+
+    const uptimeMs = Date.now() - startedAtMs;
+    if (uptimeMs >= WORKER_RESTART_RESET_WINDOW_MS) {
+      consecutiveFailures = 0;
+    } else {
+      consecutiveFailures = Math.min(consecutiveFailures + 1, 8);
+    }
+
+    const backoffMs = Math.min(
+      input.workerRestartMaxDelayMs,
+      input.workerRestartDelayMs * 2 ** consecutiveFailures
+    );
+    process.stderr.write(`[agentmc-runtime] worker restart scheduled in ${backoffMs}ms (${workerLabel})\n`);
+    await sleep(backoffMs);
+  }
+}
+
+function normalizeRuntimeProvider(value: unknown): "auto" | "openclaw" | "external" {
+  const normalized = nonEmpty(value)?.toLowerCase();
+  if (normalized === "openclaw" || normalized === "external" || normalized === "auto") {
+    return normalized;
+  }
+  return "auto";
+}
+
+function resolveWorkerConfigs(input: {
+  hostApiKey: string;
+  discoveredAgents: DiscoveredRuntimeAgent[];
+}): { workers: RuntimeWorkerConfig[]; warnings: string[] } {
+  const warnings: string[] = [];
+  const workers: RuntimeWorkerConfig[] = [];
+  const usedLocalKeys = new Set<string>();
+  const cwd = process.cwd();
+
+  for (const local of input.discoveredAgents) {
+    const localKey = nonEmpty(local.key) ?? nonEmpty(local.name) ?? `agent-${workers.length + 1}`;
+    const normalizedKey = localKey.replace(/[^A-Za-z0-9_.-]/g, "-").toLowerCase();
+
+    if (usedLocalKeys.has(normalizedKey)) {
+      warnings.push(
+        `Skipping local agent "${local.key || local.name || "unknown"}" because its runtime key is duplicated.`
+      );
+      continue;
+    }
+
+    usedLocalKeys.add(normalizedKey);
+    workers.push(buildWorkerConfig(input.hostApiKey, local, null, cwd, normalizedKey));
+  }
+
+  return { workers, warnings };
+}
+
+function buildWorkerConfig(
+  hostApiKey: string,
+  local: DiscoveredRuntimeAgent,
+  agentId: number | null,
+  cwd: string,
+  normalizedKey?: string
+): RuntimeWorkerConfig {
+  const localKey = nonEmpty(local.key) ?? (agentId !== null ? `agent-${agentId}` : "agent");
+  const safeKey = normalizedKey ?? localKey.replace(/[^A-Za-z0-9_.-]/g, "-").toLowerCase();
+  const workspaceDir = nonEmpty(local.workspaceDir) ?? resolve(cwd, ".agentmc", "workspaces", safeKey);
+  const statePath = resolve(workspaceDir, ".agentmc", `state.${safeKey}.json`);
+
+  return {
+    agentId,
+    apiKey: hostApiKey,
+    workspaceDir,
+    statePath,
+    localKey: safeKey,
+    openclawAgent: local.provider === "openclaw" ? local.key : undefined,
+    localName: local.name,
+    provider: local.provider
+  };
+}
+function valueAsObject(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  return value as Record<string, unknown>;
 }
 
 export async function runCli(argv: string[] = process.argv): Promise<void> {
@@ -228,13 +880,11 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
 
   program
     .command("runtime:start")
-    .description("Start the unified AgentMC runtime program (realtime + instructions sync + heartbeat)")
+    .description("Start the unified AgentMC host runtime supervisor (realtime + heartbeat + recurring tasks)")
     .action(async () => {
       const multiRuntimeRan = await runMultiAgentRuntimeFromEnv(process.env);
       if (!multiRuntimeRan) {
-        throw new Error(
-          "No agent runtime keys found. Set one or more AGENTMC_API_KEY_<AGENT_ID>=mca_... environment variables."
-        );
+        throw new Error("Runtime bootstrap failed. Set AGENTMC_API_KEY (host key).");
       }
     });
 
@@ -243,7 +893,7 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
     .description("Call an operation by operationId")
     .argument("<operationId>")
     .option("--base-url <url>", "override API base URL")
-    .option("--api-key <key>", "Agent or workspace API key credential")
+    .option("--api-key <key>", "Host/team API key credential")
     .option("--params <json>", "JSON for params.{path|query|header|cookie}")
     .option("--body <json>", "JSON request body")
     .option("--headers <json>", "JSON request headers")

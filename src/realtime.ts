@@ -41,6 +41,15 @@ interface PusherOptions {
 type PusherConstructor = new (key: string, options: PusherOptions) => PusherClient;
 let pusherConstructorPromise: Promise<PusherConstructor> | null = null;
 
+interface SharedPusherEntry {
+  key: string;
+  pusher: PusherClient;
+  refCount: number;
+  channelAuthorizers: Map<string, (socketId: string) => Promise<unknown>>;
+}
+
+const sharedPusherEntries = new Map<string, SharedPusherEntry>();
+
 const DEFAULT_REALTIME_SIGNAL_TYPE = "message";
 const DEFAULT_REALTIME_MAX_PAYLOAD_BYTES = 9_000;
 const DEFAULT_REALTIME_MAX_ENVELOPE_BYTES = 10_000;
@@ -140,6 +149,7 @@ class RealtimeNotificationsSubscription implements AgentRealtimeNotificationsSub
   private readonly options: AgentRealtimeNotificationsOptions;
   private readonly pusher: PusherClient;
   private readonly onBeforeDisconnect?: () => void;
+  private readonly onTransportDisconnect?: () => void;
   private readyResolve!: () => void;
   private readyReject!: (error: Error) => void;
   private readySettled = false;
@@ -153,6 +163,7 @@ class RealtimeNotificationsSubscription implements AgentRealtimeNotificationsSub
     event: string;
     pusher: PusherClient;
     onBeforeDisconnect?: () => void;
+    onTransportDisconnect?: () => void;
   }) {
     this.client = args.client;
     this.options = args.options;
@@ -161,6 +172,7 @@ class RealtimeNotificationsSubscription implements AgentRealtimeNotificationsSub
     this.event = args.event;
     this.pusher = args.pusher;
     this.onBeforeDisconnect = args.onBeforeDisconnect;
+    this.onTransportDisconnect = args.onTransportDisconnect;
     this.ready = new Promise<void>((resolve, reject) => {
       this.readyResolve = resolve;
       this.readyReject = reject;
@@ -205,7 +217,11 @@ class RealtimeNotificationsSubscription implements AgentRealtimeNotificationsSub
 
     try {
       this.pusher.unsubscribe(this.channel);
-      this.pusher.disconnect();
+      if (this.onTransportDisconnect) {
+        this.onTransportDisconnect();
+      } else {
+        this.pusher.disconnect();
+      }
     } catch {
       // Best-effort teardown; ignore local socket cleanup failures.
     }
@@ -223,6 +239,9 @@ class RealtimeNotificationsSubscription implements AgentRealtimeNotificationsSub
         path: {
           session: this.session.id
         }
+      },
+      headers: {
+        "X-Agent-Id": String(this.options.agent)
       },
       body: {
         reason: this.options.closeReason ?? "sdk_disconnect",
@@ -277,7 +296,52 @@ export async function subscribeToRealtimeNotifications(
 
   const wsPath = normalizeWebsocketPath(valueAsString(connection.path));
   const cluster = valueAsString(connection.cluster)?.trim() || "mt1";
-  const Pusher = await loadPusherConstructor();
+  const sharedTransportKey = buildSharedTransportKey({
+    appKey,
+    host,
+    resolvedPort,
+    forceTLS,
+    cluster,
+    wsPath
+  });
+  const authChannel = channelName;
+  const authForChannel = async (socketId: string): Promise<unknown> => {
+    const authResult = await client.operations.authenticateAgentRealtimeSocket({
+      params: {
+        path: {
+          session: session.id
+        }
+      },
+      headers: {
+        "X-Agent-Id": String(options.agent)
+      },
+      body: {
+        socket_id: socketId,
+        channel_name: authChannel
+      }
+    });
+
+    if (authResult.error || !authResult.data) {
+      throw createOperationError(
+        "authenticateAgentRealtimeSocket",
+        authResult.status,
+        authResult.error ?? { message: "Missing auth payload in response." }
+      );
+    }
+
+    return authResult.data;
+  };
+  const pusher = await acquireSharedPusher({
+    key: sharedTransportKey,
+    appKey,
+    host,
+    resolvedPort,
+    forceTLS,
+    cluster,
+    wsPath,
+    channelName,
+    authorize: authForChannel
+  });
 
   let disconnected = false;
   let currentConnectionState: AgentRealtimeConnectionState = "initialized";
@@ -299,50 +363,6 @@ export async function subscribeToRealtimeNotifications(
       readyTimeoutHandle = null;
     }
   };
-
-  const pusher = new Pusher(appKey, {
-    wsHost: host,
-    wsPort: resolvedPort,
-    wssPort: resolvedPort,
-    forceTLS,
-    enabledTransports: ["ws", "wss"],
-    disableStats: true,
-    cluster,
-    ...(wsPath ? { wsPath } : {}),
-    authorizer: (channel) => ({
-      authorize: (socketId, callback) => {
-        void (async () => {
-          const authResult = await client.operations.authenticateAgentRealtimeSocket({
-            params: {
-              path: {
-                session: session.id
-              }
-            },
-            body: {
-              socket_id: socketId,
-              channel_name: channel.name
-            }
-          });
-
-          if (authResult.error || !authResult.data) {
-            const error = createOperationError(
-              "authenticateAgentRealtimeSocket",
-              authResult.status,
-              authResult.error ?? { message: "Missing auth payload in response." }
-            );
-            callback(true, { error: error.message });
-            await callErrorHandler(options.onError, error);
-            return;
-          }
-
-          callback(false, authResult.data);
-        })().catch(async (error) => {
-          callback(true, { error: normalizeError(error).message });
-          await callErrorHandler(options.onError, normalizeError(error));
-        });
-      }
-    })
-  });
 
   const readyTimeoutMs = normalizeReadyTimeoutMs(options.readyTimeoutMs);
 
@@ -367,6 +387,9 @@ export async function subscribeToRealtimeNotifications(
         );
         boundChannel = null;
       }
+    },
+    onTransportDisconnect: () => {
+      releaseSharedPusher(sharedTransportKey, channelName);
     }
   });
 
@@ -542,6 +565,7 @@ export async function publishRealtimeMessage(
   const singleSignalPayload = buildRealtimeMessagePayload(channelType, options.payload);
   if (fitsSignalPayloadLimits(signalType, singleSignalPayload, maxPayloadBytes, maxEnvelopeBytes)) {
     const signalId = await createRealtimeSignal(client, {
+      agent: options.agent,
       session: options.session,
       signalType,
       payload: singleSignalPayload
@@ -576,6 +600,7 @@ export async function publishRealtimeMessage(
   const signalIds: number[] = [];
   for (const chunkPayload of chunks) {
     const signalId = await createRealtimeSignal(client, {
+      agent: options.agent,
       session: options.session,
       signalType,
       payload: chunkPayload
@@ -609,7 +634,10 @@ async function resolveAndClaimSession(
         query: {
           limit: options.requestedSessionLimit ?? 20
         }
-      }
+      },
+      headers: {
+        "X-Agent-Id": String(options.agent)
+      },
     });
 
     if (requestedResult.error) {
@@ -636,6 +664,9 @@ async function resolveAndClaimSession(
         session: sessionId
       }
     },
+    headers: {
+      "X-Agent-Id": String(options.agent)
+    },
     body: {}
   });
 
@@ -649,6 +680,106 @@ async function resolveAndClaimSession(
   }
 
   return session;
+}
+
+function buildSharedTransportKey(input: {
+  appKey: string;
+  host: string;
+  resolvedPort: number;
+  forceTLS: boolean;
+  cluster: string;
+  wsPath?: string;
+}): string {
+  return [
+    input.appKey,
+    input.host,
+    String(input.resolvedPort),
+    input.forceTLS ? "tls" : "plain",
+    input.cluster,
+    input.wsPath ?? ""
+  ].join("|");
+}
+
+async function acquireSharedPusher(input: {
+  key: string;
+  appKey: string;
+  host: string;
+  resolvedPort: number;
+  forceTLS: boolean;
+  cluster: string;
+  wsPath?: string;
+  channelName: string;
+  authorize: (socketId: string) => Promise<unknown>;
+}): Promise<PusherClient> {
+  const existing = sharedPusherEntries.get(input.key);
+  if (existing) {
+    existing.refCount += 1;
+    existing.channelAuthorizers.set(input.channelName, input.authorize);
+    return existing.pusher;
+  }
+
+  const Pusher = await loadPusherConstructor();
+  const channelAuthorizers = new Map<string, (socketId: string) => Promise<unknown>>();
+  channelAuthorizers.set(input.channelName, input.authorize);
+
+  const pusher = new Pusher(input.appKey, {
+    wsHost: input.host,
+    wsPort: input.resolvedPort,
+    wssPort: input.resolvedPort,
+    forceTLS: input.forceTLS,
+    enabledTransports: ["ws", "wss"],
+    disableStats: true,
+    cluster: input.cluster,
+    ...(input.wsPath ? { wsPath: input.wsPath } : {}),
+    authorizer: (channel) => ({
+      authorize: (socketId, callback) => {
+        const authorizer = channelAuthorizers.get(channel.name);
+        if (!authorizer) {
+          callback(true, { error: `Missing channel authorizer for ${channel.name}` });
+          return;
+        }
+
+        void authorizer(socketId)
+          .then((result) => {
+            callback(false, result);
+          })
+          .catch((error) => {
+            callback(true, { error: normalizeError(error).message });
+          });
+      }
+    })
+  });
+
+  sharedPusherEntries.set(input.key, {
+    key: input.key,
+    pusher,
+    refCount: 1,
+    channelAuthorizers
+  });
+
+  return pusher;
+}
+
+function releaseSharedPusher(key: string, channelName: string): void {
+  const entry = sharedPusherEntries.get(key);
+  if (!entry) {
+    return;
+  }
+
+  entry.channelAuthorizers.delete(channelName);
+  entry.refCount = Math.max(0, entry.refCount - 1);
+
+  if (entry.refCount > 0) {
+    return;
+  }
+
+  try {
+    entry.pusher.disconnect();
+  } catch {
+    // Best-effort cleanup.
+  } finally {
+    sharedPusherEntries.delete(key);
+  }
 }
 
 async function loadPusherConstructor(): Promise<PusherConstructor> {
@@ -930,6 +1061,7 @@ function isConnectionState(value: string): value is AgentRealtimeConnectionState
 async function createRealtimeSignal(
   client: AgentMCApi,
   options: {
+    agent: number;
     session: number;
     signalType: string;
     payload: JsonObject;
@@ -940,6 +1072,9 @@ async function createRealtimeSignal(
       path: {
         session: options.session
       }
+    },
+    headers: {
+      "X-Agent-Id": String(options.agent)
     },
     body: {
       type: options.signalType,

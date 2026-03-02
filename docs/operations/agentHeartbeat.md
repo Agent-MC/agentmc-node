@@ -1,8 +1,8 @@
 # agentHeartbeat
 
 - Method: `POST`
-- Path: `/agents/heartbeat`
-- Summary: Record agent heartbeat and runtime host telemetry.
+- Path: `/hosts/heartbeat`
+- Summary: Record host heartbeat and runtime telemetry.
 - Auth: ApiKeyAuth
 
 ## Description
@@ -70,10 +70,10 @@ Accepts heartbeat payloads with required host telemetry and required runtime age
     }
   },
   "agent": {
-    "id": 42,
     "name": "Jarvis",
     "identity": {
       "name": "Jarvis",
+      "agent_key": "solomon",
       "creature": "robot",
       "vibe": "calm"
     }
@@ -111,6 +111,11 @@ Heartbeat accepted.
     "agents_online": 1,
     "created_at": "2026-02-22T17:21:02Z",
     "updated_at": "2026-02-22T17:21:02Z"
+  },
+  "agent": {
+    "id": 42,
+    "name": "Solomon",
+    "type": "openclaw"
   }
 }
 ```
@@ -261,10 +266,10 @@ const result = await client.operations.agentHeartbeat({
       }
     },
     "agent": {
-      "id": 42,
       "name": "Jarvis",
       "identity": {
         "name": "Jarvis",
+        "agent_key": "solomon",
         "creature": "robot",
         "vibe": "calm"
       }

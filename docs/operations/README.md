@@ -4,14 +4,14 @@ Generated from `spec/openapi.filtered.json`.
 
 | Operation ID | Method | Path | Tags |
 | --- | --- | --- | --- |
-| [agentHeartbeat](./agentHeartbeat.md) | POST | `/agents/heartbeat` | Agents |
-| [authenticateAgentRealtimeSocket](./authenticateAgentRealtimeSocket.md) | POST | `/agents/realtime/sessions/{session}/socket-auth` | Agents |
-| [claimAgentRealtimeSession](./claimAgentRealtimeSession.md) | POST | `/agents/realtime/sessions/{session}/claim` | Agents |
-| [closeAgentRealtimeSession](./closeAgentRealtimeSession.md) | POST | `/agents/realtime/sessions/{session}/close` | Agents |
+| [agentHeartbeat](./agentHeartbeat.md) | POST | `/hosts/heartbeat` | Hosts |
+| [authenticateAgentRealtimeSocket](./authenticateAgentRealtimeSocket.md) | POST | `/hosts/realtime/sessions/{session}/socket-auth` | Hosts |
+| [claimAgentRealtimeSession](./claimAgentRealtimeSession.md) | POST | `/hosts/realtime/sessions/{session}/claim` | Hosts |
+| [closeAgentRealtimeSession](./closeAgentRealtimeSession.md) | POST | `/hosts/realtime/sessions/{session}/close` | Hosts |
 | [commentCalendarItem](./commentCalendarItem.md) | POST | `/calendar/items/{item}/comments` | Calendar |
 | [completeRecurringTaskRun](./completeRecurringTaskRun.md) | POST | `/agents/recurring-task-runs/{run}/complete` | - |
 | [createAgentBrief](./createAgentBrief.md) | POST | `/briefs` | Briefs |
-| [createAgentRealtimeSignal](./createAgentRealtimeSignal.md) | POST | `/agents/realtime/sessions/{session}/signals` | Agents |
+| [createAgentRealtimeSignal](./createAgentRealtimeSignal.md) | POST | `/hosts/realtime/sessions/{session}/signals` | Hosts |
 | [createBoard](./createBoard.md) | POST | `/boards` | Boards |
 | [createBoardColumn](./createBoardColumn.md) | POST | `/boards/{board}/columns` | Boards |
 | [createCalendarItem](./createCalendarItem.md) | POST | `/calendar/items` | Calendar |
@@ -29,10 +29,9 @@ Generated from `spec/openapi.filtered.json`.
 | [deleteTask](./deleteTask.md) | DELETE | `/tasks/{task}` | Tasks |
 | [deleteTaskComment](./deleteTaskComment.md) | DELETE | `/tasks/{task}/comments/{comment}` | Tasks |
 | [downloadFile](./downloadFile.md) | GET | `/files/{id}/download` | Files |
-| [getAgentInstructions](./getAgentInstructions.md) | GET | `/agents/instructions` | Agents |
 | [listAgentBriefs](./listAgentBriefs.md) | GET | `/briefs` | Briefs |
-| [listAgentRealtimeRequestedSessions](./listAgentRealtimeRequestedSessions.md) | GET | `/agents/realtime/sessions/requested` | Agents |
-| [listAgentRealtimeSignals](./listAgentRealtimeSignals.md) | GET | `/agents/realtime/sessions/{session}/signals` | Agents |
+| [listAgentRealtimeRequestedSessions](./listAgentRealtimeRequestedSessions.md) | GET | `/hosts/realtime/sessions/requested` | Hosts |
+| [listAgentRealtimeSignals](./listAgentRealtimeSignals.md) | GET | `/hosts/realtime/sessions/{session}/signals` | Hosts |
 | [listAgents](./listAgents.md) | GET | `/teams/agents` | Teams |
 | [listBoards](./listBoards.md) | GET | `/boards` | Boards |
 | [listCalendar](./listCalendar.md) | GET | `/calendar` | Calendar |

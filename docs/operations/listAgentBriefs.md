@@ -103,7 +103,7 @@ Brief list returned.
         "active": true
       }
     ],
-    "path": ".agentmc/skills/skill.md",
+    "path": "notes/daily-ops.md",
     "per_page": 25,
     "total": 0
   }

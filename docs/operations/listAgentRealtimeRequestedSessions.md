@@ -1,13 +1,13 @@
 # listAgentRealtimeRequestedSessions
 
 - Method: `GET`
-- Path: `/agents/realtime/sessions/requested`
-- Summary: List requested realtime sessions for an agent.
+- Path: `/hosts/realtime/sessions/requested`
+- Summary: List requested realtime sessions for one agent or a host.
 - Auth: ApiKeyAuth
 
 ## Description
 
-No additional description.
+When X-Agent-Id (or agent_id query) is provided, returns requested sessions for that agent. With a host API key and no agent context, returns requested sessions across all agents assigned to that host.
 
 ## Parameters
 

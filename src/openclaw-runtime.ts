@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { access, readFile, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, resolve } from "node:path";
@@ -38,7 +38,6 @@ const DEFAULT_OPENCLAW_DOC_IDS = [
   "TOOLS.md",
   "IDENTITY.md",
   "USER.md",
-  "HEARTBEAT.md",
   "BOOTSTRAP.md",
   "MEMORY.md"
 ] as const;
@@ -140,6 +139,7 @@ export interface OpenClawAgentRuntimeOptions {
   closeStatus?: "closed" | "failed";
   includeInitialSnapshot?: boolean;
   runtimeDocsDirectory?: string;
+  runtimeWorkingDirectory?: string;
   runtimeDocIds?: readonly string[];
   includeMissingRuntimeDocs?: boolean;
   openclawCommand?: string;
@@ -202,6 +202,7 @@ interface ResolvedOptions {
   closeStatus: "closed" | "failed";
   includeInitialSnapshot: boolean;
   runtimeDocsDirectory: string;
+  runtimeWorkingDirectory: string;
   runtimeDocIds: string[];
   includeMissingRuntimeDocs: boolean;
   openclawCommand: string;
@@ -336,7 +337,24 @@ export class OpenClawAgentRuntime {
     }
   }
 
+  enqueueRequestedSession(sessionId: number): boolean {
+    const normalizedSessionId = toPositiveInteger(sessionId);
+    if (normalizedSessionId < 1 || this.stopRequested || this.runPromise === null) {
+      return false;
+    }
+
+    if (this.sessions.has(normalizedSessionId)) {
+      return false;
+    }
+
+    this.startSessionLoop(normalizedSessionId);
+    return true;
+  }
+
   private async runLoop(): Promise<void> {
+    await mkdir(this.options.runtimeDocsDirectory, { recursive: true });
+    await mkdir(this.options.runtimeWorkingDirectory, { recursive: true });
+
     try {
       await this.options.client.prewarmRealtimeTransport();
     } catch (error) {
@@ -367,7 +385,10 @@ export class OpenClawAgentRuntime {
         query: {
           limit: this.options.requestedSessionLimit
         }
-      }
+      },
+      headers: {
+        "X-Agent-Id": String(this.options.agent)
+      },
     });
 
     if (response.error) {
@@ -580,7 +601,10 @@ export class OpenClawAgentRuntime {
           exclude_sender: "agent",
           limit: this.options.signalPollLimit
         }
-      }
+      },
+      headers: {
+        "X-Agent-Id": String(this.options.agent)
+      },
     });
 
     if (response.error) {
@@ -1039,57 +1063,42 @@ export class OpenClawAgentRuntime {
     const runId = `agentmc-${input.sessionId}-${input.requestId}`;
     const sessionKey = `agent:${this.options.openclawAgent}:agentmc:${input.sessionId}`;
 
-    const submitResponse = await this.gatewayCall("agent", {
-      idempotencyKey: runId,
-      sessionKey,
-      message: input.userText
-    }, this.options.openclawSubmitTimeoutMs);
+    const timeoutMs = Math.max(
+      this.options.openclawSubmitTimeoutMs,
+      this.options.openclawWaitTimeoutMs,
+      this.options.openclawGatewayTimeoutMs
+    );
 
-    const submittedRunId =
-      valueAsString(submitResponse.runId)?.trim() ||
-      valueAsString(submitResponse.run_id)?.trim() ||
-      valueAsString(submitResponse.id)?.trim() ||
-      runId;
-
-    const waitResponse = await this.gatewayCall("agent.wait", {
-      runId: submittedRunId,
-      timeoutMs: this.options.openclawWaitTimeoutMs
-    }, this.options.openclawGatewayTimeoutMs);
-
-    const waitStatus = normalizeLowercase(waitResponse.status) || "ok";
-    if (waitStatus === "timeout") {
+    let directText = "";
+    try {
+      const output = await execFileAsync(
+        this.options.openclawCommand,
+        ["agent", "--agent", this.options.openclawAgent, "--message", input.userText],
+        {
+          cwd: this.options.runtimeWorkingDirectory,
+          timeout: timeoutMs,
+          encoding: "utf8",
+          maxBuffer: this.options.openclawMaxBufferBytes
+        }
+      );
+      const stdoutText = parseExternalAgentOutput(valueAsString(output.stdout) ?? "");
+      const stderrText = parseExternalAgentOutput(valueAsString(output.stderr) ?? "");
+      directText = stdoutText !== "" ? stdoutText : stderrText;
+    } catch (error) {
       return {
         requestId: input.requestId,
-        runId: submittedRunId,
-        status: "timeout",
-        textSource: "wait",
-        content: "I'm still working on that. Please retry in a moment."
-      };
-    }
-
-    if (waitStatus !== "ok") {
-      return {
-        requestId: input.requestId,
-        runId: submittedRunId,
+        runId,
         status: "error",
         textSource: "error",
-        content: `I hit an error in the OpenClaw run: ${extractText(waitResponse.error) ?? "unknown error"}`
+        content: `I hit an error in the OpenClaw run: ${normalizeError(error).message}`
       };
     }
 
-    const directText =
-      extractText(waitResponse.content) ??
-      extractText(waitResponse.output_text) ??
-      extractText(waitResponse.text) ??
-      extractText(waitResponse.message) ??
-      extractText(waitResponse.response) ??
-      null;
-
-    const sanitizedDirectText = directText ? sanitizeAssistantOutputText(directText) : "";
+    const sanitizedDirectText = sanitizeAssistantOutputText(directText);
     if (sanitizedDirectText !== "") {
       return {
         requestId: input.requestId,
-        runId: submittedRunId,
+        runId,
         status: "ok",
         textSource: "wait",
         content: sanitizedDirectText
@@ -1101,7 +1110,7 @@ export class OpenClawAgentRuntime {
     if (sanitizedHistoryText !== "") {
       return {
         requestId: input.requestId,
-        runId: submittedRunId,
+        runId,
         status: "ok",
         textSource: "session_history",
         content: sanitizedHistoryText
@@ -1110,44 +1119,11 @@ export class OpenClawAgentRuntime {
 
     return {
       requestId: input.requestId,
-      runId: submittedRunId,
+      runId,
       status: "ok",
       textSource: "fallback",
       content: "I finished the run, but no assistant text was found."
     };
-  }
-
-  private async gatewayCall(method: string, params: JsonObject, timeoutMs: number): Promise<JsonObject> {
-    const args = [
-      "gateway",
-      "call",
-      method,
-      "--json",
-      "--timeout",
-      String(toPositiveInteger(timeoutMs)),
-      "--params",
-      JSON.stringify(params)
-    ];
-
-    try {
-      const { stdout } = await execFileAsync(this.options.openclawCommand, args, {
-        maxBuffer: this.options.openclawMaxBufferBytes
-      });
-      const parsed = parseGatewayJson(stdout);
-      if (hasTopLevelRunResponseShape(parsed)) {
-        return parsed;
-      }
-      const unwrapped = unwrapGatewayPayload(parsed);
-      if (unwrapped === parsed) {
-        return parsed;
-      }
-      return {
-        ...parsed,
-        ...unwrapped
-      };
-    } catch (error) {
-      throw new Error(`openclaw gateway call ${method} failed: ${normalizeError(error).message}`);
-    }
   }
 
   private async readLatestAssistantText(sessionKey: string): Promise<string | null> {
@@ -1183,7 +1159,11 @@ export class OpenClawAgentRuntime {
         return null;
       }
 
-      for (const candidatePath of resolveSessionFilePaths(sessionFile, this.options.openclawSessionsPath)) {
+      for (const candidatePath of resolveSessionFilePaths(
+        sessionFile,
+        this.options.openclawSessionsPath,
+        this.options.runtimeWorkingDirectory
+      )) {
         const text = await readLatestAssistantTextFromJsonl(candidatePath);
         if (text) {
           return text;
@@ -1528,6 +1508,7 @@ export class OpenClawAgentRuntime {
 
     try {
       const result = await execFileAsync(this.options.openclawCommand, args, {
+        cwd: this.options.runtimeWorkingDirectory,
         timeout: this.options.openclawProfileUpdateTimeoutMs,
         maxBuffer: this.options.openclawMaxBufferBytes
       });
@@ -1710,6 +1691,9 @@ export class OpenClawAgentRuntime {
             session: state.sessionId
           }
         },
+        headers: {
+          "X-Agent-Id": String(this.options.agent)
+        },
         body: {
           reason,
           status: closeStatusOverride ?? this.options.closeStatus
@@ -1766,6 +1750,7 @@ function resolveOptions(options: OpenClawAgentRuntimeOptions): ResolvedOptions {
   }
 
   const runtimeDocsDirectory = resolve(options.runtimeDocsDirectory ?? process.cwd());
+  const runtimeWorkingDirectory = resolve(options.runtimeWorkingDirectory ?? runtimeDocsDirectory);
   const openclawAgent = normalizeOpenClawAgent(options.openclawAgent);
   const defaultSessionsPath = resolve(
     homedir(),
@@ -1818,6 +1803,7 @@ function resolveOptions(options: OpenClawAgentRuntimeOptions): ResolvedOptions {
     closeStatus: options.closeStatus ?? "closed",
     includeInitialSnapshot: options.includeInitialSnapshot !== false,
     runtimeDocsDirectory,
+    runtimeWorkingDirectory,
     runtimeDocIds,
     includeMissingRuntimeDocs: options.includeMissingRuntimeDocs === true,
     openclawCommand: valueAsString(options.openclawCommand)?.trim() || "openclaw",
@@ -2006,65 +1992,35 @@ function previewText(value: unknown, max = 220): string | null {
   return `${trimmed.slice(0, Math.max(1, max - 3))}...`;
 }
 
-function parseGatewayJson(stdout: string): JsonObject {
-  const output = String(stdout || "").trim();
-  if (output === "") {
-    throw new Error("Empty OpenClaw gateway response.");
+function parseExternalAgentOutput(value: unknown): string {
+  const trimmed = valueAsString(value)?.trim() ?? "";
+  if (trimmed === "") {
+    return "";
   }
 
   try {
-    const parsed = JSON.parse(output);
-    return valueAsObject(parsed) ?? {};
-  } catch {
-    const lines = output
-      .split(/\r?\n/g)
-      .map((line) => line.trim())
-      .filter((line) => line !== "");
+    const parsed = JSON.parse(trimmed);
+    if (typeof parsed === "string") {
+      return parsed;
+    }
 
-    for (let index = lines.length - 1; index >= 0; index -= 1) {
-      const line = lines[index];
-      if (line === undefined) {
-        continue;
-      }
-      try {
-        const parsed = JSON.parse(line);
-        const object = valueAsObject(parsed);
-        if (object) {
-          return object;
-        }
-      } catch {
-        // Keep scanning trailing lines.
+    if (parsed && typeof parsed === "object") {
+      const object = parsed as JsonObject;
+      const text =
+        extractText(object.content) ??
+        extractText(object.output) ??
+        extractText(object.text) ??
+        extractText(object.message) ??
+        extractText(object.response);
+      if (text) {
+        return text;
       }
     }
+  } catch {
+    // Keep plain text fallback.
   }
 
-  throw new Error("OpenClaw gateway response was not parseable JSON.");
-}
-
-function unwrapGatewayPayload(payload: JsonObject): JsonObject {
-  const result = valueAsObject(payload.result);
-  if (result) {
-    return result;
-  }
-
-  const data = valueAsObject(payload.data);
-  if (data) {
-    return data;
-  }
-
-  const nestedPayload = valueAsObject(payload.payload);
-  if (nestedPayload) {
-    return nestedPayload;
-  }
-
-  return payload;
-}
-
-function hasTopLevelRunResponseShape(payload: JsonObject): boolean {
-  return (
-    (valueAsString(payload.runId)?.trim() || "") !== "" ||
-    (valueAsString(payload.run_id)?.trim() || "") !== ""
-  );
+  return trimmed;
 }
 
 function extractText(value: unknown, depth = 0): string | null {
@@ -2240,7 +2196,7 @@ function looksLikeSessionObject(session: JsonObject): boolean {
   return hasSessionIdentifier;
 }
 
-function resolveSessionFilePaths(sessionFilePath: string, sessionsJsonPath: string): string[] {
+function resolveSessionFilePaths(sessionFilePath: string, sessionsJsonPath: string, runtimeBase: string): string[] {
   const trimmed = sessionFilePath.trim();
   if (trimmed === "") {
     return [];
@@ -2251,7 +2207,7 @@ function resolveSessionFilePaths(sessionFilePath: string, sessionsJsonPath: stri
   }
 
   const sessionsStoreDir = dirname(resolve(sessionsJsonPath));
-  const safeRuntimeBase = process.cwd();
+  const safeRuntimeBase = resolve(runtimeBase);
   const candidates = [resolve(sessionsStoreDir, trimmed), resolve(safeRuntimeBase, trimmed)];
 
   return Array.from(new Set(candidates));

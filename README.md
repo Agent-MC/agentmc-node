@@ -53,10 +53,7 @@ Supported auth schemes:
 -   `ApiKeyAuth` via `X-Api-Key`
 -   `SessionCookieAuth` via browser session cookie
 
-`apiKey` can be either:
-
--   an agent key (for example `mca_...`)
--   a workspace key (for example `cc_...`)
+`apiKey` should be a host/team API key (for example `cc_...`).
 
 Configure once at client creation:
 
@@ -148,7 +145,6 @@ Notes:
 Use `AgentRuntimeProgram` to run:
 
 -   realtime websocket handling (chat/files/notifications)
--   instruction bundle sync (`getAgentInstructions`)
 -   immediate startup heartbeat plus recurring heartbeat updates (`agentHeartbeat`)
 -   recurring task polling + completion (`listDueRecurringTaskRuns`, `completeRecurringTaskRun`)
 -   runtime health/self-heal loop
@@ -183,15 +179,11 @@ npx agentmc-api runtime:start
 ```
 
 Required env:
--   Agent runtime keys:
-    -   One or more `AGENTMC_API_KEY_<AGENT_ID>` values
-    -   Example: `AGENTMC_API_KEY_42=mca_...`
--   Workspace defaults:
-    -   Single agent key: uses current working directory (`process.cwd()`)
-    -   Multiple agent keys: uses per-agent folders under `./.agentmc/runtimes`
--   Optional worker workspace root: `AGENTMC_MULTI_WORKSPACE_ROOT` (used for per-agent multi-runtime folders)
--   Optional per-worker workspace override: `AGENTMC_WORKSPACE_DIR_<AGENT_ID>`
+-   Host runtime key:
+    -   `AGENTMC_API_KEY=<host-key>`
+-   Runtime workspace: current working directory (`process.cwd()`)
 -   Optional API base URL override: `AGENTMC_BASE_URL` (defaults to `https://agentmc.ai/api/v1`)
+-   Agent routing: runtime auto-detects OpenClaw agents from `~/.openclaw/openclaw.json` and heartbeat auto-provisions AgentMC agents per host.
 -   Runtime provider inputs:
     -   OpenClaw auto-detect (must resolve at least one runtime model), or
     -   `AGENTMC_RUNTIME_COMMAND` + `AGENTMC_MODELS`
@@ -203,15 +195,16 @@ Required env:
         1. `openclaw agents list --json`
         2. `openclaw gateway call agents.list --json` (and `--params {}` variant)
         3. `openclaw gateway call config.get --json` (`parsed.agents.list`)
-        4. local `openclaw.json` (`OPENCLAW_CONFIG_PATH`, `~/.openclaw/openclaw.json`, related fallbacks)
-    -   If no source returns a profile, runtime falls back to `name=agent-<AGENTMC_AGENT_ID>` and `type=runtime`.
+        4. local `openclaw.json` (`~/.openclaw/openclaw.json`, related fallbacks)
+    -   If no source returns a profile, runtime falls back to `name=agent` and `type=runtime`.
 -   Optional recurring execution tuning:
     -   `AGENTMC_RECURRING_WAIT_TIMEOUT_MS` (default `600000` / 10 minutes)
     -   `AGENTMC_RECURRING_GATEWAY_TIMEOUT_MS` (default `720000` / 12 minutes; always coerced to at least wait timeout + 30 seconds)
 
 Keep these env values up to date for each running agent worker. Update and restart the runtime whenever provider/model/network settings change.
 -   Keep `AGENTMC_MODELS` aligned with the runtime's active/default model inventory.
--   Keep each agent key rotated/current for the target workspace.
+-   Keep the host API key rotated/current for the target host.
+-   OpenClaw prompt execution uses `openclaw agent --agent <openclaw-agent> --message "<prompt>"`.
 
 Keep heartbeat telemetry up to date on every send (do not hardcode stale values):
 -   Runtime identity and mode: `meta.runtime.name`, `meta.runtime.version`, `meta.runtime.build`, `meta.runtime.mode`, `meta.runtime_mode`.
@@ -220,6 +213,22 @@ Keep heartbeat telemetry up to date on every send (do not hardcode stale values)
 -   Usage and token/context telemetry when available: token counters, cache metrics, context usage, and usage-window/day remaining fields.
 -   OpenClaw-specific metadata when available: `meta.openclaw_version`, `meta.openclaw_build`.
 -   The runtime supervisor pulls these values from OpenClaw status commands (`openclaw status --json --usage`, fallback `openclaw status --json`, plus `openclaw models status --json`) before each heartbeat.
+
+## Host Install Script (Systemd)
+
+Install the always-on host service:
+
+```bash
+AGENTMC_API_KEY="cc_host_key_here" \
+bash scripts/install-agentmc-host.sh
+```
+
+Optional install/runtime env:
+
+-   `AGENTMC_BASE_URL` (default `https://agentmc.ai/api/v1`)
+-   `AGENTMC_RUNTIME_PROVIDER` (default `auto`)
+-   `AGENTMC_SERVICE_NAME` (default `agentmc-host`)
+-   `AGENTMC_SERVICE_USER` / `AGENTMC_SERVICE_GROUP` (defaults to current user)
 
 ## CLI
 

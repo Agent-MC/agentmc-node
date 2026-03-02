@@ -39,6 +39,12 @@ export {
   type AgentRuntimeDebugEvent
 } from "./openclaw-runtime";
 export { AgentRuntimeProgram, type AgentRuntimeProgramOptions } from "./runtime-program";
+export {
+  detectRuntimeAgents,
+  type DetectRuntimeAgentsOptions,
+  type DiscoveredRuntimeAgent,
+  type RuntimeProvider
+} from "./agent-discovery";
 export type {
   AgentMCApiAuthConfig,
   AgentMCApiClientConfig,

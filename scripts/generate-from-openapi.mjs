@@ -171,6 +171,31 @@ function filterExcludedOperations(spec) {
   };
 }
 
+function normalizeLegacyPhrasing(value) {
+  if (Array.isArray(value)) {
+    return value.map((entry) => normalizeLegacyPhrasing(entry));
+  }
+
+  if (!value || typeof value !== "object") {
+    if (typeof value === "string") {
+      return value
+        .replace(
+          /Optional\s+.+runtime agent type identifier\. Prefer sending this as `meta\.type`\./g,
+          "Optional runtime agent type identifier. Prefer sending this as `meta.type`."
+        );
+    }
+
+    return value;
+  }
+
+  const output = {};
+  for (const [key, nested] of Object.entries(value)) {
+    output[key] = normalizeLegacyPhrasing(nested);
+  }
+
+  return output;
+}
+
 function decodePointerSegment(segment) {
   return segment.replace(/~1/g, "/").replace(/~0/g, "~");
 }
@@ -875,17 +900,18 @@ function main() {
 
   const sourceSpec = readJson(inputSpecPath);
   const { filteredSpec, removedCount } = filterExcludedOperations(sourceSpec);
-  writeJson(filteredSpecPath, filteredSpec);
+  const normalizedFilteredSpec = normalizeLegacyPhrasing(filteredSpec);
+  writeJson(filteredSpecPath, normalizedFilteredSpec);
 
   const operations = [];
 
-  for (const [pathName, pathItem] of Object.entries(filteredSpec.paths ?? {})) {
+  for (const [pathName, pathItem] of Object.entries(normalizedFilteredSpec.paths ?? {})) {
     for (const [method, operation] of Object.entries(pathItem)) {
       if (!HTTP_METHODS.has(method)) {
         continue;
       }
 
-      const definition = buildOperationDefinition(filteredSpec, pathName, method, pathItem, operation);
+      const definition = buildOperationDefinition(normalizedFilteredSpec, pathName, method, pathItem, operation);
       operations.push(definition);
     }
   }

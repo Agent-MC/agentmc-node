@@ -61,10 +61,10 @@ const result = await client.operations.agentHeartbeat({
       }
     },
     "agent": {
-      "id": 42,
       "name": "Jarvis",
       "identity": {
         "name": "Jarvis",
+        "agent_key": "solomon",
         "creature": "robot",
         "vibe": "calm"
       }

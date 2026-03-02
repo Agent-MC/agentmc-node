@@ -1,13 +1,13 @@
 # listAgentRealtimeSignals
 
 - Method: `GET`
-- Path: `/agents/realtime/sessions/{session}/signals`
-- Summary: Read realtime events for a realtime session.
+- Path: `/hosts/realtime/sessions/{session}/signals`
+- Summary: Read realtime events for a realtime session (host or agent context).
 - Auth: ApiKeyAuth
 
 ## Description
 
-No additional description.
+Accepts host API key context by session ownership. X-Agent-Id remains optional for explicit single-agent routing.
 
 ## Parameters
 

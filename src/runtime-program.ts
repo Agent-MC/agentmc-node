@@ -21,12 +21,11 @@ const OPENCLAW_MODELS_TELEMETRY_COMMAND: readonly string[] = ["models", "status"
 const OPENCLAW_TELEMETRY_TIMEOUT_MS = 4_000;
 const OPENCLAW_AGENT_DISCOVERY_TIMEOUT_MS = 10_000;
 const DEFAULT_AGENTMC_API_BASE_URL = "https://agentmc.ai/api/v1";
+const DEFAULT_HEARTBEAT_INTERVAL_SECONDS = 300;
 const DEFAULT_RECURRING_TASK_POLL_INTERVAL_SECONDS = 30;
 const DEFAULT_RECURRING_TASK_POLL_LIMIT = 5;
-const OPENCLAW_RECURRING_SUBMIT_TIMEOUT_MS = 30_000;
 const DEFAULT_RECURRING_TASK_WAIT_TIMEOUT_MS = 600_000;
 const DEFAULT_RECURRING_TASK_GATEWAY_TIMEOUT_MS = 720_000;
-const OPENCLAW_GATEWAY_EXEC_TIMEOUT_FLOOR_MS = 120_000;
 const RECURRING_TASK_GATEWAY_TIMEOUT_BUFFER_MS = 30_000;
 const RECURRING_TASK_SUMMARY_MAX_LENGTH = 4_000;
 const RECURRING_TASK_AGENT_RESPONSE_MAX_BYTES = 24_000;
@@ -95,6 +94,8 @@ export interface AgentRuntimeProgramOptions {
   workspaceDir?: string;
   statePath?: string;
   agentId?: number;
+  heartbeatEnabled?: boolean;
+  realtimeSessionsEnabled?: boolean;
   heartbeatIntervalSeconds?: number;
   runtimeProvider?: "auto" | RuntimeProviderKind;
   runtimeCommand?: string;
@@ -123,14 +124,12 @@ export interface AgentRuntimeProgramOptions {
 
 interface RuntimeState {
   agent_id?: number;
-  bundle_version?: string;
-  last_skill_sync_at?: string;
   last_heartbeat_at?: string;
   [key: string]: unknown;
 }
 
 interface AgentProfile {
-  id: number;
+  id: number | null;
   name: string;
   type: string;
   identity: JsonObject | string;
@@ -144,6 +143,7 @@ export class AgentRuntimeProgram {
 
   private readonly client: AgentMCApi;
   private readonly initialAgentId: number | null;
+  private readonly heartbeatEnabled: boolean;
 
   private running = false;
   private stopRequested = false;
@@ -168,6 +168,7 @@ export class AgentRuntimeProgram {
     this.workspaceDir = resolve(options.workspaceDir ?? process.cwd());
     this.statePath = resolve(options.statePath ?? resolve(this.workspaceDir, ".agentmc/state.json"));
     this.initialAgentId = toPositiveInt(options.agentId);
+    this.heartbeatEnabled = options.heartbeatEnabled !== false;
     this.heartbeatIntervalSeconds = toPositiveInt(options.heartbeatIntervalSeconds);
     this.recurringTaskPollIntervalSeconds = DEFAULT_RECURRING_TASK_POLL_INTERVAL_SECONDS;
     this.recurringTaskPollLimit = DEFAULT_RECURRING_TASK_POLL_LIMIT;
@@ -192,62 +193,50 @@ export class AgentRuntimeProgram {
   }
 
   static fromEnv(env: NodeJS.ProcessEnv = process.env): AgentRuntimeProgram {
-    const keyedEntries = Object.entries(env)
-      .map(([name, value]) => {
-        const match = name.match(/^AGENTMC_API_KEY_(\d+)$/);
-        if (!match) {
-          return null;
-        }
-
-        const agentId = toPositiveInt(match[1]);
-        const apiKey = nonEmpty(value);
-        if (agentId === null || !apiKey) {
-          return null;
-        }
-
-        return { agentId, apiKey };
-      })
-      .filter((entry): entry is { agentId: number; apiKey: string } => entry !== null)
-      .sort((a, b) => a.agentId - b.agentId);
-
-    if (keyedEntries.length === 0) {
-      throw new Error("AGENTMC_API_KEY_<AGENT_ID> is required.");
-    }
-
+    const hostKey = nonEmpty(env.AGENTMC_API_KEY);
     const requestedAgentId = toPositiveInt(env.AGENTMC_AGENT_ID);
-    const selectedEntry =
-      requestedAgentId !== null
-        ? keyedEntries.find((entry) => entry.agentId === requestedAgentId) ?? null
-        : keyedEntries.length === 1
-          ? keyedEntries[0]
-          : null;
+    const disableHeartbeat = valueAsBoolean(env.AGENTMC_DISABLE_HEARTBEAT) === true;
+    const disableRequestedSessionPolling = valueAsBoolean(env.AGENTMC_DISABLE_REQUESTED_SESSION_POLLING) === true;
+    const heartbeatIntervalSeconds =
+      toPositiveInt(env.AGENTMC_HEARTBEAT_INTERVAL_SECONDS) ?? DEFAULT_HEARTBEAT_INTERVAL_SECONDS;
 
-    if (!selectedEntry) {
-      if (requestedAgentId !== null) {
-        throw new Error(`Missing AGENTMC_API_KEY_${requestedAgentId}.`);
-      }
-
-      throw new Error(
-        "Multiple AGENTMC_API_KEY_<AGENT_ID> values found. Set AGENTMC_AGENT_ID for a single runtime or use `agentmc-api runtime:start`."
-      );
+    if (!hostKey) {
+      throw new Error("AGENTMC_API_KEY is required. Set one host-level API key.");
     }
 
-    if (selectedEntry.apiKey.startsWith("cc_")) {
-      throw new Error(
-        `AGENTMC_API_KEY_${selectedEntry.agentId} contains a team API key (cc_*). Agent runtimes require agent keys (mca_*).`
-      );
-    }
-
-    const baseUrl = nonEmpty(env.AGENTMC_BASE_URL) ?? DEFAULT_AGENTMC_API_BASE_URL;
-    const workspaceDir = nonEmpty(env[`AGENTMC_WORKSPACE_DIR_${selectedEntry.agentId}`]) ?? undefined;
-    const statePath = nonEmpty(env[`AGENTMC_STATE_PATH_${selectedEntry.agentId}`]) ?? undefined;
+    const runtimeProvider = normalizeRuntimeProvider(nonEmpty(env.AGENTMC_RUNTIME_PROVIDER));
+    const runtimeModels = parseCommaSeparatedList(env.AGENTMC_MODELS);
+    const runtimeCommandArgs = parseCommandArguments(env.AGENTMC_RUNTIME_COMMAND_ARGS);
 
     return new AgentRuntimeProgram({
-      apiKey: selectedEntry.apiKey,
-      baseUrl,
-      agentId: selectedEntry.agentId,
-      ...(workspaceDir ? { workspaceDir } : {}),
-      ...(statePath ? { statePath } : {})
+      apiKey: hostKey,
+      baseUrl: nonEmpty(env.AGENTMC_BASE_URL) ?? DEFAULT_AGENTMC_API_BASE_URL,
+      agentId: requestedAgentId ?? undefined,
+      heartbeatEnabled: !disableHeartbeat,
+      realtimeSessionsEnabled: !disableRequestedSessionPolling,
+      heartbeatIntervalSeconds,
+      workspaceDir: nonEmpty(env.AGENTMC_WORKSPACE_DIR) ?? undefined,
+      statePath: nonEmpty(env.AGENTMC_STATE_PATH) ?? undefined,
+      runtimeProvider,
+      runtimeCommand: nonEmpty(env.AGENTMC_RUNTIME_COMMAND) ?? undefined,
+      runtimeCommandArgs,
+      runtimeVersionCommand: nonEmpty(env.AGENTMC_RUNTIME_VERSION_COMMAND) ?? undefined,
+      runtimeName: nonEmpty(env.AGENTMC_RUNTIME_NAME) ?? undefined,
+      runtimeVersion: nonEmpty(env.AGENTMC_RUNTIME_VERSION) ?? undefined,
+      runtimeBuild: nonEmpty(env.AGENTMC_RUNTIME_BUILD) ?? undefined,
+      runtimeModels,
+      openclawCommand: nonEmpty(env.OPENCLAW_CMD) ?? undefined,
+      openclawAgent: nonEmpty(env.OPENCLAW_AGENT) ?? undefined,
+      openclawSessionsPath: nonEmpty(env.OPENCLAW_SESSIONS_PATH) ?? undefined,
+      agentName: nonEmpty(env.AGENTMC_AGENT_NAME) ?? undefined,
+      agentType: nonEmpty(env.AGENTMC_AGENT_TYPE) ?? undefined,
+      agentEmoji: nonEmpty(env.AGENTMC_AGENT_EMOJI) ?? undefined,
+      publicIp: nonEmpty(env.AGENTMC_PUBLIC_IP) ?? undefined,
+      publicIpEndpoint: nonEmpty(env.AGENTMC_PUBLIC_IP_ENDPOINT) ?? undefined,
+      hostFingerprint: nonEmpty(env.AGENTMC_HOST_FINGERPRINT) ?? undefined,
+      hostName: nonEmpty(env.AGENTMC_HOST_NAME) ?? undefined,
+      recurringTaskWaitTimeoutMs: toPositiveInt(env.AGENTMC_RECURRING_WAIT_TIMEOUT_MS) ?? undefined,
+      recurringTaskGatewayTimeoutMs: toPositiveInt(env.AGENTMC_RECURRING_GATEWAY_TIMEOUT_MS) ?? undefined
     });
   }
 
@@ -293,62 +282,107 @@ export class AgentRuntimeProgram {
     }
   }
 
+  enqueueRequestedRealtimeSession(sessionId: number): boolean {
+    const runtime = this.realtimeRuntime as { enqueueRequestedSession?: (nextSessionId: number) => boolean } | null;
+    if (!runtime || typeof runtime.enqueueRequestedSession !== "function") {
+      return false;
+    }
+
+    return runtime.enqueueRequestedSession(sessionId);
+  }
+
   private async runLoop(): Promise<void> {
+    await mkdir(this.workspaceDir, { recursive: true });
     await this.loadState();
 
-    const bootstrapSync = await this.syncInstructionBundle();
-    if (bootstrapSync.heartbeatIntervalSeconds !== null) {
-      this.heartbeatIntervalSeconds = bootstrapSync.heartbeatIntervalSeconds;
-    }
-    if (!this.heartbeatIntervalSeconds || this.heartbeatIntervalSeconds < 1) {
-      throw new Error(
-        "Heartbeat interval is missing. Ensure getAgentInstructions returns defaults.heartbeat_interval_seconds."
-      );
+    if (this.heartbeatEnabled) {
+      this.heartbeatIntervalSeconds = this.heartbeatIntervalSeconds ?? DEFAULT_HEARTBEAT_INTERVAL_SECONDS;
+      if (!this.heartbeatIntervalSeconds || this.heartbeatIntervalSeconds < 1) {
+        throw new Error("Heartbeat interval is missing. Configure AGENTMC_HEARTBEAT_INTERVAL_SECONDS.");
+      }
     }
 
-    const agentId = this.resolveAgentId(bootstrapSync.agentId);
+    let agentId = this.resolveAgentId();
+    if (!this.heartbeatEnabled && agentId === null) {
+      throw new Error("Agent id is required when AGENTMC_DISABLE_HEARTBEAT=true. Set AGENTMC_AGENT_ID.");
+    }
+    if (agentId !== null) {
+      await this.persistState({
+        agent_id: agentId
+      });
+    }
     this.runtimeProvider = await this.resolveRuntimeProvider();
     this.agentProfile = await this.resolveAgentProfile(agentId, this.runtimeProvider);
-
-    await this.startRealtimeRuntime(agentId, this.runtimeProvider);
     const recurringPollIntervalMs = this.recurringTaskPollIntervalSeconds * 1000;
     let nextRecurringPollAtMs = Date.now();
 
-    try {
-      const heartbeatBody = await this.buildHeartbeatBody();
-      await this.sendHeartbeat(heartbeatBody);
-    } catch (error) {
-      this.emitError(normalizeError(error), { source: "heartbeat.startup" });
+    if (this.heartbeatEnabled) {
+      try {
+        const heartbeatBody = await this.buildHeartbeatBody();
+        const resolvedAgentId = await this.sendHeartbeat(heartbeatBody);
+        if (resolvedAgentId !== null) {
+          const previousAgentId = agentId;
+          const nextAgentId = await this.applyResolvedAgentId(agentId, resolvedAgentId);
+          const shouldRestartRealtime =
+            previousAgentId !== null &&
+            nextAgentId !== previousAgentId &&
+            this.runtimeProvider !== null &&
+            this.realtimeRuntime !== null;
+          agentId = nextAgentId;
+          if (shouldRestartRealtime) {
+            await this.restartRealtimeRuntime(nextAgentId, this.runtimeProvider as RuntimeProviderDescriptor);
+          }
+        }
+      } catch (error) {
+        this.emitError(normalizeError(error), { source: "heartbeat.startup" });
+      }
     }
 
-    let nextHeartbeatAtMs = Date.now() + (this.heartbeatIntervalSeconds ?? 1) * 1000;
+    if (agentId !== null && this.runtimeProvider && this.realtimeRuntime === null) {
+      await this.startRealtimeRuntime(agentId, this.runtimeProvider);
+    }
+
+    let nextHeartbeatAtMs = this.heartbeatEnabled
+      ? Date.now() + (this.heartbeatIntervalSeconds ?? 1) * 1000
+      : Number.POSITIVE_INFINITY;
 
     while (!this.stopRequested) {
       const cycleNowMs = Date.now();
 
       if (cycleNowMs >= nextRecurringPollAtMs) {
-        try {
-          await this.pollRecurringTaskRuns(agentId, this.runtimeProvider);
-        } catch (error) {
-          this.emitError(normalizeError(error), { source: "recurring.poll" });
-        } finally {
+        if (agentId !== null) {
+          try {
+            await this.pollRecurringTaskRuns(agentId, this.runtimeProvider);
+          } catch (error) {
+            this.emitError(normalizeError(error), { source: "recurring.poll" });
+          } finally {
+            nextRecurringPollAtMs = Date.now() + recurringPollIntervalMs;
+          }
+        } else {
           nextRecurringPollAtMs = Date.now() + recurringPollIntervalMs;
         }
       }
 
-      if (cycleNowMs >= nextHeartbeatAtMs) {
+      if (this.heartbeatEnabled && cycleNowMs >= nextHeartbeatAtMs) {
         try {
-          const syncResult = await this.syncInstructionBundle();
-          if (syncResult.heartbeatIntervalSeconds !== null) {
-            this.heartbeatIntervalSeconds = syncResult.heartbeatIntervalSeconds;
-          }
-
-          if (syncResult.changed) {
-            await this.restartRealtimeRuntime(agentId, this.runtimeProvider);
-          }
-
           const heartbeatBody = await this.buildHeartbeatBody();
-          await this.sendHeartbeat(heartbeatBody);
+          const resolvedAgentId = await this.sendHeartbeat(heartbeatBody);
+          if (resolvedAgentId !== null) {
+            const previousAgentId = agentId;
+            const nextAgentId = await this.applyResolvedAgentId(agentId, resolvedAgentId);
+            const shouldRestartRealtime =
+              previousAgentId !== null &&
+              nextAgentId !== previousAgentId &&
+              this.runtimeProvider !== null &&
+              this.realtimeRuntime !== null;
+            agentId = nextAgentId;
+            if (shouldRestartRealtime) {
+              await this.restartRealtimeRuntime(nextAgentId, this.runtimeProvider as RuntimeProviderDescriptor);
+            }
+          }
+          if (agentId !== null && this.runtimeProvider && this.realtimeRuntime === null) {
+            await this.startRealtimeRuntime(agentId, this.runtimeProvider);
+          }
         } catch (error) {
           this.emitError(normalizeError(error), { source: "heartbeat.cycle" });
         } finally {
@@ -357,11 +391,22 @@ export class AgentRuntimeProgram {
       }
 
       const nowMs = Date.now();
-      const delayToHeartbeatMs = Math.max(0, nextHeartbeatAtMs - nowMs);
+      const delayToHeartbeatMs = Number.isFinite(nextHeartbeatAtMs)
+        ? Math.max(0, nextHeartbeatAtMs - nowMs)
+        : recurringPollIntervalMs;
       const delayToRecurringMs = Math.max(0, nextRecurringPollAtMs - nowMs);
       const waitMs = Math.max(250, Math.min(delayToHeartbeatMs, delayToRecurringMs));
       await sleep(waitMs);
     }
+  }
+
+  private async restartRealtimeRuntime(agentId: number, provider: RuntimeProviderDescriptor): Promise<void> {
+    if (this.realtimeRuntime) {
+      await this.realtimeRuntime.stop();
+      this.realtimeRuntime = null;
+    }
+
+    await this.startRealtimeRuntime(agentId, provider);
   }
 
   private async loadState(): Promise<void> {
@@ -390,21 +435,42 @@ export class AgentRuntimeProgram {
     this.state = merged;
   }
 
-  private resolveAgentId(agentIdFromInstructions?: number | null): number {
+  private resolveAgentId(): number | null {
     const fromState = toPositiveInt(this.state.agent_id);
-    const resolved = this.initialAgentId ?? fromState ?? agentIdFromInstructions ?? null;
+    const resolved = this.initialAgentId ?? fromState ?? null;
 
-    if (!resolved || resolved < 1) {
-      throw new Error(
-        `Agent id is missing. Ensure getAgentInstructions returns agent.id or ${this.statePath} includes a valid agent_id.`
-      );
-    }
-
-    if (fromState !== resolved) {
+    if (resolved !== null && fromState !== resolved) {
       this.state.agent_id = resolved;
     }
 
     return resolved;
+  }
+
+  private resolveRuntimeCommandCwd(): string | undefined {
+    return existsSync(this.workspaceDir) ? this.workspaceDir : undefined;
+  }
+
+  private async applyResolvedAgentId(currentAgentId: number | null, nextAgentId: number): Promise<number> {
+    if (currentAgentId === nextAgentId) {
+      return currentAgentId;
+    }
+
+    await this.persistState({
+      agent_id: nextAgentId
+    });
+
+    if (this.agentProfile) {
+      this.agentProfile = {
+        ...this.agentProfile,
+        id: nextAgentId
+      };
+    }
+
+    this.emitInfo("Resolved agent id from heartbeat", {
+      agent_id: nextAgentId
+    });
+
+    return nextAgentId;
   }
 
   private async resolveRuntimeProvider(): Promise<RuntimeProviderDescriptor> {
@@ -441,7 +507,9 @@ export class AgentRuntimeProgram {
       throw new Error("OpenClaw command resolution returned no executable command.");
     }
 
-    const versionOutput = await execCapture(command, ["--version"]);
+    const versionOutput = await execCapture(command, ["--version"], {
+      cwd: this.resolveRuntimeCommandCwd()
+    });
     const versionLine = firstNonEmptyLine(versionOutput.stdout) ?? firstNonEmptyLine(versionOutput.stderr);
 
     if (!versionLine) {
@@ -510,7 +578,9 @@ export class AgentRuntimeProgram {
     }
 
     try {
-      const output = await execCapture(command, ["models", "status", "--json"]);
+      const output = await execCapture(command, ["models", "status", "--json"], {
+        cwd: this.resolveRuntimeCommandCwd()
+      });
       const parsed = parseJsonUnknown(output.stdout) ?? parseJsonUnknown(output.stderr);
       return normalizeModelList(extractModelStrings(parsed));
     } catch {
@@ -559,7 +629,9 @@ export class AgentRuntimeProgram {
           message: input.userText
         });
 
-        const result = await execCapture(runtimeCommand, [...runtimeArgs, "--agentmc-input", payload]);
+        const result = await execCapture(runtimeCommand, [...runtimeArgs, "--agentmc-input", payload], {
+          cwd: this.resolveRuntimeCommandCwd()
+        });
         const text = parseExternalAgentOutput(result.stdout);
 
         return {
@@ -591,13 +663,13 @@ export class AgentRuntimeProgram {
     }
   }
 
-  private async resolveAgentProfile(agentId: number, provider: RuntimeProviderDescriptor): Promise<AgentProfile> {
+  private async resolveAgentProfile(agentId: number | null, provider: RuntimeProviderDescriptor): Promise<AgentProfile> {
     const configuredName = nonEmpty(this.options.agentName);
     const configuredType = nonEmpty(this.options.agentType);
     const configuredEmoji = nonEmpty(this.options.agentEmoji);
 
     const nameHint = configuredName;
-    const fallbackName = nameHint ?? `agent-${agentId}`;
+    const fallbackName = nameHint ?? (agentId !== null ? `agent-${agentId}` : "agent");
     const fallbackIdentity = this.resolveIdentityFromWorkspace(fallbackName);
     const machineSnapshot = await this.resolveMachineIdentitySnapshot(
       provider,
@@ -749,6 +821,7 @@ export class AgentRuntimeProgram {
       for (const candidate of discoveryCommands) {
         try {
           const output = await execCapture(command, candidate.args, {
+            cwd: this.resolveRuntimeCommandCwd(),
             timeoutMs: OPENCLAW_AGENT_DISCOVERY_TIMEOUT_MS
           });
           const parsed = parseJsonUnknown(output.stdout) ?? parseJsonUnknown(output.stderr);
@@ -834,10 +907,15 @@ export class AgentRuntimeProgram {
   }
 
   private async startRealtimeRuntime(agentId: number, provider: RuntimeProviderDescriptor): Promise<void> {
+    const runtimeDocsDirectory = this.resolveRuntimeDocsDirectory(agentId);
+    await mkdir(runtimeDocsDirectory, { recursive: true });
+
     const runtime = new AgentRuntime({
       client: this.client,
       agent: agentId,
-      runtimeDocsDirectory: this.workspaceDir,
+      realtimeSessionsEnabled: this.options.realtimeSessionsEnabled !== false,
+      runtimeDocsDirectory,
+      runtimeWorkingDirectory: this.workspaceDir,
       openclawCommand: this.options.openclawCommand,
       openclawAgent: this.options.openclawAgent,
       openclawSessionsPath: this.options.openclawSessionsPath,
@@ -873,77 +951,11 @@ export class AgentRuntimeProgram {
     });
   }
 
-  private async restartRealtimeRuntime(agentId: number, provider: RuntimeProviderDescriptor): Promise<void> {
-    if (this.realtimeRuntime) {
-      await this.realtimeRuntime.stop();
-      this.realtimeRuntime = null;
-    }
-
-    await this.startRealtimeRuntime(agentId, provider);
-  }
-
-  private async syncInstructionBundle(): Promise<{ changed: boolean; heartbeatIntervalSeconds: number | null; agentId: number | null }> {
-    const currentBundleVersion = nonEmpty(this.state.bundle_version) ?? undefined;
-
-    const response = await this.client.operations.getAgentInstructions({
-      params: {
-        query: {
-          current_bundle_version: currentBundleVersion
-        }
-      }
-    });
-
-    if (response.error) {
-      throw createOperationFailureError("getAgentInstructions", response);
-    }
-
-    const payload = valueAsObject(response.data) ?? {};
-    const changed = valueAsBoolean(payload.changed) === true;
-    const bundleVersion = nonEmpty(payload.bundle_version);
-    const responseAgent = valueAsObject(payload.agent);
-    const responseAgentId = toPositiveInt(responseAgent?.id ?? null);
-
-    const defaults = valueAsObject(payload.defaults);
-    const heartbeatIntervalSeconds = toPositiveInt(defaults?.heartbeat_interval_seconds ?? null);
-
-    if (changed) {
-      const files = Array.isArray(payload.files) ? payload.files : [];
-      for (const file of files) {
-        const row = valueAsObject(file);
-        const relativePath = nonEmpty(row?.path);
-        const content = typeof row?.content === "string" ? row.content : null;
-        if (!relativePath || content === null) {
-          continue;
-        }
-
-        await this.writeManagedFile(relativePath, content);
-      }
-    }
-
-    await this.persistState({
-      agent_id: responseAgentId ?? this.state.agent_id,
-      bundle_version: bundleVersion ?? this.state.bundle_version,
-      last_skill_sync_at: new Date().toISOString()
-    });
-
-    return {
-      changed,
-      heartbeatIntervalSeconds: heartbeatIntervalSeconds ?? null,
-      agentId: responseAgentId ?? null
-    };
-  }
-
-  private async writeManagedFile(relativePath: string, content: string): Promise<void> {
-    const destination = resolve(this.workspaceDir, relativePath);
-    const normalizedWorkspace = ensureTrailingSlash(this.workspaceDir);
-    const normalizedDestination = destination;
-
-    if (!normalizedDestination.startsWith(normalizedWorkspace) && normalizedDestination !== this.workspaceDir) {
-      throw new Error(`Refusing to write managed file outside workspace: ${relativePath}`);
-    }
-
-    await mkdir(dirname(destination), { recursive: true });
-    await writeFile(destination, content, "utf8");
+  private resolveRuntimeDocsDirectory(agentId: number): string {
+    const openclawKey = normalizeOpenClawAgentName(this.options.openclawAgent);
+    const scopeRaw = openclawKey ?? `agent-${agentId}`;
+    const scope = scopeRaw.replace(/[^A-Za-z0-9_.-]/g, "-").toLowerCase();
+    return resolve(this.workspaceDir, ".agentmc", "runtime-docs", scope);
   }
 
   private async resolveRuntimeHeartbeatTelemetry(provider: RuntimeProviderDescriptor): Promise<JsonObject> {
@@ -1004,6 +1016,7 @@ export class AgentRuntimeProgram {
 
     try {
       const output = await execCapture(command, OPENCLAW_MODELS_TELEMETRY_COMMAND, {
+        cwd: this.resolveRuntimeCommandCwd(),
         timeoutMs: OPENCLAW_TELEMETRY_TIMEOUT_MS
       });
       const parsed = parseJsonUnknown(output.stdout) ?? parseJsonUnknown(output.stderr);
@@ -1049,6 +1062,7 @@ export class AgentRuntimeProgram {
 
       try {
         const output = await execCapture(command, args, {
+          cwd: this.resolveRuntimeCommandCwd(),
           timeoutMs: OPENCLAW_TELEMETRY_TIMEOUT_MS
         });
 
@@ -1160,6 +1174,25 @@ export class AgentRuntimeProgram {
       heartbeatMeta[key] = value;
     }
 
+    const agentPayload: Record<string, unknown> = {
+      name: profile.name,
+      type: profile.type,
+      identity: profileIdentity as HeartbeatBody["agent"]["identity"]
+    };
+    if (profile.id !== null) {
+      agentPayload.id = profile.id;
+    }
+
+    const openclawAgentKey = normalizeOpenClawAgentName(this.options.openclawAgent);
+    if (provider.kind === "openclaw" && openclawAgentKey) {
+      const identityObject = valueAsObject(agentPayload.identity) ?? {};
+      agentPayload.identity = {
+        ...identityObject,
+        agent_key: openclawAgentKey,
+        openclaw_agent: openclawAgentKey
+      };
+    }
+
     return {
       meta: heartbeatMeta as HeartbeatBody["meta"],
       host: {
@@ -1186,16 +1219,11 @@ export class AgentRuntimeProgram {
           }
         }
       },
-      agent: {
-        id: profile.id,
-        name: profile.name,
-        type: profile.type,
-        identity: profileIdentity as HeartbeatBody["agent"]["identity"]
-      }
+      agent: agentPayload as HeartbeatBody["agent"]
     };
   }
 
-  private async sendHeartbeat(body: HeartbeatBody): Promise<void> {
+  private async sendHeartbeat(body: HeartbeatBody): Promise<number | null> {
     const hostFingerprint = nonEmpty(body.host?.fingerprint);
     if (!hostFingerprint) {
       throw new Error("Heartbeat host fingerprint is missing.");
@@ -1216,6 +1244,8 @@ export class AgentRuntimeProgram {
 
     const responsePayload = valueAsObject(response.data);
     const responseHost = valueAsObject(responsePayload?.host);
+    const responseAgent = valueAsObject(responsePayload?.agent);
+    const responseAgentId = toPositiveInt(responseAgent?.id);
     const nowIso = new Date().toISOString();
     await this.persistState({
       last_heartbeat_at: nowIso
@@ -1224,8 +1254,11 @@ export class AgentRuntimeProgram {
     this.emitInfo("Heartbeat sent", {
       at: nowIso,
       host_status: typeof responseHost?.status === "string" ? responseHost.status : null,
+      agent_id: responseAgentId,
       runtime: valueAsObject(body.meta)?.runtime ?? null
     });
+
+    return responseAgentId;
   }
 
   private async pollRecurringTaskRuns(agentId: number, provider: RuntimeProviderDescriptor): Promise<void> {
@@ -1234,6 +1267,9 @@ export class AgentRuntimeProgram {
         query: {
           limit: this.recurringTaskPollLimit
         }
+      },
+      headers: {
+        "X-Agent-Id": String(agentId)
       }
     });
 
@@ -1272,7 +1308,7 @@ export class AgentRuntimeProgram {
       }
 
       try {
-        await this.executeRecurringTaskRun(provider, claimed);
+        await this.executeRecurringTaskRun(agentId, provider, claimed);
       } catch (error) {
         this.emitError(normalizeError(error), {
           source: "recurring.run",
@@ -1284,6 +1320,7 @@ export class AgentRuntimeProgram {
   }
 
   private async executeRecurringTaskRun(
+    agentId: number,
     provider: RuntimeProviderDescriptor,
     claimed: ClaimedRecurringTaskRun
   ): Promise<void> {
@@ -1320,6 +1357,9 @@ export class AgentRuntimeProgram {
         path: {
           run: claimed.runId
         }
+      },
+      headers: {
+        "X-Agent-Id": String(agentId)
       },
       body
     });
@@ -1416,71 +1456,39 @@ export class AgentRuntimeProgram {
     if (!command) {
       throw new Error("OpenClaw command resolution returned no executable command.");
     }
-    const sessionAgentToken = String(this.agentProfile?.id ?? claimed.agentId ?? "unknown");
+    const openclawAgent = normalizeOpenClawAgentName(this.options.openclawAgent) ?? "main";
     const recurringExecutionId = `agentmc-recurring-${claimed.runId}`;
-    const sessionKey = `agent:${sessionAgentToken}:agentmc:recurring:${claimed.taskId}`;
+    const sessionKey = `agent:${openclawAgent}:agentmc:recurring:${claimed.taskId}`;
+    const timeoutMs = Math.max(this.recurringTaskWaitTimeoutMs, this.recurringTaskGatewayTimeoutMs);
 
-    const submitResponse = await this.openclawGatewayCall(
-      command,
-      "agent",
-      {
-        idempotencyKey: recurringExecutionId,
-        sessionKey,
-        message: input.userText
-      },
-      OPENCLAW_RECURRING_SUBMIT_TIMEOUT_MS
-    );
-
-    const submittedRunId =
-      nonEmpty(submitResponse.runId) ??
-      nonEmpty(submitResponse.run_id) ??
-      nonEmpty(submitResponse.id) ??
-      recurringExecutionId;
-
-    const waitResponse = await this.openclawGatewayCall(
-      command,
-      "agent.wait",
-      {
-        runId: submittedRunId,
-        timeoutMs: this.recurringTaskWaitTimeoutMs
-      },
-      this.recurringTaskGatewayTimeoutMs
-    );
-
-    const waitStatus = (nonEmpty(waitResponse.status) ?? "ok").toLowerCase();
-    if (waitStatus === "timeout") {
-      const timeoutText =
-        extractFirstRuntimeText(waitResponse) ??
-        "Recurring task execution timed out while waiting for completion.";
+    try {
+      const output = await execCapture(
+        command,
+        ["agent", "--agent", openclawAgent, "--message", input.userText],
+        {
+          cwd: this.resolveRuntimeCommandCwd(),
+          timeoutMs
+        }
+      );
+      const directTextRaw = parseExternalAgentOutput(output.stdout) || parseExternalAgentOutput(output.stderr);
+      const directText = sanitizeAssistantOutputText(directTextRaw);
+      if (directText !== "") {
+        return {
+          requestId: input.requestId,
+          runId: recurringExecutionId,
+          status: "ok",
+          textSource: "wait",
+          content: directText
+        };
+      }
+    } catch (error) {
+      const message = normalizeError(error).message;
       return {
         requestId: input.requestId,
-        runId: submittedRunId,
-        status: "timeout",
-        textSource: "wait",
-        content: timeoutText
-      };
-    }
-
-    if (waitStatus !== "ok") {
-      return {
-        requestId: input.requestId,
-        runId: submittedRunId,
+        runId: recurringExecutionId,
         status: "error",
         textSource: "error",
-        content:
-          extractFirstRuntimeText(waitResponse) ??
-          `OpenClaw recurring execution failed with status "${waitStatus}".`
-      };
-    }
-
-    const directText = extractFirstRuntimeText(waitResponse);
-    if (directText !== null) {
-      return {
-        requestId: input.requestId,
-        runId: submittedRunId,
-        status: "ok",
-        textSource: "wait",
-        content: directText
+        content: `OpenClaw recurring execution failed: ${message}`
       };
     }
 
@@ -1488,7 +1496,7 @@ export class AgentRuntimeProgram {
     if (historyText !== null) {
       return {
         requestId: input.requestId,
-        runId: submittedRunId,
+        runId: recurringExecutionId,
         status: "ok",
         textSource: "session_history",
         content: historyText
@@ -1497,49 +1505,11 @@ export class AgentRuntimeProgram {
 
     return {
       requestId: input.requestId,
-      runId: submittedRunId,
+      runId: recurringExecutionId,
       status: "ok",
       textSource: "fallback",
       content: "Recurring task run completed, but no assistant response text was returned."
     };
-  }
-
-  private async openclawGatewayCall(
-    command: string,
-    method: string,
-    params: JsonObject,
-    timeoutMs: number
-  ): Promise<JsonObject> {
-    const args = [
-      "gateway",
-      "call",
-      method,
-      "--json",
-      "--timeout",
-      String(timeoutMs),
-      "--params",
-      JSON.stringify(params)
-    ];
-
-    const output = await execCapture(command, args, {
-      timeoutMs: Math.max(timeoutMs, OPENCLAW_GATEWAY_EXEC_TIMEOUT_FLOOR_MS)
-    });
-
-    const parsed = parseJsonUnknown(output.stdout) ?? parseJsonUnknown(output.stderr);
-    const object = valueAsObject(parsed);
-    if (!object) {
-      throw new Error(`openclaw gateway call ${method} returned non-object JSON.`);
-    }
-
-    const nestedResult = valueAsObject(object.result) ?? valueAsObject(object.data);
-    if (nestedResult) {
-      return {
-        ...object,
-        ...nestedResult
-      };
-    }
-
-    return object;
   }
 
   private async resolveRecurringAssistantTextFromSessionHistory(sessionKey: string): Promise<string | null> {
@@ -1627,10 +1597,7 @@ function buildRecurringTaskAgentMcMessage(userPrompt: string): string {
     "app=AgentMC",
     "source=agentmc_recurring_task",
     "intent_scope=agentmc",
-    "skill_reference=.agentmc/skills/skill.md",
-    "rules_reference=.agentmc/skills/rules.md",
     "routing_hint=Treat actions with no external app specified as AgentMC operations.",
-    "skill_hint=Follow the current AgentMC skill/rules files as the source of truth for supported capabilities and execution behavior.",
     "",
     normalizedPrompt
   ];
@@ -1697,83 +1664,6 @@ function truncateUtf8(
     bytes: encoder.encode(candidate).length,
     truncated: true
   };
-}
-
-function extractFirstRuntimeText(value: unknown): string | null {
-  const extracted = extractRuntimeText(value, 0);
-  if (!extracted) {
-    return null;
-  }
-
-  const sanitized = sanitizeAssistantOutputText(extracted);
-  return sanitized === "" ? null : sanitized;
-}
-
-function extractRuntimeText(value: unknown, depth: number): string | null {
-  if (depth > 8 || value === null || value === undefined) {
-    return null;
-  }
-
-  if (typeof value === "string") {
-    const trimmed = value.trim();
-    return trimmed === "" ? null : trimmed;
-  }
-
-  if (Array.isArray(value)) {
-    for (let index = value.length - 1; index >= 0; index -= 1) {
-      const nested = extractRuntimeText(value[index], depth + 1);
-      if (nested) {
-        return nested;
-      }
-    }
-
-    return null;
-  }
-
-  const object = valueAsObject(value);
-  if (!object) {
-    return null;
-  }
-
-  const preferredKeys = [
-    "content",
-    "output_text",
-    "final_text",
-    "text",
-    "message",
-    "response",
-    "output",
-    "delta",
-    "error",
-    "result",
-    "data",
-    "payload",
-    "item",
-    "entry",
-    "messages",
-    "history",
-    "events"
-  ] as const;
-
-  for (const key of preferredKeys) {
-    const nested = extractRuntimeText(object[key], depth + 1);
-    if (nested) {
-      return nested;
-    }
-  }
-
-  for (const nestedValue of Object.values(object)) {
-    if (!Array.isArray(nestedValue) && !valueAsObject(nestedValue)) {
-      continue;
-    }
-
-    const nested = extractRuntimeText(nestedValue, depth + 1);
-    if (nested) {
-      return nested;
-    }
-  }
-
-  return null;
 }
 
 function sanitizeAssistantOutputText(value: string): string {
@@ -1950,9 +1840,10 @@ function resolveExecutableNameVariants(commandName: string): string[] {
 async function execCapture(
   command: string,
   args: readonly string[],
-  options: { timeoutMs?: number } = {}
+  options: { cwd?: string; timeoutMs?: number } = {}
 ): Promise<{ stdout: string; stderr: string }> {
   const output = await execFileAsync(command, [...args], {
+    ...(nonEmpty(options.cwd) ? { cwd: options.cwd } : {}),
     maxBuffer: 10 * 1024 * 1024,
     ...(options.timeoutMs && options.timeoutMs > 0 ? { timeout: options.timeoutMs } : {})
   });
@@ -3335,6 +3226,58 @@ function parseJsonUnknown(value: string): unknown | null {
   }
 }
 
+function normalizeRuntimeProvider(value: string | null): "auto" | RuntimeProviderKind | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "auto" || normalized === "openclaw" || normalized === "external") {
+    return normalized;
+  }
+
+  throw new Error("AGENTMC_RUNTIME_PROVIDER must be one of: auto, openclaw, external.");
+}
+
+function parseCommaSeparatedList(value: unknown): string[] | undefined {
+  const raw = nonEmpty(value);
+  if (!raw) {
+    return undefined;
+  }
+
+  const values = raw
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+
+  return values.length > 0 ? values : undefined;
+}
+
+function parseCommandArguments(value: unknown): string[] | undefined {
+  const raw = nonEmpty(value);
+  if (!raw) {
+    return undefined;
+  }
+
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      const values = parsed
+        .map((entry) => nonEmpty(entry))
+        .filter((entry): entry is string => entry !== null);
+      return values.length > 0 ? values : undefined;
+    }
+  } catch {
+    // Keep text fallback.
+  }
+
+  const values = raw
+    .split(/\s+/)
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+  return values.length > 0 ? values : undefined;
+}
+
 function requireNonEmpty(value: unknown, fieldName: string): string {
   const resolved = nonEmpty(value);
   if (!resolved) {
@@ -3447,10 +3390,6 @@ function summarizeApiError(error: unknown): string | null {
   }
 
   return code;
-}
-
-function ensureTrailingSlash(value: string): string {
-  return value.endsWith("/") ? value : `${value}/`;
 }
 
 function normalizeError(error: unknown): Error {

@@ -1,13 +1,13 @@
 # claimAgentRealtimeSession
 
 - Method: `POST`
-- Path: `/agents/realtime/sessions/{session}/claim`
-- Summary: Claim one realtime session for websocket message handling.
+- Path: `/hosts/realtime/sessions/{session}/claim`
+- Summary: Claim one realtime session for websocket message handling (host or agent context).
 - Auth: ApiKeyAuth
 
 ## Description
 
-No additional description.
+Accepts host API key context by session ownership. X-Agent-Id remains optional for explicit single-agent routing.
 
 ## Parameters
 

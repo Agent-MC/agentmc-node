@@ -47,8 +47,6 @@ test("recurring task prompt is wrapped with AgentMC context", async () => {
   assert.ok(capturedUserText);
   assert.match(capturedUserText, /^\[AgentMC Context\]\n/m);
   assert.match(capturedUserText, /source=agentmc_recurring_task/);
-  assert.match(capturedUserText, /skill_reference=.agentmc\/skills\/skill.md/);
-  assert.match(capturedUserText, /rules_reference=.agentmc\/skills\/rules.md/);
   assert.match(
     capturedUserText,
     /Create a project update and reconcile task statuses\.\s*$/

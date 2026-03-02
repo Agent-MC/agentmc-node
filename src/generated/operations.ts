@@ -42,11 +42,11 @@ export const operations = [
   {
     "operationId": "agentHeartbeat",
     "method": "post",
-    "path": "/agents/heartbeat",
-    "summary": "Record agent heartbeat and runtime host telemetry.",
+    "path": "/hosts/heartbeat",
+    "summary": "Record host heartbeat and runtime telemetry.",
     "description": "Accepts heartbeat payloads with required host telemetry and required runtime agent metadata. Runtime clients should include `meta.models` on every heartbeat as current runtime model inventory.",
     "tags": [
-      "Agents"
+      "Hosts"
     ],
     "security": [
       [
@@ -117,10 +117,10 @@ export const operations = [
             }
           },
           "agent": {
-            "id": 42,
             "name": "Jarvis",
             "identity": {
               "name": "Jarvis",
+              "agent_key": "solomon",
               "creature": "robot",
               "vibe": "calm"
             }
@@ -158,6 +158,11 @@ export const operations = [
             "agents_online": 1,
             "created_at": "2026-02-22T17:21:02Z",
             "updated_at": "2026-02-22T17:21:02Z"
+          },
+          "agent": {
+            "id": 42,
+            "name": "Solomon",
+            "type": "openclaw"
           }
         }
       },
@@ -242,11 +247,11 @@ export const operations = [
   {
     "operationId": "authenticateAgentRealtimeSocket",
     "method": "post",
-    "path": "/agents/realtime/sessions/{session}/socket-auth",
-    "summary": "Sign one websocket channel subscription for a realtime session.",
-    "description": "",
+    "path": "/hosts/realtime/sessions/{session}/socket-auth",
+    "summary": "Sign one websocket channel subscription for a realtime session (host or agent context).",
+    "description": "Accepts host API key context by session ownership. X-Agent-Id remains optional for explicit single-agent routing.",
     "tags": [
-      "Agents"
+      "Hosts"
     ],
     "security": [
       [
@@ -382,11 +387,11 @@ export const operations = [
   {
     "operationId": "claimAgentRealtimeSession",
     "method": "post",
-    "path": "/agents/realtime/sessions/{session}/claim",
-    "summary": "Claim one realtime session for websocket message handling.",
-    "description": "",
+    "path": "/hosts/realtime/sessions/{session}/claim",
+    "summary": "Claim one realtime session for websocket message handling (host or agent context).",
+    "description": "Accepts host API key context by session ownership. X-Agent-Id remains optional for explicit single-agent routing.",
     "tags": [
-      "Agents"
+      "Hosts"
     ],
     "security": [
       [
@@ -517,11 +522,11 @@ export const operations = [
   {
     "operationId": "closeAgentRealtimeSession",
     "method": "post",
-    "path": "/agents/realtime/sessions/{session}/close",
-    "summary": "Close a realtime session.",
-    "description": "",
+    "path": "/hosts/realtime/sessions/{session}/close",
+    "summary": "Close a realtime session (host or agent context).",
+    "description": "Accepts host API key context by session ownership. X-Agent-Id remains optional for explicit single-agent routing.",
     "tags": [
-      "Agents"
+      "Hosts"
     ],
     "security": [
       [
@@ -1140,11 +1145,11 @@ export const operations = [
   {
     "operationId": "createAgentRealtimeSignal",
     "method": "post",
-    "path": "/agents/realtime/sessions/{session}/signals",
-    "summary": "Publish one realtime event to a realtime session.",
-    "description": "",
+    "path": "/hosts/realtime/sessions/{session}/signals",
+    "summary": "Publish one realtime event to a realtime session (host or agent context).",
+    "description": "Accepts host API key context by session ownership. X-Agent-Id remains optional for explicit single-agent routing.",
     "tags": [
-      "Agents"
+      "Hosts"
     ],
     "security": [
       [
@@ -3485,117 +3490,6 @@ export const operations = [
     ]
   },
   {
-    "operationId": "getAgentInstructions",
-    "method": "get",
-    "path": "/agents/instructions",
-    "summary": "Fetch the AgentMC instruction bundle for the authenticated agent.",
-    "description": "Returns managed runtime files and bundle metadata. Send current_bundle_version to fetch files only when the bundle has changed.",
-    "tags": [
-      "Agents"
-    ],
-    "security": [
-      [
-        "ApiKeyAuth"
-      ]
-    ],
-    "parameters": [
-      {
-        "name": "current_bundle_version",
-        "in": "query",
-        "required": false,
-        "description": "Last applied instruction bundle version from local runtime state.",
-        "example": "bundle_2fa07fcadd6575cc"
-      }
-    ],
-    "requestBodyRequired": false,
-    "requestExamples": [],
-    "responses": [
-      {
-        "status": "200",
-        "mediaType": "application/json",
-        "description": "Instruction bundle returned.",
-        "hasContent": true,
-        "example": {
-          "ok": true,
-          "changed": true,
-          "bundle_version": "bundle_2fa07fcadd6575cc",
-          "generated_at": "2026-02-25T14:10:00Z",
-          "defaults": {
-            "heartbeat_interval_seconds": 300
-          },
-          "agent": {
-            "id": 42
-          },
-          "files": [
-            {
-              "id": "skill.md",
-              "path": ".agentmc/skills/skill.md",
-              "content": "# AgentMC\n",
-              "sha256": "f96c95bd27dc9f3415cc0f4d817b5ec6f14185b6fcb5db9f6b6f14f648f8e9e4"
-            }
-          ]
-        }
-      },
-      {
-        "status": "401",
-        "mediaType": "application/json",
-        "description": "Missing or invalid credentials.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "403",
-        "mediaType": "application/json",
-        "description": "Forbidden.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "422",
-        "mediaType": "application/json",
-        "description": "Validation failed.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      }
-    ]
-  },
-  {
     "operationId": "listAgentBriefs",
     "method": "get",
     "path": "/briefs",
@@ -3725,7 +3619,7 @@ export const operations = [
                 "active": true
               }
             ],
-            "path": ".agentmc/skills/skill.md",
+            "path": "notes/daily-ops.md",
             "per_page": 25,
             "total": 0
           }
@@ -3793,11 +3687,11 @@ export const operations = [
   {
     "operationId": "listAgentRealtimeRequestedSessions",
     "method": "get",
-    "path": "/agents/realtime/sessions/requested",
-    "summary": "List requested realtime sessions for an agent.",
-    "description": "",
+    "path": "/hosts/realtime/sessions/requested",
+    "summary": "List requested realtime sessions for one agent or a host.",
+    "description": "When X-Agent-Id (or agent_id query) is provided, returns requested sessions for that agent. With a host API key and no agent context, returns requested sessions across all agents assigned to that host.",
     "tags": [
-      "Agents"
+      "Hosts"
     ],
     "security": [
       [
@@ -3925,11 +3819,11 @@ export const operations = [
   {
     "operationId": "listAgentRealtimeSignals",
     "method": "get",
-    "path": "/agents/realtime/sessions/{session}/signals",
-    "summary": "Read realtime events for a realtime session.",
-    "description": "",
+    "path": "/hosts/realtime/sessions/{session}/signals",
+    "summary": "Read realtime events for a realtime session (host or agent context).",
+    "description": "Accepts host API key context by session ownership. X-Agent-Id remains optional for explicit single-agent routing.",
     "tags": [
-      "Agents"
+      "Hosts"
     ],
     "security": [
       [
@@ -4176,7 +4070,7 @@ export const operations = [
                 "active": true
               }
             ],
-            "path": ".agentmc/skills/skill.md",
+            "path": "notes/daily-ops.md",
             "per_page": 25,
             "total": 0
           }
@@ -4301,7 +4195,7 @@ export const operations = [
                 "active": true
               }
             ],
-            "path": ".agentmc/skills/skill.md",
+            "path": "notes/daily-ops.md",
             "per_page": 25,
             "total": 0
           }
@@ -4489,7 +4383,7 @@ export const operations = [
                 "active": true
               }
             ],
-            "path": ".agentmc/skills/skill.md",
+            "path": "notes/daily-ops.md",
             "per_page": 25,
             "total": 0
           }
@@ -4862,7 +4756,7 @@ export const operations = [
                 "active": true
               }
             ],
-            "path": ".agentmc/skills/skill.md",
+            "path": "notes/daily-ops.md",
             "per_page": 25,
             "total": 0
           }
@@ -5020,7 +4914,7 @@ export const operations = [
                 "active": true
               }
             ],
-            "path": ".agentmc/skills/skill.md",
+            "path": "notes/daily-ops.md",
             "per_page": 25,
             "total": 0
           }
@@ -5133,7 +5027,7 @@ export const operations = [
                 "active": true
               }
             ],
-            "path": ".agentmc/skills/skill.md",
+            "path": "notes/daily-ops.md",
             "per_page": 25,
             "total": 0
           }
@@ -5271,7 +5165,7 @@ export const operations = [
                 "active": true
               }
             ],
-            "path": ".agentmc/skills/skill.md",
+            "path": "notes/daily-ops.md",
             "per_page": 25,
             "total": 0
           }
@@ -5417,7 +5311,7 @@ export const operations = [
                 "active": true
               }
             ],
-            "path": ".agentmc/skills/skill.md",
+            "path": "notes/daily-ops.md",
             "per_page": 25,
             "total": 0
           }
@@ -5603,7 +5497,7 @@ export const operations = [
                 "active": true
               }
             ],
-            "path": ".agentmc/skills/skill.md",
+            "path": "notes/daily-ops.md",
             "per_page": 25,
             "total": 0
           }
@@ -5718,7 +5612,7 @@ export const operations = [
                 "active": true
               }
             ],
-            "path": ".agentmc/skills/skill.md",
+            "path": "notes/daily-ops.md",
             "per_page": 25,
             "total": 0
           }
