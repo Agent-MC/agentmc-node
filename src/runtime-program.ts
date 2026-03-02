@@ -192,12 +192,62 @@ export class AgentRuntimeProgram {
   }
 
   static fromEnv(env: NodeJS.ProcessEnv = process.env): AgentRuntimeProgram {
-    const apiKey = requireNonEmpty(env.AGENTMC_API_KEY, "AGENTMC_API_KEY");
+    const keyedEntries = Object.entries(env)
+      .map(([name, value]) => {
+        const match = name.match(/^AGENTMC_API_KEY_(\d+)$/);
+        if (!match) {
+          return null;
+        }
+
+        const agentId = toPositiveInt(match[1]);
+        const apiKey = nonEmpty(value);
+        if (agentId === null || !apiKey) {
+          return null;
+        }
+
+        return { agentId, apiKey };
+      })
+      .filter((entry): entry is { agentId: number; apiKey: string } => entry !== null)
+      .sort((a, b) => a.agentId - b.agentId);
+
+    if (keyedEntries.length === 0) {
+      throw new Error("AGENTMC_API_KEY_<AGENT_ID> is required.");
+    }
+
+    const requestedAgentId = toPositiveInt(env.AGENTMC_AGENT_ID);
+    const selectedEntry =
+      requestedAgentId !== null
+        ? keyedEntries.find((entry) => entry.agentId === requestedAgentId) ?? null
+        : keyedEntries.length === 1
+          ? keyedEntries[0]
+          : null;
+
+    if (!selectedEntry) {
+      if (requestedAgentId !== null) {
+        throw new Error(`Missing AGENTMC_API_KEY_${requestedAgentId}.`);
+      }
+
+      throw new Error(
+        "Multiple AGENTMC_API_KEY_<AGENT_ID> values found. Set AGENTMC_AGENT_ID for a single runtime or use `agentmc-api runtime:start`."
+      );
+    }
+
     const baseUrl = nonEmpty(env.AGENTMC_BASE_URL) ?? DEFAULT_AGENTMC_API_BASE_URL;
+    const workspaceDir =
+      nonEmpty(env[`AGENTMC_WORKSPACE_DIR_${selectedEntry.agentId}`]) ??
+      nonEmpty(env.AGENTMC_WORKSPACE_DIR) ??
+      undefined;
+    const statePath =
+      nonEmpty(env[`AGENTMC_STATE_PATH_${selectedEntry.agentId}`]) ??
+      nonEmpty(env.AGENTMC_STATE_PATH) ??
+      undefined;
 
     return new AgentRuntimeProgram({
-      apiKey,
-      baseUrl
+      apiKey: selectedEntry.apiKey,
+      baseUrl,
+      agentId: selectedEntry.agentId,
+      ...(workspaceDir ? { workspaceDir } : {}),
+      ...(statePath ? { statePath } : {})
     });
   }
 
@@ -801,6 +851,16 @@ export class AgentRuntimeProgram {
       },
       onSessionClosed: (sessionId, reason) => {
         this.emitInfo("Realtime session closed", { session_id: sessionId, reason });
+      },
+      onDebug: (event) => {
+        if (!event.event.startsWith("agent.profile.update")) {
+          return;
+        }
+
+        this.emitInfo("Agent profile update runtime event", {
+          event: event.event,
+          details: event.details
+        });
       }
     });
 

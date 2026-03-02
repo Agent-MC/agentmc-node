@@ -35,6 +35,132 @@ function operationDocPath(operationId: OperationId): string {
   return resolve(packageRoot, "docs/operations", `${operationId}.md`);
 }
 
+interface MultiAgentRuntimeConfig {
+  agentId: number;
+  apiKey: string;
+  workspaceDir: string;
+}
+
+function nonEmpty(value: unknown): string | null {
+  if (typeof value !== "string" && typeof value !== "number") {
+    return null;
+  }
+
+  const trimmed = String(value).trim();
+  return trimmed === "" ? null : trimmed;
+}
+
+function toPositiveInt(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+
+  const parsed = Number.parseInt(String(value), 10);
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    return null;
+  }
+
+  return parsed;
+}
+
+function resolveMultiAgentConfigs(env: NodeJS.ProcessEnv): MultiAgentRuntimeConfig[] {
+  const keyedEntries = Object.entries(env)
+    .map(([name, value]) => {
+      const match = name.match(/^AGENTMC_API_KEY_(\d+)$/);
+      if (!match) {
+        return null;
+      }
+
+      const agentId = toPositiveInt(match[1]);
+      const apiKey = nonEmpty(value);
+
+      if (agentId === null || !apiKey) {
+        return null;
+      }
+
+      return { agentId, apiKey, envName: name };
+    })
+    .filter((entry): entry is { agentId: number; apiKey: string; envName: string } => entry !== null)
+    .sort((a, b) => a.agentId - b.agentId);
+
+  if (keyedEntries.length === 0) {
+    return [];
+  }
+
+  const runtimeRoot =
+    nonEmpty(env.AGENTMC_MULTI_WORKSPACE_ROOT) ?? resolve(process.cwd(), ".agentmc", "runtimes");
+
+  return keyedEntries.map(({ agentId, apiKey, envName }) => {
+    if (apiKey.startsWith("cc_")) {
+      throw new Error(`${envName} contains a team API key (cc_*). Agent runtimes require agent keys (mca_*).`);
+    }
+
+    const workspaceOverride = nonEmpty(env[`AGENTMC_WORKSPACE_DIR_${agentId}`]);
+    const workspaceDir = workspaceOverride ?? resolve(runtimeRoot, `agent-${agentId}`);
+
+    return {
+      agentId,
+      apiKey,
+      workspaceDir
+    };
+  });
+}
+
+async function runMultiAgentRuntimeFromEnv(env: NodeJS.ProcessEnv): Promise<boolean> {
+  const configs = resolveMultiAgentConfigs(env);
+  if (configs.length === 0) {
+    return false;
+  }
+
+  const baseUrl = nonEmpty(env.AGENTMC_BASE_URL) ?? undefined;
+  const runtimeEntries = configs.map((config) => ({
+    ...config,
+    runtime: new AgentRuntimeProgram({
+      apiKey: config.apiKey,
+      baseUrl,
+      agentId: config.agentId,
+      workspaceDir: config.workspaceDir
+    })
+  }));
+
+  let stopping = false;
+  const stopAll = async (): Promise<void> => {
+    if (stopping) {
+      return;
+    }
+
+    stopping = true;
+    await Promise.allSettled(runtimeEntries.map((entry) => entry.runtime.stop()));
+  };
+
+  const handleSignal = (signal: NodeJS.Signals): void => {
+    process.stderr.write(`[agentmc-runtime] received ${signal}, stopping worker runtimes...\n`);
+    void stopAll();
+  };
+
+  process.once("SIGINT", handleSignal);
+  process.once("SIGTERM", handleSignal);
+
+  try {
+    await Promise.all(
+      runtimeEntries.map(async (entry) => {
+        process.stderr.write(
+          `[agentmc-runtime] worker start agent=${entry.agentId} workspace=${entry.workspaceDir}\n`
+        );
+        await entry.runtime.run();
+      })
+    );
+  } catch (error) {
+    await stopAll();
+    throw error;
+  } finally {
+    process.off("SIGINT", handleSignal);
+    process.off("SIGTERM", handleSignal);
+  }
+
+  return true;
+}
+
 export async function runCli(argv: string[] = process.argv): Promise<void> {
   process.stdout.on("error", (error: NodeJS.ErrnoException) => {
     if (error.code === "EPIPE") {
@@ -102,8 +228,12 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
     .command("runtime:start")
     .description("Start the unified AgentMC runtime program (realtime + instructions sync + heartbeat)")
     .action(async () => {
-      const runtime = AgentRuntimeProgram.fromEnv(process.env);
-      await runtime.run();
+      const multiRuntimeRan = await runMultiAgentRuntimeFromEnv(process.env);
+      if (!multiRuntimeRan) {
+        throw new Error(
+          "No agent runtime keys found. Set one or more AGENTMC_API_KEY_<AGENT_ID>=mca_... environment variables."
+        );
+      }
     });
 
   program

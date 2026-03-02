@@ -26,6 +26,7 @@ const DEFAULT_DUPLICATE_TTL_MS = 45_000;
 const DEFAULT_GATEWAY_TIMEOUT_MS = 120_000;
 const DEFAULT_OPENCLAW_SUBMIT_TIMEOUT_MS = 30_000;
 const DEFAULT_OPENCLAW_WAIT_TIMEOUT_MS = 90_000;
+const DEFAULT_OPENCLAW_PROFILE_UPDATE_TIMEOUT_MS = 15_000;
 const DEFAULT_OPENCLAW_MAX_BUFFER_BYTES = 10 * 1024 * 1024;
 const DEFAULT_SELF_HEAL_CONNECTION_STALE_MS = 45_000;
 const DEFAULT_SELF_HEAL_ACTIVITY_STALE_MS = 120_000;
@@ -147,6 +148,7 @@ export interface OpenClawAgentRuntimeOptions {
   openclawGatewayTimeoutMs?: number;
   openclawSubmitTimeoutMs?: number;
   openclawWaitTimeoutMs?: number;
+  openclawProfileUpdateTimeoutMs?: number;
   openclawMaxBufferBytes?: number;
   selfHealEnabled?: boolean;
   selfHealConnectionStaleMs?: number;
@@ -208,6 +210,7 @@ interface ResolvedOptions {
   openclawGatewayTimeoutMs: number;
   openclawSubmitTimeoutMs: number;
   openclawWaitTimeoutMs: number;
+  openclawProfileUpdateTimeoutMs: number;
   openclawMaxBufferBytes: number;
   selfHealEnabled: boolean;
   selfHealConnectionStaleMs: number;
@@ -1455,7 +1458,8 @@ export class OpenClawAgentRuntime {
         session_id: state.sessionId,
         request_id: requestId,
         openclaw_command: this.options.openclawCommand,
-        openclaw_agent: this.options.openclawAgent
+        openclaw_agent: this.options.openclawAgent,
+        timeout_ms: this.options.openclawProfileUpdateTimeoutMs
       });
       const updatedProfile = await this.updateOpenClawAgentIdentity({
         ...(hasName ? { name: name ?? null } : {}),
@@ -1501,7 +1505,7 @@ export class OpenClawAgentRuntime {
     name?: string | null;
     emoji?: string | null;
   }, requestId: string): Promise<{ name: string | null; emoji: string | null }> {
-    const args = ["agents", "set-identity", "--agent", this.options.openclawAgent];
+    const args = ["agents", "set-identity", "--non-interactive", "--agent", this.options.openclawAgent];
 
     if (typeof input.name === "string" && input.name.trim() !== "") {
       args.push("--name", input.name);
@@ -1511,7 +1515,7 @@ export class OpenClawAgentRuntime {
       args.push("--emoji", input.emoji ?? "");
     }
 
-    if (args.length <= 4) {
+    if (args.length <= 5) {
       throw new Error("agent profile update requires at least one field.");
     }
 
@@ -1524,7 +1528,7 @@ export class OpenClawAgentRuntime {
 
     try {
       const result = await execFileAsync(this.options.openclawCommand, args, {
-        timeout: this.options.openclawGatewayTimeoutMs,
+        timeout: this.options.openclawProfileUpdateTimeoutMs,
         maxBuffer: this.options.openclawMaxBufferBytes
       });
       await this.emitDebug("agent.profile.update.exec.command_result", {
@@ -1534,13 +1538,18 @@ export class OpenClawAgentRuntime {
         stderr_preview: previewText(result.stderr)
       });
     } catch (error) {
-      const normalized = normalizeError(error);
+      const normalizedExec = normalizeProfileUpdateExecError(
+        error,
+        this.options.openclawProfileUpdateTimeoutMs,
+        this.options.openclawCommand,
+        args
+      );
       await this.emitDebug("agent.profile.update.exec.command_failed", {
         request_id: requestId,
         duration_ms: Date.now() - startedAtMs,
-        error: normalized.message
+        error: normalizedExec.message
       });
-      throw error;
+      throw normalizedExec;
     }
 
     return {
@@ -1817,6 +1826,10 @@ function resolveOptions(options: OpenClawAgentRuntimeOptions): ResolvedOptions {
     openclawGatewayTimeoutMs: normalizePositiveInt(options.openclawGatewayTimeoutMs, DEFAULT_GATEWAY_TIMEOUT_MS),
     openclawSubmitTimeoutMs: normalizePositiveInt(options.openclawSubmitTimeoutMs, DEFAULT_OPENCLAW_SUBMIT_TIMEOUT_MS),
     openclawWaitTimeoutMs: normalizePositiveInt(options.openclawWaitTimeoutMs, DEFAULT_OPENCLAW_WAIT_TIMEOUT_MS),
+    openclawProfileUpdateTimeoutMs: normalizePositiveInt(
+      options.openclawProfileUpdateTimeoutMs,
+      DEFAULT_OPENCLAW_PROFILE_UPDATE_TIMEOUT_MS
+    ),
     openclawMaxBufferBytes: normalizePositiveInt(options.openclawMaxBufferBytes, DEFAULT_OPENCLAW_MAX_BUFFER_BYTES),
     selfHealEnabled: options.selfHealEnabled !== false,
     selfHealConnectionStaleMs: normalizePositiveInt(
@@ -2849,6 +2862,28 @@ function normalizeError(value: unknown, fallbackMessage = "Unexpected OpenClaw r
   const objectValue = valueAsObject(value);
   const message = valueAsString(objectValue?.message) ?? fallbackMessage;
   return new Error(message);
+}
+
+function normalizeProfileUpdateExecError(
+  value: unknown,
+  timeoutMs: number,
+  command: string,
+  args: readonly string[]
+): Error {
+  const objectValue = valueAsObject(value);
+  const code = valueAsString(objectValue?.code)?.trim().toUpperCase() || "";
+  const signal = valueAsString(objectValue?.signal)?.trim().toUpperCase() || "";
+  const killed = valueAsBoolean(objectValue?.killed) === true;
+  const commandLabel = [command, ...args].join(" ").trim();
+
+  if (code === "ETIMEDOUT" || signal === "SIGTERM" || killed) {
+    return new Error(
+      `OpenClaw profile update timed out after ${timeoutMs}ms while running "${commandLabel}". ` +
+      "Ensure OpenClaw can run non-interactively in the runtime environment (auth/session configured)."
+    );
+  }
+
+  return normalizeError(value);
 }
 
 function valueAsObject(value: unknown): JsonObject | null {
