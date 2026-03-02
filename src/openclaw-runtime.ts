@@ -2967,7 +2967,6 @@ function buildAgentMcBridgeMessage(input: {
   runtimeContext: BridgedAgentMcRuntimeContext;
 }): string {
   const context = deriveBridgedAgentMcContext(input.payload, input.session);
-  const apiKey = sanitizeRuntimeContextValue(input.runtimeContext.apiKey, 512);
   const lines = [
     "[AgentMC Context]",
     "app=AgentMC",
@@ -2982,7 +2981,6 @@ function buildAgentMcBridgeMessage(input: {
     `openapi_url=${input.runtimeContext.openApiUrl}`,
     "api_auth_header=X-Api-Key",
     "api_key_env=AGENTMC_API_KEY",
-    ...(apiKey ? [`api_key=${apiKey}`] : []),
     "openapi_hint=Fetch OpenAPI and resolve all $ref values before API calls.",
     "routing_hint=Treat actions with no external app specified as AgentMC operations.",
     "assignment_hint=When the user says 'assign it to me', map 'me' to default_assignee_user_id.",

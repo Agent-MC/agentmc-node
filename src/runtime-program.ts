@@ -1753,7 +1753,6 @@ function buildRecurringTaskAgentMcMessage(userPrompt: string, context: AgentMcPr
     return normalizedPrompt;
   }
 
-  const apiKey = sanitizeRuntimeContextValue(context.apiKey, 512);
   const lines = [
     "[AgentMC Context]",
     "app=AgentMC",
@@ -1763,7 +1762,6 @@ function buildRecurringTaskAgentMcMessage(userPrompt: string, context: AgentMcPr
     `openapi_url=${context.openApiUrl}`,
     "api_auth_header=X-Api-Key",
     "api_key_env=AGENTMC_API_KEY",
-    ...(apiKey ? [`api_key=${apiKey}`] : []),
     "openapi_hint=Fetch OpenAPI and resolve all $ref values before API calls.",
     "routing_hint=Treat actions with no external app specified as AgentMC operations.",
     "",
