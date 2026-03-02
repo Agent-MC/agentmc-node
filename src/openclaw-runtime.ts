@@ -1527,107 +1527,152 @@ export class OpenClawAgentRuntime {
       throw new Error("agent profile update requires at least one field.");
     }
 
-    const argsWithNonInteractive = [
-      "agents",
-      "set-identity",
-      "--non-interactive",
-      "--agent",
-      this.options.openclawAgent,
-      ...fieldArgs
-    ];
-    const argsWithoutNonInteractive = [
-      "agents",
-      "set-identity",
-      "--agent",
-      this.options.openclawAgent,
-      ...fieldArgs
-    ];
-
     const startedAtMs = Date.now();
-    let args = argsWithNonInteractive;
-    await this.emitDebug("agent.profile.update.exec.command", {
-      request_id: requestId,
-      command: this.options.openclawCommand,
-      args,
-      attempt: 1
-    });
-
-    try {
-      const result = await execFileAsync(this.options.openclawCommand, argsWithNonInteractive, {
-        cwd: this.options.runtimeWorkingDirectory,
-        timeout: this.options.openclawProfileUpdateTimeoutMs,
-        maxBuffer: this.options.openclawMaxBufferBytes
-      });
-      await this.emitDebug("agent.profile.update.exec.command_result", {
-        request_id: requestId,
-        duration_ms: Date.now() - startedAtMs,
-        stdout_preview: previewText(result.stdout),
-        stderr_preview: previewText(result.stderr),
-        attempt: 1
-      });
-    } catch (error) {
-      if (isUnknownNonInteractiveOptionError(error)) {
-        args = argsWithoutNonInteractive;
-        await this.emitDebug("agent.profile.update.exec.command.retry_without_non_interactive", {
-          request_id: requestId,
-          duration_ms: Date.now() - startedAtMs
-        });
-
-        try {
-          const retryResult = await execFileAsync(this.options.openclawCommand, argsWithoutNonInteractive, {
-            cwd: this.options.runtimeWorkingDirectory,
-            timeout: this.options.openclawProfileUpdateTimeoutMs,
-            maxBuffer: this.options.openclawMaxBufferBytes
-          });
-
-          await this.emitDebug("agent.profile.update.exec.command_result", {
-            request_id: requestId,
-            duration_ms: Date.now() - startedAtMs,
-            stdout_preview: previewText(retryResult.stdout),
-            stderr_preview: previewText(retryResult.stderr),
-            attempt: 2
-          });
-
-          return {
-            name: typeof input.name === "string" && input.name.trim() !== "" ? input.name : null,
-            emoji: Object.prototype.hasOwnProperty.call(input, "emoji") ? input.emoji ?? null : null
-          };
-        } catch (retryError) {
-          const normalizedRetryExec = normalizeProfileUpdateExecError(
-            retryError,
-            this.options.openclawProfileUpdateTimeoutMs,
-            this.options.openclawCommand,
-            argsWithoutNonInteractive
-          );
-          await this.emitDebug("agent.profile.update.exec.command_failed", {
-            request_id: requestId,
-            duration_ms: Date.now() - startedAtMs,
-            error: normalizedRetryExec.message,
-            attempt: 2
-          });
-          throw normalizedRetryExec;
-        }
-      }
-
-      const normalizedExec = normalizeProfileUpdateExecError(
-        error,
-        this.options.openclawProfileUpdateTimeoutMs,
-        this.options.openclawCommand,
-        args
-      );
-      await this.emitDebug("agent.profile.update.exec.command_failed", {
-        request_id: requestId,
-        duration_ms: Date.now() - startedAtMs,
-        error: normalizedExec.message,
-        attempt: 1
-      });
-      throw normalizedExec;
-    }
-
-    return {
+    const identityPayload = {
       name: typeof input.name === "string" && input.name.trim() !== "" ? input.name : null,
       emoji: Object.prototype.hasOwnProperty.call(input, "emoji") ? input.emoji ?? null : null
     };
+    let attempt = 0;
+
+    const executeForAgent = async (
+      targetAgent: string
+    ): Promise<{ ok: true } | { ok: false; error: Error; rawError: unknown }> => {
+      const argsWithNonInteractive = [
+        "agents",
+        "set-identity",
+        "--non-interactive",
+        "--agent",
+        targetAgent,
+        ...fieldArgs
+      ];
+      const argsWithoutNonInteractive = [
+        "agents",
+        "set-identity",
+        "--agent",
+        targetAgent,
+        ...fieldArgs
+      ];
+
+      attempt += 1;
+      await this.emitDebug("agent.profile.update.exec.command", {
+        request_id: requestId,
+        command: this.options.openclawCommand,
+        args: argsWithNonInteractive,
+        attempt,
+        agent: targetAgent
+      });
+
+      try {
+        const result = await execFileAsync(this.options.openclawCommand, argsWithNonInteractive, {
+          cwd: this.options.runtimeWorkingDirectory,
+          timeout: this.options.openclawProfileUpdateTimeoutMs,
+          maxBuffer: this.options.openclawMaxBufferBytes
+        });
+        await this.emitDebug("agent.profile.update.exec.command_result", {
+          request_id: requestId,
+          duration_ms: Date.now() - startedAtMs,
+          stdout_preview: previewText(result.stdout),
+          stderr_preview: previewText(result.stderr),
+          attempt,
+          agent: targetAgent
+        });
+
+        return { ok: true };
+      } catch (error) {
+        if (isUnknownNonInteractiveOptionError(error)) {
+          await this.emitDebug("agent.profile.update.exec.command.retry_without_non_interactive", {
+            request_id: requestId,
+            duration_ms: Date.now() - startedAtMs,
+            attempt,
+            agent: targetAgent
+          });
+
+          attempt += 1;
+          await this.emitDebug("agent.profile.update.exec.command", {
+            request_id: requestId,
+            command: this.options.openclawCommand,
+            args: argsWithoutNonInteractive,
+            attempt,
+            agent: targetAgent
+          });
+
+          try {
+            const retryResult = await execFileAsync(this.options.openclawCommand, argsWithoutNonInteractive, {
+              cwd: this.options.runtimeWorkingDirectory,
+              timeout: this.options.openclawProfileUpdateTimeoutMs,
+              maxBuffer: this.options.openclawMaxBufferBytes
+            });
+
+            await this.emitDebug("agent.profile.update.exec.command_result", {
+              request_id: requestId,
+              duration_ms: Date.now() - startedAtMs,
+              stdout_preview: previewText(retryResult.stdout),
+              stderr_preview: previewText(retryResult.stderr),
+              attempt,
+              agent: targetAgent
+            });
+
+            return { ok: true };
+          } catch (retryError) {
+            const normalizedRetryExec = normalizeProfileUpdateExecError(
+              retryError,
+              this.options.openclawProfileUpdateTimeoutMs,
+              this.options.openclawCommand,
+              argsWithoutNonInteractive
+            );
+            await this.emitDebug("agent.profile.update.exec.command_failed", {
+              request_id: requestId,
+              duration_ms: Date.now() - startedAtMs,
+              error: normalizedRetryExec.message,
+              attempt,
+              agent: targetAgent
+            });
+
+            return { ok: false, error: normalizedRetryExec, rawError: retryError };
+          }
+        }
+
+        const normalizedExec = normalizeProfileUpdateExecError(
+          error,
+          this.options.openclawProfileUpdateTimeoutMs,
+          this.options.openclawCommand,
+          argsWithNonInteractive
+        );
+        await this.emitDebug("agent.profile.update.exec.command_failed", {
+          request_id: requestId,
+          duration_ms: Date.now() - startedAtMs,
+          error: normalizedExec.message,
+          attempt,
+          agent: targetAgent
+        });
+
+        return { ok: false, error: normalizedExec, rawError: error };
+      }
+    };
+
+    const primaryAgent = this.options.openclawAgent;
+    const primaryResult = await executeForAgent(primaryAgent);
+    if (primaryResult.ok) {
+      return identityPayload;
+    }
+
+    if (primaryAgent !== "main" && isUnknownOpenClawAgentError(primaryResult.rawError, primaryAgent)) {
+      await this.emitDebug("agent.profile.update.exec.command.retry_with_agent_main", {
+        request_id: requestId,
+        duration_ms: Date.now() - startedAtMs,
+        previous_agent: primaryAgent,
+        fallback_agent: "main"
+      });
+
+      const mainResult = await executeForAgent("main");
+      if (mainResult.ok) {
+        return identityPayload;
+      }
+
+      throw mainResult.error;
+    }
+
+    throw primaryResult.error;
   }
 
   private async sendInitialSnapshot(state: SessionState, reason: string): Promise<void> {
@@ -3024,16 +3069,7 @@ function normalizeProfileUpdateExecError(
 }
 
 function isUnknownNonInteractiveOptionError(value: unknown): boolean {
-  const objectValue = valueAsObject(value);
-  const candidates = [
-    valueAsString(objectValue?.message),
-    valueAsString(objectValue?.stderr),
-    valueAsString(objectValue?.stdout),
-    valueAsString(objectValue?.shortMessage)
-  ]
-    .filter((entry): entry is string => typeof entry === "string" && entry.trim() !== "")
-    .join("\n")
-    .toLowerCase();
+  const candidates = extractCommandErrorText(value);
 
   if (!candidates.includes("--non-interactive")) {
     return false;
@@ -3044,6 +3080,49 @@ function isUnknownNonInteractiveOptionError(value: unknown): boolean {
     candidates.includes("unknown argument") ||
     candidates.includes("unrecognized option")
   );
+}
+
+function isUnknownOpenClawAgentError(value: unknown, agentKey: string): boolean {
+  const candidates = extractCommandErrorText(value);
+  if (candidates === "") {
+    return false;
+  }
+
+  const normalizedAgentKey = String(agentKey || "").trim().toLowerCase();
+  const hasAgentContext =
+    candidates.includes("agent") ||
+    candidates.includes("--agent") ||
+    (normalizedAgentKey !== "" && candidates.includes(normalizedAgentKey));
+  if (!hasAgentContext) {
+    return false;
+  }
+
+  const hasLookupFailure =
+    candidates.includes("unknown agent") ||
+    candidates.includes("agent not found") ||
+    candidates.includes("no such agent") ||
+    candidates.includes("not found") ||
+    candidates.includes("does not exist") ||
+    candidates.includes("cannot find") ||
+    (candidates.includes("invalid value") && candidates.includes("--agent"));
+
+  return hasLookupFailure;
+}
+
+function extractCommandErrorText(value: unknown): string {
+  const objectValue = valueAsObject(value);
+  const candidates = [
+    valueAsString(objectValue?.message),
+    valueAsString(objectValue?.stderr),
+    valueAsString(objectValue?.stdout),
+    valueAsString(objectValue?.shortMessage),
+    value instanceof Error ? value.message : null
+  ]
+    .filter((entry): entry is string => typeof entry === "string" && entry.trim() !== "")
+    .join("\n")
+    .toLowerCase();
+
+  return candidates;
 }
 
 function valueAsObject(value: unknown): JsonObject | null {
