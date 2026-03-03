@@ -101,6 +101,7 @@ interface AgentMcPromptContext {
   apiKey: string | null;
   apiBaseUrl: string;
   openApiUrl: string;
+  agentId: number | null;
 }
 
 export interface AgentRuntimeProgramOptions {
@@ -1504,7 +1505,10 @@ export class AgentRuntimeProgram {
     const runInput: AgentRuntimeRunInput = {
       sessionId: claimed.taskId,
       requestId,
-      userText: buildRecurringTaskAgentMcMessage(prompt, this.resolveAgentMcPromptContext())
+      userText: buildRecurringTaskAgentMcMessage(
+        prompt,
+        this.resolveAgentMcPromptContext(claimed.agentId)
+      )
     };
 
     let runResult: AgentRuntimeRunResult;
@@ -1574,7 +1578,7 @@ export class AgentRuntimeProgram {
         {
           cwd: this.resolveRuntimeCommandCwd(),
           timeoutMs,
-          env: this.buildAgentCommandEnv()
+          env: this.buildAgentCommandEnv(claimed.agentId)
         }
       );
       const directTextRaw = parseExternalAgentOutput(output.stdout) || parseExternalAgentOutput(output.stderr);
@@ -1646,16 +1650,20 @@ export class AgentRuntimeProgram {
     }
   }
 
-  private resolveAgentMcPromptContext(): AgentMcPromptContext {
+  private resolveAgentMcPromptContext(agentIdHint?: number | null): AgentMcPromptContext {
+    const agentId =
+      toPositiveInt(agentIdHint) ?? this.agentProfile?.id ?? this.initialAgentId ?? toPositiveInt(this.state.agent_id);
+
     return {
       apiKey: this.agentMcApiKey,
       apiBaseUrl: this.agentMcApiBaseUrl,
-      openApiUrl: this.agentMcOpenApiUrl
+      openApiUrl: this.agentMcOpenApiUrl,
+      agentId: agentId ?? null
     };
   }
 
-  private buildAgentCommandEnv(): NodeJS.ProcessEnv {
-    return buildAgentCommandEnv(this.resolveAgentMcPromptContext());
+  private buildAgentCommandEnv(agentIdHint?: number | null): NodeJS.ProcessEnv {
+    return buildAgentCommandEnv(this.resolveAgentMcPromptContext(agentIdHint));
   }
 
   private emitInfo(message: string, meta?: JsonObject): void {
@@ -1728,6 +1736,9 @@ function buildAgentCommandEnv(context: AgentMcPromptContext): NodeJS.ProcessEnv 
   if (context.apiKey) {
     env.AGENTMC_API_KEY = context.apiKey;
   }
+  if (context.agentId !== null) {
+    env.AGENTMC_AGENT_ID = String(context.agentId);
+  }
 
   return env;
 }
@@ -1760,10 +1771,13 @@ function buildRecurringTaskAgentMcMessage(userPrompt: string, context: AgentMcPr
     "app=AgentMC",
     "source=agentmc_recurring_task",
     "intent_scope=agentmc",
+    ...(context.agentId !== null ? [`agent_id=${context.agentId}`] : []),
+    "agent_id_env=AGENTMC_AGENT_ID",
     `api_base_url=${context.apiBaseUrl}`,
     `openapi_url=${context.openApiUrl}`,
     "api_auth_header=X-Api-Key",
     "api_key_env=AGENTMC_API_KEY",
+    ...(context.apiKey ? [`api_key=${context.apiKey}`] : []),
     "openapi_hint=Fetch OpenAPI and resolve all $ref values before API calls.",
     "routing_hint=Treat actions with no external app specified as AgentMC operations.",
     "",

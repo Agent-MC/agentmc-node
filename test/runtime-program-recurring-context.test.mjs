@@ -27,7 +27,9 @@ function createProvider(onRun) {
 test("recurring task prompt is wrapped with AgentMC context", async () => {
   let capturedUserText = null;
   const runtime = new AgentRuntimeProgram({
-    client: { operations: {} }
+    client: { operations: {} },
+    apiKey: "cc_test_key",
+    agentId: 77
   });
 
   const provider = createProvider((input) => {
@@ -47,6 +49,10 @@ test("recurring task prompt is wrapped with AgentMC context", async () => {
   assert.ok(capturedUserText);
   assert.match(capturedUserText, /^\[AgentMC Context\]\n/m);
   assert.match(capturedUserText, /source=agentmc_recurring_task/);
+  assert.match(capturedUserText, /agent_id=77/);
+  assert.match(capturedUserText, /agent_id_env=AGENTMC_AGENT_ID/);
+  assert.match(capturedUserText, /api_key_env=AGENTMC_API_KEY/);
+  assert.match(capturedUserText, /api_key=cc_test_key/);
   assert.match(
     capturedUserText,
     /Create a project update and reconcile task statuses\.\s*$/
