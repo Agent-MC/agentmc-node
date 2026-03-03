@@ -285,18 +285,49 @@ function resolveRuntimeAutoUpdateInstallDir(env: NodeJS.ProcessEnv): string {
     return resolve(configured);
   }
 
-  const normalizedCliFilePath = fileURLToPath(import.meta.url).replace(/\\/g, "/");
+  const cliFilePath = fileURLToPath(import.meta.url);
+  const normalizedCliFilePath = cliFilePath.replace(/\\/g, "/");
   const markerIndex = normalizedCliFilePath.lastIndexOf(INSTALLED_PACKAGE_PATH_MARKER);
   if (markerIndex >= 0) {
     return resolve(normalizedCliFilePath.slice(0, markerIndex));
   }
 
+  // For non-node_modules layouts, prefer the package root near this CLI file
+  // so `npm install` updates the active runtime installation instead of cwd.
+  let cursor = dirname(cliFilePath);
+  for (let depth = 0; depth < 8; depth += 1) {
+    if (existsSync(resolve(cursor, "package.json"))) {
+      return resolve(cursor);
+    }
+
+    const parent = dirname(cursor);
+    if (parent === cursor) {
+      break;
+    }
+    cursor = parent;
+  }
+
   return process.cwd();
+}
+
+function isProductionServiceEnvironment(env: NodeJS.ProcessEnv): boolean {
+  const nodeEnv = nonEmpty(env.NODE_ENV)?.toLowerCase();
+  if (nodeEnv === "production") {
+    return true;
+  }
+
+  // systemd sets these for long-lived services.
+  return (
+    nonEmpty(env.INVOCATION_ID) !== null ||
+    nonEmpty(env.JOURNAL_STREAM) !== null ||
+    nonEmpty(env.SYSTEMD_EXEC_PID) !== null
+  );
 }
 
 function resolveRuntimeAutoUpdateConfig(env: NodeJS.ProcessEnv): RuntimeAutoUpdateConfig {
   const normalizedCliFilePath = fileURLToPath(import.meta.url).replace(/\\/g, "/");
-  const defaultEnabled = normalizedCliFilePath.includes(INSTALLED_PACKAGE_PATH_MARKER);
+  const defaultEnabled =
+    normalizedCliFilePath.includes(INSTALLED_PACKAGE_PATH_MARKER) || isProductionServiceEnvironment(env);
   const enabled = toBoolean(env.AGENTMC_AUTO_UPDATE) ?? defaultEnabled;
 
   return {
@@ -2446,8 +2477,12 @@ function buildRuntimeEnv(baseEnv: NodeJS.ProcessEnv, worker: RuntimeWorkerConfig
 
   if (disableHeartbeat) {
     runtimeEnv.AGENTMC_DISABLE_HEARTBEAT = "1";
+    // Host supervisor workers must always keep polling fallback enabled so
+    // requested chat sessions still recover when websocket routing blips.
+    runtimeEnv.AGENTMC_REALTIME_SESSION_POLLING = "1";
   } else {
     delete runtimeEnv.AGENTMC_DISABLE_HEARTBEAT;
+    delete runtimeEnv.AGENTMC_REALTIME_SESSION_POLLING;
   }
 
   return runtimeEnv;

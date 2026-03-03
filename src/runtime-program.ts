@@ -244,13 +244,19 @@ export class AgentRuntimeProgram {
     const runtimeProvider = normalizeRuntimeProvider(nonEmpty(env.AGENTMC_RUNTIME_PROVIDER));
     const runtimeModels = parseCommaSeparatedList(env.AGENTMC_MODELS);
     const runtimeCommandArgs = parseCommandArguments(env.AGENTMC_RUNTIME_COMMAND_ARGS);
+    // Worker runtimes in host-supervisor mode run with AGENTMC_DISABLE_HEARTBEAT=1.
+    // Keep session polling fallback enabled there so websocket router issues do not
+    // strand requested sessions.
+    const realtimeSessionPollingEnabled = disableHeartbeat
+      ? true
+      : valueAsBoolean(env.AGENTMC_REALTIME_SESSION_POLLING) !== false;
 
     return new AgentRuntimeProgram({
       apiKey: hostKey,
       baseUrl: nonEmpty(env.AGENTMC_BASE_URL) ?? DEFAULT_AGENTMC_API_BASE_URL,
       agentId: requestedAgentId ?? undefined,
       heartbeatEnabled: !disableHeartbeat,
-      realtimeSessionPollingEnabled: valueAsBoolean(env.AGENTMC_REALTIME_SESSION_POLLING) !== false,
+      realtimeSessionPollingEnabled,
       heartbeatIntervalSeconds,
       workspaceDir: nonEmpty(env.AGENTMC_WORKSPACE_DIR) ?? undefined,
       statePath: nonEmpty(env.AGENTMC_STATE_PATH) ?? undefined,

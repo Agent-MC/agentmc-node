@@ -230,12 +230,14 @@ Required env:
     -   `AGENTMC_RECURRING_WAIT_TIMEOUT_MS` (default `600000` / 10 minutes)
     -   `AGENTMC_RECURRING_GATEWAY_TIMEOUT_MS` (default `720000` / 12 minutes; always coerced to at least wait timeout + 30 seconds)
 -   Optional runtime auto-update tuning:
-    -   `AGENTMC_AUTO_UPDATE` (`true`/`false`; defaults to enabled when running from an installed `node_modules/@agentmc/api` package path)
+    -   `AGENTMC_AUTO_UPDATE` (`true`/`false`; defaults to enabled when running from an installed `node_modules/@agentmc/api` package path, or when running as a production service via `NODE_ENV=production`/systemd environment markers)
     -   `AGENTMC_AUTO_UPDATE_INTERVAL_SECONDS` (default `300`)
     -   `AGENTMC_AUTO_UPDATE_INSTALL_TIMEOUT_MS` (default `120000`)
     -   `AGENTMC_AUTO_UPDATE_NPM_COMMAND` (default `npm`)
-    -   `AGENTMC_AUTO_UPDATE_INSTALL_DIR` (default inferred install root when installed, else `process.cwd()`)
+    -   `AGENTMC_AUTO_UPDATE_INSTALL_DIR` (default inferred install root from runtime package path; falls back to package root near CLI file, then `process.cwd()`)
     -   `AGENTMC_AUTO_UPDATE_REGISTRY_URL` (default `https://registry.npmjs.org/@agentmc%2Fapi/latest`)
+-   Realtime fallback defaults in host-supervisor mode:
+    -   Worker runtimes force `AGENTMC_REALTIME_SESSION_POLLING=1` when heartbeat is disabled (`AGENTMC_DISABLE_HEARTBEAT=1`) so requested chat sessions recover if websocket routing disconnects.
 
 Keep these env values up to date for each running agent worker. Update and restart the runtime whenever provider/model/network settings change.
 
