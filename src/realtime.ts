@@ -65,6 +65,7 @@ const DEFAULT_SENDER_FOR_ENVELOPE_ESTIMATE = "agent";
 const DEFAULT_ENVELOPE_TIMESTAMP = "2026-01-01T00:00:00Z";
 const DEFAULT_HTTP_USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36";
+const DEFAULT_REALTIME_WEBSOCKET_ORIGIN = "https://agentmc.ai";
 const TEXT_ENCODER = new TextEncoder();
 
 export interface AgentRealtimeSessionRecord {
@@ -1078,7 +1079,95 @@ function maybePusherConstructor(moduleValue: unknown): PusherConstructor | null 
   const moduleObject = valueAsObject(moduleValue);
   const candidate = moduleObject?.default ?? moduleObject?.Pusher;
 
-  return typeof candidate === "function" ? (candidate as PusherConstructor) : null;
+  if (typeof candidate !== "function") {
+    return null;
+  }
+
+  const resolved = candidate as PusherConstructor;
+  configurePusherWebsocketOrigin(resolved);
+  return resolved;
+}
+
+interface PusherRuntimeWithCustomSocket {
+  getWebSocketAPI?: () => new (...args: unknown[]) => {
+    on?: (event: string, handler: (...args: unknown[]) => void) => void;
+  };
+  createWebSocket?: (url: string) => unknown;
+}
+
+interface PusherConstructorWithRuntime extends PusherConstructor {
+  Runtime?: PusherRuntimeWithCustomSocket;
+  __agentmcOriginPatched?: boolean;
+}
+
+function configurePusherWebsocketOrigin(PusherCtor: PusherConstructor): void {
+  if (!isNodeRuntime()) {
+    return;
+  }
+
+  const origin = resolveRealtimeWebsocketOrigin();
+  if (!origin) {
+    return;
+  }
+
+  const pusherWithRuntime = PusherCtor as unknown as PusherConstructorWithRuntime;
+  if (pusherWithRuntime.__agentmcOriginPatched) {
+    return;
+  }
+
+  const runtime = pusherWithRuntime.Runtime;
+  const getWebSocketAPI = runtime?.getWebSocketAPI;
+  if (!runtime || typeof getWebSocketAPI !== "function") {
+    return;
+  }
+
+  runtime.createWebSocket = (url: string) => {
+    const WebSocketApi = getWebSocketAPI.call(runtime);
+    try {
+      const socket = new WebSocketApi(url, [], {
+        headers: {
+          Origin: origin
+        }
+      });
+      socket.on?.("error", () => {});
+      return socket;
+    } catch {
+      return new WebSocketApi(url);
+    }
+  };
+
+  pusherWithRuntime.__agentmcOriginPatched = true;
+}
+
+function resolveRealtimeWebsocketOrigin(): string | null {
+  const fromEnv = normalizeWebsocketOrigin(
+    process.env.AGENTMC_REALTIME_WEBSOCKET_ORIGIN ??
+      process.env.AGENTMC_WEBSOCKET_ORIGIN ??
+      process.env.AGENTMC_WS_ORIGIN
+  );
+  if (fromEnv) {
+    return fromEnv;
+  }
+
+  return DEFAULT_REALTIME_WEBSOCKET_ORIGIN;
+}
+
+function normalizeWebsocketOrigin(value: unknown): string | null {
+  const raw = valueAsString(value)?.trim();
+  if (!raw) {
+    return null;
+  }
+
+  const sanitized = raw.replace(/\/+$/, "");
+  if (!/^https?:\/\/[A-Za-z0-9.-]+(?::\d+)?$/u.test(sanitized)) {
+    return null;
+  }
+
+  return sanitized;
+}
+
+function isNodeRuntime(): boolean {
+  return typeof process !== "undefined" && Boolean(process.versions?.node);
 }
 
 function normalizeSignal(payload: unknown, fallbackSessionId: number): AgentRealtimeSignalMessage | null {
