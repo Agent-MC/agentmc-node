@@ -164,8 +164,6 @@ const DEFAULT_WORKER_RESTART_DELAY_MS = 2_000;
 const DEFAULT_WORKER_RESTART_MAX_DELAY_MS = 30_000;
 const WORKER_RESTART_RESET_WINDOW_MS = 60_000;
 const DEFAULT_HOST_HEARTBEAT_INTERVAL_SECONDS = 60;
-const DEFAULT_HOST_REQUESTED_SESSION_LIMIT = 20;
-const DEFAULT_HOST_REQUEST_POLL_MS = 250;
 const DEFAULT_AUTO_UPDATE_INTERVAL_SECONDS = 300;
 const DEFAULT_AUTO_UPDATE_INSTALL_TIMEOUT_MS = 120_000;
 const DEFAULT_AUTO_UPDATE_PACKAGE_NAME = "@agentmc/api";
@@ -975,7 +973,6 @@ async function runMultiAgentRuntimeFromEnv(env: NodeJS.ProcessEnv): Promise<bool
   let stopping = false;
   const activeRuntimes = new Map<string, AgentRuntimeProgram>();
   let hostHeartbeatLoopPromise: Promise<void> | null = null;
-  let hostRequestedSessionLoopPromise: Promise<void> | null = null;
   let autoUpdateLoopPromise: Promise<void> | null = null;
   let restartRequestedByAutoUpdate = false;
   const autoUpdateConfig = resolveRuntimeAutoUpdateConfig(env);
@@ -1133,14 +1130,6 @@ async function runMultiAgentRuntimeFromEnv(env: NodeJS.ProcessEnv): Promise<bool
       toPositiveInt(env.AGENTMC_HOST_HEARTBEAT_INTERVAL_SECONDS) ??
       toPositiveInt(env.AGENTMC_HEARTBEAT_INTERVAL_SECONDS) ??
       DEFAULT_HOST_HEARTBEAT_INTERVAL_SECONDS;
-    const hostRequestPollMs = Math.max(
-      150,
-      toPositiveInt(env.AGENTMC_REQUEST_POLL_MS) ?? DEFAULT_HOST_REQUEST_POLL_MS
-    );
-    const hostRequestedSessionLimit = Math.max(
-      1,
-      Math.min(100, toPositiveInt(env.AGENTMC_REQUESTED_SESSION_LIMIT) ?? DEFAULT_HOST_REQUESTED_SESSION_LIMIT)
-    );
 
     const heartbeatClient = new AgentMCApi({
       baseUrl,
@@ -1172,7 +1161,7 @@ async function runMultiAgentRuntimeFromEnv(env: NodeJS.ProcessEnv): Promise<bool
       `[agentmc-runtime] host heartbeat active interval=${hostHeartbeatIntervalSeconds}s host=${hostFingerprint}\n`
     );
     process.stderr.write(
-      `[agentmc-runtime] host realtime requested-session poll active interval=${hostRequestPollMs}ms limit=${hostRequestedSessionLimit}\n`
+      "[agentmc-runtime] host realtime requested-session discovery mode=push (worker-managed websocket sessions)\n"
     );
 
     const runtimeEntries: RuntimeEntry[] = resolved.workers.map((worker) => ({
@@ -1221,14 +1210,6 @@ async function runMultiAgentRuntimeFromEnv(env: NodeJS.ProcessEnv): Promise<bool
       },
       shouldStop: () => stopping
     });
-    hostRequestedSessionLoopPromise = runHostRequestedSessionLoop({
-      client: heartbeatClient,
-      workers: resolved.workers,
-      activeRuntimes,
-      pollMs: hostRequestPollMs,
-      sessionLimit: hostRequestedSessionLimit,
-      shouldStop: () => stopping
-    });
 
     const lifecyclePromises: Promise<void>[] = [
       ...runtimeEntries.map((entry) =>
@@ -1245,8 +1226,7 @@ async function runMultiAgentRuntimeFromEnv(env: NodeJS.ProcessEnv): Promise<bool
           shouldStop: () => stopping
         })
       ),
-      hostHeartbeatLoopPromise,
-      hostRequestedSessionLoopPromise
+      hostHeartbeatLoopPromise
     ];
     if (autoUpdateLoopPromise) {
       lifecyclePromises.push(autoUpdateLoopPromise);
@@ -1267,9 +1247,6 @@ async function runMultiAgentRuntimeFromEnv(env: NodeJS.ProcessEnv): Promise<bool
     }
     if (hostHeartbeatLoopPromise) {
       await Promise.allSettled([hostHeartbeatLoopPromise]);
-    }
-    if (hostRequestedSessionLoopPromise) {
-      await Promise.allSettled([hostRequestedSessionLoopPromise]);
     }
     if (autoUpdateLoopPromise) {
       await Promise.allSettled([autoUpdateLoopPromise]);
@@ -1309,101 +1286,6 @@ async function runHostHeartbeatLoop(input: {
       const message = error instanceof Error ? error.message : String(error);
       process.stderr.write(`[agentmc-runtime] host heartbeat failed: ${message}\n`);
     }
-  }
-}
-
-async function runHostRequestedSessionLoop(input: {
-  client: AgentMCApi;
-  workers: RuntimeWorkerConfig[];
-  activeRuntimes: Map<string, AgentRuntimeProgram>;
-  pollMs: number;
-  sessionLimit: number;
-  shouldStop: () => boolean;
-}): Promise<void> {
-  let nextPollAtMs = 0;
-  let lastRateLimitLogAtMs = 0;
-
-  while (!input.shouldStop()) {
-    const nowMs = Date.now();
-    if (nowMs < nextPollAtMs) {
-      await sleepWithStop(Math.min(1_000, nextPollAtMs - nowMs), input.shouldStop);
-      continue;
-    }
-
-    try {
-      const response = await input.client.operations.listAgentRealtimeRequestedSessions({
-        params: {
-          query: {
-            limit: input.sessionLimit
-          }
-        }
-      });
-
-      if (response.error) {
-        const status = Number(response.status || 0);
-        if (status === 429) {
-          const backoffMs = Math.max(input.pollMs * 3, 4_000);
-          nextPollAtMs = Date.now() + backoffMs;
-          if (Date.now() - lastRateLimitLogAtMs >= 5_000) {
-            lastRateLimitLogAtMs = Date.now();
-            process.stderr.write(
-              `[agentmc-runtime] listAgentRealtimeRequestedSessions rate limited (429); backing off for ${backoffMs}ms.\n`
-            );
-          }
-          continue;
-        }
-
-        const summary = summarizeApiError(response.error);
-        throw new Error(
-          `listAgentRealtimeRequestedSessions failed with status ${response.status}${summary ? ` (${summary})` : ""}`
-        );
-      }
-
-      nextPollAtMs = Date.now() + input.pollMs;
-
-      const sessions = Array.isArray(response.data?.data) ? response.data.data : [];
-      const orderedSessions = [...sessions].sort(
-        (left, right) => (toPositiveInt((right as { id?: unknown }).id) ?? 0) - (toPositiveInt((left as { id?: unknown }).id) ?? 0)
-      );
-      const workersByAgentId = new Map<number, RuntimeWorkerConfig>();
-      for (const worker of input.workers) {
-        if (worker.agentId !== null && worker.agentId > 0 && !workersByAgentId.has(worker.agentId)) {
-          workersByAgentId.set(worker.agentId, worker);
-        }
-      }
-
-      for (const session of orderedSessions) {
-        const row = valueAsObject(session);
-        if (!row) {
-          continue;
-        }
-
-        const sessionId = toPositiveInt(row.id);
-        const agentId = toPositiveInt(row.agent_id ?? row.agentId);
-        if (sessionId === null || agentId === null) {
-          continue;
-        }
-
-        const worker = workersByAgentId.get(agentId);
-        if (!worker) {
-          continue;
-        }
-
-        const runtime = input.activeRuntimes.get(worker.localKey);
-        if (!runtime) {
-          continue;
-        }
-
-        runtime.enqueueRequestedRealtimeSession(sessionId);
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      process.stderr.write(`[agentmc-runtime] host realtime requested-session poll failed: ${message}\n`);
-      nextPollAtMs = Date.now() + Math.max(input.pollMs, 1_000);
-    }
-
-    const waitMs = Math.max(150, Math.min(1_000, Math.max(0, nextPollAtMs - Date.now())));
-    await sleepWithStop(waitMs, input.shouldStop);
   }
 }
 
@@ -2510,10 +2392,8 @@ function buildRuntimeEnv(baseEnv: NodeJS.ProcessEnv, worker: RuntimeWorkerConfig
 
   if (disableHeartbeat) {
     runtimeEnv.AGENTMC_DISABLE_HEARTBEAT = "1";
-    runtimeEnv.AGENTMC_DISABLE_REQUESTED_SESSION_POLLING = "1";
   } else {
     delete runtimeEnv.AGENTMC_DISABLE_HEARTBEAT;
-    delete runtimeEnv.AGENTMC_DISABLE_REQUESTED_SESSION_POLLING;
   }
 
   return runtimeEnv;

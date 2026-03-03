@@ -23,6 +23,8 @@ const DEFAULT_FALLBACK_SIGNAL_POLL_MS = 1_000;
 const DEFAULT_CATCHUP_SIGNAL_POLL_MS = 15_000;
 const DEFAULT_SIGNAL_POLL_LIMIT = 100;
 const DEFAULT_DUPLICATE_TTL_MS = 45_000;
+const DEFAULT_PUSH_LOOP_DELAY_MS = 1_000;
+const MAX_RATE_LIMIT_BACKOFF_MS = 120_000;
 const DEFAULT_GATEWAY_TIMEOUT_MS = 120_000;
 const DEFAULT_OPENCLAW_SUBMIT_TIMEOUT_MS = 30_000;
 const DEFAULT_OPENCLAW_WAIT_TIMEOUT_MS = 90_000;
@@ -127,6 +129,7 @@ export interface OpenClawAgentRuntimeOptions {
   filesRealtimeEnabled?: boolean;
   docsRealtimeEnabled?: boolean;
   notificationsRealtimeEnabled?: boolean;
+  allowConcurrentRequestedSessions?: boolean;
   requestedSessionLimit?: number;
   requestPollMs?: number;
   fallbackSignalPollMs?: number;
@@ -193,6 +196,7 @@ interface ResolvedOptions {
   filesRealtimeEnabled: boolean;
   docsRealtimeEnabled: boolean;
   notificationsRealtimeEnabled: boolean;
+  allowConcurrentRequestedSessions: boolean;
   requestedSessionLimit: number;
   requestPollMs: number;
   fallbackSignalPollMs: number;
@@ -253,6 +257,7 @@ interface SessionState {
   lastSignalPollAtMs: number;
   nextSignalPollAtMs: number;
   lastSignalRateLimitLogAtMs: number;
+  signalRateLimitStreak: number;
   sawConnectedState: boolean;
   createdAtMs: number;
   lastHealthActivityAtMs: number;
@@ -284,6 +289,7 @@ export class OpenClawAgentRuntime {
   private runPromise: Promise<void> | null = null;
   private nextRequestedPollAtMs = 0;
   private lastRequestedRateLimitLogAtMs = 0;
+  private requestedSessionRateLimitStreak = 0;
 
   constructor(options: OpenClawAgentRuntimeOptions) {
     this.options = resolveOptions(options);
@@ -308,6 +314,7 @@ export class OpenClawAgentRuntime {
 
     this.stopRequested = false;
     this.nextRequestedPollAtMs = 0;
+    this.requestedSessionRateLimitStreak = 0;
     const runner = this.runLoop();
     this.runPromise = runner;
 
@@ -327,6 +334,7 @@ export class OpenClawAgentRuntime {
 
     this.stopRequested = false;
     this.nextRequestedPollAtMs = 0;
+    this.requestedSessionRateLimitStreak = 0;
     const runner = this.runLoop();
     this.runPromise = runner;
 
@@ -380,7 +388,7 @@ export class OpenClawAgentRuntime {
 
     while (!this.stopRequested) {
       const nowMs = Date.now();
-      if (this.options.realtimeSessionsEnabled && nowMs >= this.nextRequestedPollAtMs) {
+      if (this.shouldPollRequestedSessions(nowMs)) {
         try {
           await this.pollRequestedSessions();
         } catch (error) {
@@ -392,7 +400,20 @@ export class OpenClawAgentRuntime {
     }
   }
 
+  private shouldPollRequestedSessions(nowMs: number): boolean {
+    if (!this.options.realtimeSessionsEnabled) {
+      return false;
+    }
+
+    if (!this.options.allowConcurrentRequestedSessions && this.sessions.size > 0) {
+      return false;
+    }
+
+    return nowMs >= this.nextRequestedPollAtMs;
+  }
+
   private async pollRequestedSessions(): Promise<void> {
+    const nowMs = Date.now();
     const response = await this.options.client.operations.listAgentRealtimeRequestedSessions({
       params: {
         query: {
@@ -407,28 +428,38 @@ export class OpenClawAgentRuntime {
     if (response.error) {
       const status = Number(response.status || 0);
       if (status === 429) {
-        const nowMs = Date.now();
-        this.nextRequestedPollAtMs = nowMs + Math.max(this.options.requestPollMs * 3, 4_000);
+        this.requestedSessionRateLimitStreak += 1;
+        const streakMultiplier = 2 ** Math.min(this.requestedSessionRateLimitStreak, 5);
+        const baseBackoffMs = Math.max(this.options.requestPollMs * streakMultiplier, 4_000);
+        const retryAfterMs = parseRetryAfterMs(response.response);
+        const cappedBackoffMs = Math.min(Math.max(baseBackoffMs, retryAfterMs ?? 0), MAX_RATE_LIMIT_BACKOFF_MS);
+        const backoffMs = withJitter(cappedBackoffMs, resolveBackoffJitterMs(cappedBackoffMs));
+        this.nextRequestedPollAtMs = nowMs + backoffMs;
         if (nowMs - this.lastRequestedRateLimitLogAtMs >= 5_000) {
           this.lastRequestedRateLimitLogAtMs = nowMs;
           await this.emitError(
             new Error(
-              `listAgentRealtimeRequestedSessions rate limited (429); backing off for ${this.nextRequestedPollAtMs - nowMs}ms.`
+              `listAgentRealtimeRequestedSessions rate limited (429); backing off for ${backoffMs}ms.`
             )
           );
         }
         return;
       }
 
+      this.requestedSessionRateLimitStreak = 0;
+      this.nextRequestedPollAtMs = nowMs + withJitter(this.options.requestPollMs, resolveBackoffJitterMs(this.options.requestPollMs));
       throw createOperationError("listAgentRealtimeRequestedSessions", response.status, response.error);
     }
 
-    this.nextRequestedPollAtMs = Date.now() + this.options.requestPollMs;
+    this.requestedSessionRateLimitStreak = 0;
+    this.nextRequestedPollAtMs =
+      nowMs + withJitter(this.options.requestPollMs, resolveBackoffJitterMs(this.options.requestPollMs));
 
     const sessions = Array.isArray(response.data?.data) ? response.data.data : [];
     const orderedSessions = [...sessions].sort(
       (left, right) => toPositiveInteger(right?.id) - toPositiveInteger(left?.id)
     );
+    const concurrentRequestedSessions = this.options.allowConcurrentRequestedSessions;
 
     for (const session of orderedSessions) {
       const sessionId = toPositiveInteger(session?.id);
@@ -437,11 +468,18 @@ export class OpenClawAgentRuntime {
       }
 
       this.startSessionLoop(sessionId);
+      if (!concurrentRequestedSessions) {
+        break;
+      }
     }
   }
 
   private resolveLoopDelayMs(): number {
     const nowMs = Date.now();
+    if (this.sessions.size > 0 && !this.options.allowConcurrentRequestedSessions) {
+      return DEFAULT_PUSH_LOOP_DELAY_MS;
+    }
+
     const fallbackDelayMs = this.sessions.size > 0
       ? Math.max(this.options.requestPollMs, 3_000)
       : this.options.requestPollMs;
@@ -466,6 +504,7 @@ export class OpenClawAgentRuntime {
       lastSignalPollAtMs: 0,
       nextSignalPollAtMs: 0,
       lastSignalRateLimitLogAtMs: 0,
+      signalRateLimitStreak: 0,
       sawConnectedState: false,
       createdAtMs: nowMs,
       lastHealthActivityAtMs: nowMs,
@@ -624,13 +663,19 @@ export class OpenClawAgentRuntime {
       const status = Number(response.status || 0);
 
       if (status === 404 || status === 409 || status === 422) {
+        state.signalRateLimitStreak = 0;
         state.closeReason = status === 422 ? "session_poll_invalid" : "session_poll_closed";
         await this.closeSession(state, state.closeReason, false);
         return;
       }
 
       if (status === 429) {
-        const backoffMs = Math.max(this.options.fallbackSignalPollMs * 2, 2_500);
+        state.signalRateLimitStreak += 1;
+        const streakMultiplier = 2 ** Math.min(state.signalRateLimitStreak, 5);
+        const baseBackoffMs = Math.max(this.options.fallbackSignalPollMs * streakMultiplier, 2_500);
+        const retryAfterMs = parseRetryAfterMs(response.response);
+        const cappedBackoffMs = Math.min(Math.max(baseBackoffMs, retryAfterMs ?? 0), MAX_RATE_LIMIT_BACKOFF_MS);
+        const backoffMs = withJitter(cappedBackoffMs, resolveBackoffJitterMs(cappedBackoffMs));
         state.nextSignalPollAtMs = Date.now() + backoffMs;
 
         if (Date.now() - state.lastSignalRateLimitLogAtMs >= 5_000) {
@@ -644,9 +689,11 @@ export class OpenClawAgentRuntime {
         return;
       }
 
+      state.signalRateLimitStreak = 0;
       throw createOperationError("listAgentRealtimeSignals", response.status, response.error);
     }
 
+    state.signalRateLimitStreak = 0;
     state.nextSignalPollAtMs = 0;
     state.lastHealthActivityAtMs = Date.now();
     const signals = Array.isArray(response.data?.data) ? response.data.data : [];
@@ -1885,6 +1932,9 @@ export class OpenClawAgentRuntime {
     }
 
     this.sessions.delete(state.sessionId);
+    if (this.options.realtimeSessionsEnabled && this.sessions.size === 0) {
+      this.nextRequestedPollAtMs = Math.min(this.nextRequestedPollAtMs, Date.now() + 250);
+    }
     await callOptionalHandler(this.options.onSessionClosed, state.sessionId, this.options.onError, reason);
   }
 
@@ -1957,6 +2007,7 @@ function resolveOptions(options: OpenClawAgentRuntimeOptions): ResolvedOptions {
   const realtimeSessionsEnabled = typeof options.realtimeSessionsEnabled === "boolean"
     ? options.realtimeSessionsEnabled
     : chatRealtimeEnabled || filesRealtimeEnabled || notificationsRealtimeEnabled || hasRealtimeCallbacks;
+  const allowConcurrentRequestedSessions = options.allowConcurrentRequestedSessions === true;
   const agentmcApiKey = sanitizeRuntimeContextValue(
     valueAsString(options.agentmcApiKey) ??
       readClientConfiguredValue(options.client, "getConfiguredApiKey") ??
@@ -1985,6 +2036,7 @@ function resolveOptions(options: OpenClawAgentRuntimeOptions): ResolvedOptions {
     filesRealtimeEnabled,
     docsRealtimeEnabled,
     notificationsRealtimeEnabled,
+    allowConcurrentRequestedSessions,
     requestedSessionLimit: normalizePositiveInt(options.requestedSessionLimit, DEFAULT_REQUESTED_SESSION_LIMIT),
     requestPollMs: normalizePositiveInt(options.requestPollMs, DEFAULT_REQUEST_POLL_MS),
     fallbackSignalPollMs: normalizePositiveInt(options.fallbackSignalPollMs, DEFAULT_FALLBACK_SIGNAL_POLL_MS),
@@ -2230,6 +2282,42 @@ function normalizePositiveInt(value: number | undefined, fallback: number): numb
   }
 
   return fallback;
+}
+
+function withJitter(baseMs: number, maxJitterMs: number): number {
+  const normalizedBase = Math.max(1, Math.floor(baseMs));
+  const normalizedJitter = Math.max(0, Math.floor(maxJitterMs));
+  if (normalizedJitter < 1) {
+    return normalizedBase;
+  }
+
+  return normalizedBase + Math.floor(Math.random() * (normalizedJitter + 1));
+}
+
+function resolveBackoffJitterMs(baseMs: number): number {
+  return Math.min(5_000, Math.max(250, Math.floor(Math.max(1, baseMs) * 0.2)));
+}
+
+function parseRetryAfterMs(response: Response | undefined): number | null {
+  const retryAfter = response?.headers.get("retry-after");
+  if (!retryAfter) {
+    return null;
+  }
+
+  const seconds = Number.parseInt(retryAfter, 10);
+  if (Number.isInteger(seconds) && seconds > 0) {
+    return seconds * 1_000;
+  }
+
+  const timestampMs = Date.parse(retryAfter);
+  if (Number.isFinite(timestampMs)) {
+    const remainingMs = timestampMs - Date.now();
+    if (remainingMs > 0) {
+      return Math.ceil(remainingMs);
+    }
+  }
+
+  return null;
 }
 
 function normalizeLowercase(value: unknown): string {
