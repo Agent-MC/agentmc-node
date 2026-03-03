@@ -70,7 +70,7 @@ test("runtime:status --json returns worker heartbeat details", async () => {
       schema_version: 1,
       pid: process.pid,
       status: "running",
-      mode: "single-agent",
+      mode: "multi-agent",
       started_at: heartbeatAt,
       updated_at: heartbeatAt,
       host_fingerprint: "test-host",

@@ -431,10 +431,16 @@ export class OpenClawAgentRuntime {
     const orderedSessions = [...sessions].sort(
       (left, right) => toPositiveInteger(right?.id) - toPositiveInteger(left?.id)
     );
-    const preferredSession = orderedSessions.find((session) => toPositiveInteger(session?.requested_by_user_id) < 1)
-      ?? orderedSessions[0];
-    const sessionId = toPositiveInteger(preferredSession?.id);
-    if (sessionId < 1 || this.sessions.has(sessionId)) {
+
+    const preferredSessions = orderedSessions.filter((session) => toPositiveInteger(session?.requested_by_user_id) < 1);
+    const fallbackSessions = orderedSessions.filter((session) => toPositiveInteger(session?.requested_by_user_id) >= 1);
+    const nextSession = [...preferredSessions, ...fallbackSessions].find((session) => {
+      const sessionId = toPositiveInteger(session?.id);
+      return sessionId > 0 && !this.sessions.has(sessionId);
+    });
+
+    const sessionId = toPositiveInteger(nextSession?.id);
+    if (sessionId < 1) {
       return;
     }
 

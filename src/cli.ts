@@ -67,7 +67,7 @@ interface HostHeartbeatAgentRow {
 }
 
 type HostHeartbeatRuntimeProvider = "openclaw" | "external" | "host-runtime";
-type RuntimeSupervisorMode = "single-agent" | "multi-agent";
+type RuntimeSupervisorMode = "multi-agent";
 type RuntimeSupervisorStatus = "running" | "stopped";
 
 interface RuntimeSupervisorWorkerStatus {
@@ -500,13 +500,12 @@ function readRuntimeStatusReport(statusPath: string, env: NodeJS.ProcessEnv): Ru
         })
         .filter((row): row is RuntimeSupervisorWorkerStatus => row !== null);
 
-      const mode = nonEmpty(object.mode);
       const status = nonEmpty(object.status);
       parsedSnapshot = {
         schema_version: 1,
         pid: toPositiveInt(object.pid) ?? 0,
         status: status === "running" || status === "stopped" ? status : "running",
-        mode: mode === "single-agent" || mode === "multi-agent" ? mode : "multi-agent",
+        mode: "multi-agent",
         started_at: nonEmpty(object.started_at) ?? new Date(0).toISOString(),
         updated_at: nonEmpty(object.updated_at) ?? new Date(0).toISOString(),
         host_fingerprint: nonEmpty(object.host_fingerprint),
@@ -1051,57 +1050,10 @@ async function runMultiAgentRuntimeFromEnv(env: NodeJS.ProcessEnv): Promise<bool
     }
 
     const baseUrl = nonEmpty(env.AGENTMC_BASE_URL) ?? undefined;
-    const explicitAgentId = toPositiveInt(env.AGENTMC_AGENT_ID);
-    if (explicitAgentId !== null) {
-      const runtimeEnv: NodeJS.ProcessEnv = {
-        ...env,
-        AGENTMC_API_KEY: hostApiKey,
-        AGENTMC_AGENT_ID: String(explicitAgentId)
-      };
-      const entry: RuntimeEntry = {
-        worker: {
-          agentId: explicitAgentId,
-          apiKey: hostApiKey,
-          workspaceDir: nonEmpty(runtimeEnv.AGENTMC_WORKSPACE_DIR) ?? process.cwd(),
-          statePath:
-            nonEmpty(runtimeEnv.AGENTMC_STATE_PATH) ??
-            resolve(process.cwd(), ".agentmc", `state.agent-${explicitAgentId}.json`),
-          localKey: `agent-${explicitAgentId}`,
-          localName: `agent-${explicitAgentId}`,
-          provider: normalizeRuntimeProvider(env.AGENTMC_RUNTIME_PROVIDER)
-        },
-        runtimeEnv
-      };
-      statusWorkers = [entry.worker];
-      await persistStatusSafe({
-        mode: "single-agent",
-        summary: `starting single worker ${entry.worker.localKey}`
-      });
-
-      if (toBoolean(env.AGENTMC_DISABLE_HEARTBEAT) !== true) {
-        process.stderr.write(
-          "[agentmc-runtime] explicit AGENTMC_AGENT_ID mode enabled; per-agent heartbeat remains enabled.\n"
-        );
-      }
-
-      await runRuntimeEntryWithRestart({
-        entry,
-        activeRuntimes,
-        workerRestartDelayMs,
-        workerRestartMaxDelayMs,
-        onWorkerEvent: async ({ worker, event }) => {
-          await persistStatusSafe({
-            summary: `worker ${worker.localKey} ${event}`
-          });
-        },
-        shouldStop: () => stopping
-      });
-
-      if (restartRequestedByAutoUpdate) {
-        process.stderr.write("[agentmc-runtime] auto-update applied; exiting for restart.\n");
-      }
-
-      return true;
+    if (toPositiveInt(env.AGENTMC_AGENT_ID) !== null) {
+      process.stderr.write(
+        "[agentmc-runtime] AGENTMC_AGENT_ID is ignored in host supervisor mode; using discovered multi-agent workers.\n"
+      );
     }
 
     const runtimeProvider = normalizeRuntimeProvider(env.AGENTMC_RUNTIME_PROVIDER);
