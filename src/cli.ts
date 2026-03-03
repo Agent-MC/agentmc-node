@@ -1125,7 +1125,7 @@ async function runMultiAgentRuntimeFromEnv(env: NodeJS.ProcessEnv): Promise<bool
       `[agentmc-runtime] host heartbeat active interval=${hostHeartbeatIntervalSeconds}s host=${hostFingerprint}\n`
     );
     process.stderr.write(
-      `[agentmc-runtime] host realtime mode=single-websocket-router interval_ms=${hostRealtimeRouteIntervalMs} limit=${hostRealtimeRouteLimit}\n`
+      `[agentmc-runtime] host realtime mode=single-websocket-router+worker-session-poll-fallback interval_ms=${hostRealtimeRouteIntervalMs} limit=${hostRealtimeRouteLimit}\n`
     );
 
     const runtimeEntries: RuntimeEntry[] = resolved.workers.map((worker) => ({
@@ -2446,10 +2446,8 @@ function buildRuntimeEnv(baseEnv: NodeJS.ProcessEnv, worker: RuntimeWorkerConfig
 
   if (disableHeartbeat) {
     runtimeEnv.AGENTMC_DISABLE_HEARTBEAT = "1";
-    runtimeEnv.AGENTMC_REALTIME_SESSION_POLLING = "0";
   } else {
     delete runtimeEnv.AGENTMC_DISABLE_HEARTBEAT;
-    delete runtimeEnv.AGENTMC_REALTIME_SESSION_POLLING;
   }
 
   return runtimeEnv;

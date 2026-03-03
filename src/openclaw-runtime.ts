@@ -582,6 +582,12 @@ export class OpenClawAgentRuntime {
         try {
           await subscription.ready;
         } catch (error) {
+          if (this.stopRequested) {
+            state.closeReason = this.options.closeReason;
+            await this.closeSession(state, state.closeReason, this.options.closeSessionOnStop, true, this.options.closeStatus);
+            return;
+          }
+
           const nowMs = Date.now();
           const normalizedError = normalizeError(error);
 
