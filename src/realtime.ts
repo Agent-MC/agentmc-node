@@ -1,8 +1,9 @@
 import type { AgentMCApi } from "./client";
-import type { components } from "./generated/schema";
 
 type MaybePromise = void | Promise<void>;
 type JsonObject = Record<string, unknown>;
+type ApiOperationResult = { data?: unknown; error?: unknown; response: Response; status: number };
+type ApiOperationHandler = (options?: unknown) => Promise<ApiOperationResult>;
 
 interface PusherAuthorizer {
   authorize(socketId: string, callback: (error: boolean, data: unknown) => void): void;
@@ -66,7 +67,25 @@ const DEFAULT_HTTP_USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36";
 const TEXT_ENCODER = new TextEncoder();
 
-export type AgentRealtimeSessionRecord = components["schemas"]["AgentRealtimeSession"];
+export interface AgentRealtimeSessionRecord {
+  id: number;
+  requested_by_user_id?: number | null;
+  socket?: {
+    channel?: string | null;
+    event?: string | null;
+    connection?: {
+      key?: string | null;
+      host?: string | null;
+      scheme?: string | null;
+      port?: number | null;
+      path?: string | null;
+      cluster?: string | null;
+      [key: string]: unknown;
+    } | null;
+    [key: string]: unknown;
+  } | null;
+  [key: string]: unknown;
+}
 export type AgentRealtimeConnectionState =
   | "initialized"
   | "connecting"
@@ -243,7 +262,7 @@ class RealtimeNotificationsSubscription implements AgentRealtimeNotificationsSub
       return;
     }
 
-    const closeResult = await this.client.operations.closeAgentRealtimeSession({
+    const closeResult = await invokeOperation(this.client, "closeAgentRealtimeSession", {
       params: {
         path: {
           session: this.session.id
@@ -327,7 +346,7 @@ export async function subscribeToRealtimeNotifications(
     sharedTransportChannelName = channelName;
     const authChannel = channelName;
     const authForChannel = async (socketId: string): Promise<unknown> => {
-      const authResult = await client.operations.authenticateAgentRealtimeSocket({
+      const authResult = await invokeOperation(client, "authenticateAgentRealtimeSocket", {
         params: {
           path: {
             session: claimedSession.id
@@ -342,7 +361,8 @@ export async function subscribeToRealtimeNotifications(
         }
       });
 
-      if (authResult.error || !authResult.data) {
+      const authPayload = valueAsObject(authResult.data) ?? (await readJsonResponseObject(authResult.response));
+      if (authResult.error || !authPayload) {
         throw createOperationError(
           "authenticateAgentRealtimeSocket",
           authResult.status,
@@ -350,7 +370,7 @@ export async function subscribeToRealtimeNotifications(
         );
       }
 
-      return authResult.data;
+      return authPayload;
     };
     const pusher = await acquireSharedPusher({
       key: transportKey,
@@ -783,7 +803,7 @@ async function resolveAndClaimSession(
   if (options.session !== undefined) {
     candidateSessionIds = [options.session];
   } else {
-    const requestedResult = await client.operations.listAgentRealtimeRequestedSessions({
+    const requestedResult = await invokeOperation(client, "listAgentRealtimeRequestedSessions", {
       params: {
         query: {
           limit: options.requestedSessionLimit ?? 20
@@ -802,7 +822,8 @@ async function resolveAndClaimSession(
       );
     }
 
-    const sessions = requestedResult.data?.data ?? [];
+    const requestedPayload = valueAsObject(requestedResult.data) ?? (await readJsonResponseObject(requestedResult.response));
+    const sessions = Array.isArray(requestedPayload?.data) ? requestedPayload.data : [];
     const orderedSessions = [...sessions].sort(
       (left, right) => (valueAsPositiveInteger(right?.id) ?? 0) - (valueAsPositiveInteger(left?.id) ?? 0)
     );
@@ -822,7 +843,7 @@ async function resolveAndClaimSession(
   const explicitSessionRequested = options.session !== undefined;
 
   for (const sessionId of candidateSessionIds) {
-    const claimResult = await client.operations.claimAgentRealtimeSession({
+    const claimResult = await invokeOperation(client, "claimAgentRealtimeSession", {
       params: {
         path: {
           session: sessionId
@@ -843,7 +864,8 @@ async function resolveAndClaimSession(
       throw claimError;
     }
 
-    const session = claimResult.data?.data;
+    const claimPayload = valueAsObject(claimResult.data) ?? (await readJsonResponseObject(claimResult.response));
+    const session = normalizeSessionRecord(claimPayload?.data);
     if (!session) {
       const missingDataError = new Error(
         `claimAgentRealtimeSession returned status ${claimResult.status} without session data.`
@@ -1295,7 +1317,7 @@ async function closeClaimedSessionOnSubscribeFailure(
   sessionId: number,
   onError: ((error: Error) => MaybePromise) | undefined
 ): Promise<void> {
-  const closeResult = await client.operations.closeAgentRealtimeSession({
+  const closeResult = await invokeOperation(client, "closeAgentRealtimeSession", {
     params: {
       path: {
         session: sessionId
@@ -1342,7 +1364,7 @@ async function createRealtimeSignal(
     payload: JsonObject;
   }
 ): Promise<number> {
-  const response = await client.operations.createAgentRealtimeSignal({
+  const response = await invokeOperation(client, "createAgentRealtimeSignal", {
     params: {
       path: {
         session: options.session
@@ -1361,7 +1383,9 @@ async function createRealtimeSignal(
     throw createOperationError("createAgentRealtimeSignal", response.status, response.error);
   }
 
-  const signalId = valueAsPositiveInteger(response.data?.data?.id);
+  const responsePayload = valueAsObject(response.data) ?? (await readJsonResponseObject(response.response));
+  const signalData = valueAsObject(responsePayload?.data);
+  const signalId = valueAsPositiveInteger(signalData?.id);
   if (signalId === null) {
     throw new Error("createAgentRealtimeSignal succeeded but returned no valid signal id.");
   }
@@ -1604,6 +1628,47 @@ async function callErrorHandler(
   } catch {
     // Never rethrow from user-provided error handlers.
   }
+}
+
+function resolveOperation(client: AgentMCApi, operationId: string): ApiOperationHandler {
+  const operation = valueAsObject(client.operations)?.[operationId];
+  if (typeof operation !== "function") {
+    throw new Error(`Operation ${operationId} is not available.`);
+  }
+
+  return operation as ApiOperationHandler;
+}
+
+async function invokeOperation(
+  client: AgentMCApi,
+  operationId: string,
+  options?: unknown
+): Promise<ApiOperationResult> {
+  const operation = resolveOperation(client, operationId);
+  return operation(options);
+}
+
+async function readJsonResponseObject(response: Response): Promise<JsonObject | null> {
+  try {
+    return valueAsObject(await response.clone().json());
+  } catch {
+    return null;
+  }
+}
+
+function normalizeSessionRecord(value: unknown): AgentRealtimeSessionRecord | null {
+  const object = valueAsObject(value);
+  const id = valueAsPositiveInteger(object?.id);
+  if (!object || id === null) {
+    return null;
+  }
+
+  return {
+    ...object,
+    id,
+    requested_by_user_id: valueAsPositiveInteger(object.requested_by_user_id),
+    socket: valueAsObject(object.socket) as AgentRealtimeSessionRecord["socket"]
+  };
 }
 
 function createOperationError(operationId: string, status: number, _errorPayload: unknown): Error {
