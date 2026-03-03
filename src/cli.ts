@@ -12,6 +12,7 @@ import { detectRuntimeAgents, type DiscoveredRuntimeAgent } from "./agent-discov
 import { AgentMCApi } from "./client";
 import { operationsById, type OperationId } from "./generated/operations";
 import { AGENTMC_NODE_PACKAGE_VERSION } from "./package-version";
+import { closeSharedRealtimeTransports } from "./realtime";
 import { AgentRuntimeProgram } from "./runtime-program";
 
 function parseJson(value: string | undefined, flagName: string): unknown {
@@ -1252,6 +1253,7 @@ async function runMultiAgentRuntimeFromEnv(env: NodeJS.ProcessEnv): Promise<bool
       await Promise.allSettled([autoUpdateLoopPromise]);
     }
     await stopAll();
+    closeSharedRealtimeTransports();
     await persistStatusSafe({
       status: "stopped",
       summary: "runtime supervisor stopped"

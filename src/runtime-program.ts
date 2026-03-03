@@ -981,6 +981,7 @@ export class AgentRuntimeProgram {
       agentmcBaseUrl: this.agentMcApiBaseUrl,
       agentmcOpenApiUrl: this.agentMcOpenApiUrl,
       realtimeSessionsEnabled: this.options.realtimeSessionsEnabled !== false,
+      allowConcurrentRequestedSessions: true,
       runtimeDocsDirectory,
       runtimeWorkingDirectory: this.workspaceDir,
       openclawCommand: this.options.openclawCommand,

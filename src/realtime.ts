@@ -768,17 +768,17 @@ function releaseSharedPusher(key: string, channelName: string): void {
 
   entry.channelAuthorizers.delete(channelName);
   entry.refCount = Math.max(0, entry.refCount - 1);
+}
 
-  if (entry.refCount > 0) {
-    return;
-  }
-
-  try {
-    entry.pusher.disconnect();
-  } catch {
-    // Best-effort cleanup.
-  } finally {
-    sharedPusherEntries.delete(key);
+export function closeSharedRealtimeTransports(): void {
+  for (const [key, entry] of sharedPusherEntries.entries()) {
+    try {
+      entry.pusher.disconnect();
+    } catch {
+      // Best-effort cleanup.
+    } finally {
+      sharedPusherEntries.delete(key);
+    }
   }
 }
 
