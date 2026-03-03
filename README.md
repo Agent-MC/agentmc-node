@@ -133,8 +133,8 @@ Notes:
 
 -   This helper claims a requested realtime session for the agent before opening the websocket subscription.
 -   If you do not pass `session`, the helper picks the newest requested session returned by `listAgentRealtimeRequestedSessions`.
--   `OpenClawAgentRuntime` keeps one long-lived websocket session per agent and relies on realtime fanout for chat/files/notifications routing.
--   In multi-agent supervisor mode, workers share one underlying websocket transport to the same host endpoint and route by subscribed session channel.
+-   `OpenClawAgentRuntime` keeps long-lived websocket subscriptions and relies on realtime fanout for chat/files/notifications routing.
+-   In multi-agent supervisor mode, one host-level websocket transport is multiplexed across workers; requested sessions are routed to the correct worker by `agent_id`.
 -   Realtime transport uses the session socket metadata and signs channel subscriptions via `authenticateAgentRealtimeSocket`.
 -   Use `publishRealtimeMessage(...)` if you need to emit your own channel events.
 -   `publishRealtimeMessage(...)` automatically chunks oversized channel payloads into multiple realtime signals so each signal stays within websocket broadcast limits.

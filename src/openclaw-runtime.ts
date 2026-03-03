@@ -122,6 +122,7 @@ export interface OpenClawAgentRuntimeOptions {
   agentmcBaseUrl?: string;
   agentmcOpenApiUrl?: string;
   realtimeSessionsEnabled?: boolean;
+  sessionPollingEnabled?: boolean;
   chatRealtimeEnabled?: boolean;
   filesRealtimeEnabled?: boolean;
   docsRealtimeEnabled?: boolean;
@@ -172,6 +173,7 @@ export interface OpenClawAgentRuntimeStatus {
   running: boolean;
   activeSessions: number[];
   realtimeSessionsEnabled: boolean;
+  sessionPollingEnabled: boolean;
   chatRealtimeEnabled: boolean;
   filesRealtimeEnabled: boolean;
   docsRealtimeEnabled: boolean;
@@ -185,6 +187,7 @@ interface ResolvedOptions {
   agentmcBaseUrl: string;
   agentmcOpenApiUrl: string;
   realtimeSessionsEnabled: boolean;
+  sessionPollingEnabled: boolean;
   chatRealtimeEnabled: boolean;
   filesRealtimeEnabled: boolean;
   docsRealtimeEnabled: boolean;
@@ -285,11 +288,26 @@ export class OpenClawAgentRuntime {
       running: this.runPromise !== null && !this.stopRequested,
       activeSessions: Array.from(this.sessions.keys()).sort((left, right) => left - right),
       realtimeSessionsEnabled: this.options.realtimeSessionsEnabled,
+      sessionPollingEnabled: this.options.sessionPollingEnabled,
       chatRealtimeEnabled: this.options.chatRealtimeEnabled,
       filesRealtimeEnabled: this.options.filesRealtimeEnabled,
       docsRealtimeEnabled: this.options.docsRealtimeEnabled,
       notificationsRealtimeEnabled: this.options.notificationsRealtimeEnabled
     };
+  }
+
+  attachSession(sessionId: number): boolean {
+    const resolvedSessionId = toPositiveInteger(sessionId);
+    if (resolvedSessionId < 1) {
+      return false;
+    }
+
+    if (!this.options.realtimeSessionsEnabled || this.stopRequested || this.sessions.has(resolvedSessionId)) {
+      return false;
+    }
+
+    this.startSessionLoop(resolvedSessionId);
+    return true;
   }
 
   async run(): Promise<void> {
@@ -373,6 +391,10 @@ export class OpenClawAgentRuntime {
 
   private shouldAcquireSession(nowMs: number): boolean {
     if (!this.options.realtimeSessionsEnabled) {
+      return false;
+    }
+
+    if (!this.options.sessionPollingEnabled) {
       return false;
     }
 
@@ -1885,6 +1907,7 @@ function resolveOptions(options: OpenClawAgentRuntimeOptions): ResolvedOptions {
   const realtimeSessionsEnabled = typeof options.realtimeSessionsEnabled === "boolean"
     ? options.realtimeSessionsEnabled
     : chatRealtimeEnabled || filesRealtimeEnabled || notificationsRealtimeEnabled || hasRealtimeCallbacks;
+  const sessionPollingEnabled = options.sessionPollingEnabled !== false;
   const agentmcApiKey = sanitizeRuntimeContextValue(
     valueAsString(options.agentmcApiKey) ??
       readClientConfiguredValue(options.client, "getConfiguredApiKey") ??
@@ -1909,6 +1932,7 @@ function resolveOptions(options: OpenClawAgentRuntimeOptions): ResolvedOptions {
     agentmcBaseUrl,
     agentmcOpenApiUrl,
     realtimeSessionsEnabled,
+    sessionPollingEnabled,
     chatRealtimeEnabled,
     filesRealtimeEnabled,
     docsRealtimeEnabled,

@@ -113,6 +113,7 @@ export interface AgentRuntimeProgramOptions {
   agentId?: number;
   heartbeatEnabled?: boolean;
   realtimeSessionsEnabled?: boolean;
+  realtimeSessionPollingEnabled?: boolean;
   heartbeatIntervalSeconds?: number;
   runtimeProvider?: "auto" | RuntimeProviderKind;
   runtimeCommand?: string;
@@ -169,6 +170,7 @@ export class AgentRuntimeProgram {
   private stopRequested = false;
   private loopPromise: Promise<void> | null = null;
   private realtimeRuntime: AgentRuntime | null = null;
+  private readonly pendingExternalRealtimeSessions = new Set<number>();
 
   private state: RuntimeState = {};
   private runtimeProvider: RuntimeProviderDescriptor | null = null;
@@ -249,6 +251,7 @@ export class AgentRuntimeProgram {
       baseUrl: nonEmpty(env.AGENTMC_BASE_URL) ?? DEFAULT_AGENTMC_API_BASE_URL,
       agentId: requestedAgentId ?? undefined,
       heartbeatEnabled: !disableHeartbeat,
+      realtimeSessionPollingEnabled: valueAsBoolean(env.AGENTMC_REALTIME_SESSION_POLLING) !== false,
       heartbeatIntervalSeconds,
       workspaceDir: nonEmpty(env.AGENTMC_WORKSPACE_DIR) ?? undefined,
       statePath: nonEmpty(env.AGENTMC_STATE_PATH) ?? undefined,
@@ -303,6 +306,7 @@ export class AgentRuntimeProgram {
 
   async stop(): Promise<void> {
     this.stopRequested = true;
+    this.pendingExternalRealtimeSessions.clear();
 
     if (this.realtimeRuntime) {
       try {
@@ -315,6 +319,25 @@ export class AgentRuntimeProgram {
     if (this.loopPromise) {
       await this.loopPromise;
     }
+  }
+
+  attachRealtimeSession(sessionId: number): boolean {
+    const resolvedSessionId = toPositiveInt(sessionId);
+    if (resolvedSessionId === null) {
+      return false;
+    }
+
+    const runtime = this.realtimeRuntime as AgentRuntime & {
+      attachSession?: (id: number) => boolean;
+    };
+    if (!runtime || typeof runtime.attachSession !== "function") {
+      this.pendingExternalRealtimeSessions.add(resolvedSessionId);
+      return false;
+    }
+
+    const attached = runtime.attachSession(resolvedSessionId);
+    this.pendingExternalRealtimeSessions.delete(resolvedSessionId);
+    return attached;
   }
 
   private async runLoop(): Promise<void> {
@@ -981,6 +1004,7 @@ export class AgentRuntimeProgram {
       agentmcBaseUrl: this.agentMcApiBaseUrl,
       agentmcOpenApiUrl: this.agentMcOpenApiUrl,
       realtimeSessionsEnabled: this.options.realtimeSessionsEnabled !== false,
+      sessionPollingEnabled: this.options.realtimeSessionPollingEnabled !== false,
       runtimeDocsDirectory,
       runtimeWorkingDirectory: this.workspaceDir,
       openclawCommand: this.options.openclawCommand,
@@ -1019,6 +1043,14 @@ export class AgentRuntimeProgram {
 
     this.realtimeRuntime = runtime;
     await runtime.start();
+
+    if (this.pendingExternalRealtimeSessions.size > 0) {
+      const pendingSessionIds = Array.from(this.pendingExternalRealtimeSessions.values());
+      for (const pendingSessionId of pendingSessionIds) {
+        runtime.attachSession(pendingSessionId);
+        this.pendingExternalRealtimeSessions.delete(pendingSessionId);
+      }
+    }
 
     this.emitInfo("Realtime runtime started", {
       provider: provider.kind,

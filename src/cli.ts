@@ -165,6 +165,8 @@ const DEFAULT_WORKER_RESTART_DELAY_MS = 2_000;
 const DEFAULT_WORKER_RESTART_MAX_DELAY_MS = 30_000;
 const WORKER_RESTART_RESET_WINDOW_MS = 60_000;
 const DEFAULT_HOST_HEARTBEAT_INTERVAL_SECONDS = 60;
+const DEFAULT_HOST_REALTIME_ROUTE_INTERVAL_MS = 1_000;
+const DEFAULT_HOST_REALTIME_ROUTE_LIMIT = 100;
 const DEFAULT_AUTO_UPDATE_INTERVAL_SECONDS = 300;
 const DEFAULT_AUTO_UPDATE_INSTALL_TIMEOUT_MS = 120_000;
 const DEFAULT_AUTO_UPDATE_PACKAGE_NAME = "@agentmc/api";
@@ -973,6 +975,7 @@ async function runMultiAgentRuntimeFromEnv(env: NodeJS.ProcessEnv): Promise<bool
   let stopping = false;
   const activeRuntimes = new Map<string, AgentRuntimeProgram>();
   let hostHeartbeatLoopPromise: Promise<void> | null = null;
+  let hostRealtimeRoutingLoopPromise: Promise<void> | null = null;
   let autoUpdateLoopPromise: Promise<void> | null = null;
   let restartRequestedByAutoUpdate = false;
   const autoUpdateConfig = resolveRuntimeAutoUpdateConfig(env);
@@ -1083,6 +1086,14 @@ async function runMultiAgentRuntimeFromEnv(env: NodeJS.ProcessEnv): Promise<bool
       toPositiveInt(env.AGENTMC_HOST_HEARTBEAT_INTERVAL_SECONDS) ??
       toPositiveInt(env.AGENTMC_HEARTBEAT_INTERVAL_SECONDS) ??
       DEFAULT_HOST_HEARTBEAT_INTERVAL_SECONDS;
+    const hostRealtimeRouteIntervalMs = Math.max(
+      250,
+      toPositiveInt(env.AGENTMC_REALTIME_ROUTE_INTERVAL_MS) ?? DEFAULT_HOST_REALTIME_ROUTE_INTERVAL_MS
+    );
+    const hostRealtimeRouteLimit = Math.max(
+      1,
+      Math.min(500, toPositiveInt(env.AGENTMC_REALTIME_ROUTE_LIMIT) ?? DEFAULT_HOST_REALTIME_ROUTE_LIMIT)
+    );
 
     const heartbeatClient = new AgentMCApi({
       baseUrl,
@@ -1114,7 +1125,7 @@ async function runMultiAgentRuntimeFromEnv(env: NodeJS.ProcessEnv): Promise<bool
       `[agentmc-runtime] host heartbeat active interval=${hostHeartbeatIntervalSeconds}s host=${hostFingerprint}\n`
     );
     process.stderr.write(
-      "[agentmc-runtime] host realtime mode=persistent-websocket (one session per agent, shared transport)\n"
+      `[agentmc-runtime] host realtime mode=single-websocket-router interval_ms=${hostRealtimeRouteIntervalMs} limit=${hostRealtimeRouteLimit}\n`
     );
 
     const runtimeEntries: RuntimeEntry[] = resolved.workers.map((worker) => ({
@@ -1163,6 +1174,14 @@ async function runMultiAgentRuntimeFromEnv(env: NodeJS.ProcessEnv): Promise<bool
       },
       shouldStop: () => stopping
     });
+    hostRealtimeRoutingLoopPromise = runHostRealtimeSessionRoutingLoop({
+      client: heartbeatClient,
+      workers: resolved.workers,
+      activeRuntimes,
+      intervalMs: hostRealtimeRouteIntervalMs,
+      queryLimit: hostRealtimeRouteLimit,
+      shouldStop: () => stopping
+    });
 
     const lifecyclePromises: Promise<void>[] = [
       ...runtimeEntries.map((entry) =>
@@ -1179,7 +1198,8 @@ async function runMultiAgentRuntimeFromEnv(env: NodeJS.ProcessEnv): Promise<bool
           shouldStop: () => stopping
         })
       ),
-      hostHeartbeatLoopPromise
+      hostHeartbeatLoopPromise,
+      hostRealtimeRoutingLoopPromise
     ];
     if (autoUpdateLoopPromise) {
       lifecyclePromises.push(autoUpdateLoopPromise);
@@ -1200,6 +1220,9 @@ async function runMultiAgentRuntimeFromEnv(env: NodeJS.ProcessEnv): Promise<bool
     }
     if (hostHeartbeatLoopPromise) {
       await Promise.allSettled([hostHeartbeatLoopPromise]);
+    }
+    if (hostRealtimeRoutingLoopPromise) {
+      await Promise.allSettled([hostRealtimeRoutingLoopPromise]);
     }
     if (autoUpdateLoopPromise) {
       await Promise.allSettled([autoUpdateLoopPromise]);
@@ -1240,6 +1263,71 @@ async function runHostHeartbeatLoop(input: {
       const message = error instanceof Error ? error.message : String(error);
       process.stderr.write(`[agentmc-runtime] host heartbeat failed: ${message}\n`);
     }
+  }
+}
+
+async function runHostRealtimeSessionRoutingLoop(input: {
+  client: AgentMCApi;
+  workers: RuntimeWorkerConfig[];
+  activeRuntimes: Map<string, AgentRuntimeProgram>;
+  intervalMs: number;
+  queryLimit: number;
+  shouldStop: () => boolean;
+}): Promise<void> {
+  while (!input.shouldStop()) {
+    try {
+      const response = await input.client.operations.listAgentRealtimeRequestedSessions({
+        params: {
+          query: {
+            limit: input.queryLimit
+          }
+        }
+      });
+
+      if (response.error) {
+        const summary = summarizeApiError(response.error);
+        throw new Error(
+          `listAgentRealtimeRequestedSessions failed with status ${response.status}${summary ? ` (${summary})` : ""}`
+        );
+      }
+
+      const sessions = Array.isArray(response.data?.data) ? response.data.data : [];
+      const orderedSessions = [...sessions].sort((left, right) => {
+        const leftId = toPositiveInt(valueAsObject(left)?.id) ?? 0;
+        const rightId = toPositiveInt(valueAsObject(right)?.id) ?? 0;
+        return rightId - leftId;
+      });
+
+      for (const session of orderedSessions) {
+        const sessionObject = valueAsObject(session);
+        if (!sessionObject) {
+          continue;
+        }
+
+        const sessionId = toPositiveInt(sessionObject.id);
+        const agentId = toPositiveInt(sessionObject.agent_id);
+        if (sessionId === null || agentId === null) {
+          continue;
+        }
+
+        const worker = input.workers.find((candidate) => candidate.agentId === agentId);
+        if (!worker) {
+          continue;
+        }
+
+        const runtime = input.activeRuntimes.get(worker.localKey);
+        if (!runtime) {
+          continue;
+        }
+
+        runtime.attachRealtimeSession(sessionId);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      process.stderr.write(`[agentmc-runtime] host realtime routing failed: ${message}\n`);
+    }
+
+    await sleepWithStop(input.intervalMs, input.shouldStop);
   }
 }
 
@@ -2346,8 +2434,10 @@ function buildRuntimeEnv(baseEnv: NodeJS.ProcessEnv, worker: RuntimeWorkerConfig
 
   if (disableHeartbeat) {
     runtimeEnv.AGENTMC_DISABLE_HEARTBEAT = "1";
+    runtimeEnv.AGENTMC_REALTIME_SESSION_POLLING = "0";
   } else {
     delete runtimeEnv.AGENTMC_DISABLE_HEARTBEAT;
+    delete runtimeEnv.AGENTMC_REALTIME_SESSION_POLLING;
   }
 
   return runtimeEnv;
