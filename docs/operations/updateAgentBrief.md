@@ -34,7 +34,7 @@ Updates one saved parent brief by id and appends a child entry when entry fields
         "label": "Follow-ups"
       }
     ],
-    "content_markdown": "## Updates\n- Incident queue cleared\n- Follow-up tasks assigned",
+    "content_markdown": "## Updates\n- Incident queue cleared\n- Follow-up tasks assigned\n\n![timeline](/api/v1/files/102/preview)",
     "meta": {
       "external_source": "daily-ops-job",
       "schedule": "0 7 * * *"
@@ -78,6 +78,25 @@ Brief record updated.
     "source_meta": {
       "key": "value"
     },
+    "attachments": [
+      {
+        "id": 45,
+        "team_file_id": 101,
+        "preview_url": "/api/v1/files/101/preview",
+        "download_url": "/api/v1/files/101/download",
+        "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+        "file": {
+          "id": 101,
+          "display_name": "incident-timeline.png",
+          "original_filename": "incident-timeline.png",
+          "mime_type": "image/png",
+          "size_bytes": 144220,
+          "preview_kind": "image",
+          "created_at": "2026-02-27T17:20:00Z",
+          "updated_at": "2026-02-27T17:24:00Z"
+        }
+      }
+    ],
     "received_at": "2026-02-22T17:21:00Z",
     "generated_at": "2026-02-22T17:21:00Z",
     "read_by_user_id": 42,
@@ -103,6 +122,25 @@ Brief record updated.
       "source_meta": {
         "key": "value"
       },
+      "attachments": [
+        {
+          "id": 45,
+          "team_file_id": 101,
+          "preview_url": "/api/v1/files/101/preview",
+          "download_url": "/api/v1/files/101/download",
+          "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+          "file": {
+            "id": 101,
+            "display_name": "incident-timeline.png",
+            "original_filename": "incident-timeline.png",
+            "mime_type": "image/png",
+            "size_bytes": 144220,
+            "preview_kind": "image",
+            "created_at": "2026-02-27T17:20:00Z",
+            "updated_at": "2026-02-27T17:24:00Z"
+          }
+        }
+      ],
       "received_at": "2026-02-22T17:21:00Z",
       "generated_at": "2026-02-22T17:21:00Z",
       "created_at": "2026-02-22T17:21:00Z",
@@ -224,7 +262,7 @@ const result = await client.operations.updateAgentBrief({
           "label": "Follow-ups"
         }
       ],
-      "content_markdown": "## Updates\n- Incident queue cleared\n- Follow-up tasks assigned",
+      "content_markdown": "## Updates\n- Incident queue cleared\n- Follow-up tasks assigned\n\n![timeline](/api/v1/files/102/preview)",
       "meta": {
         "external_source": "daily-ops-job",
         "schedule": "0 7 * * *"

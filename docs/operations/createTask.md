@@ -21,7 +21,7 @@ None.
   "board_id": 5,
   "column_id": 13,
   "title": "Draft post-incident summary",
-  "description": "Capture timeline, impact, and remediation status.",
+  "description": "Capture timeline, impact, and remediation status.\n\n![incident-graph](/api/v1/files/101/preview)",
   "archived_at": null,
   "position": 2,
   "due_at": "2026-02-24T17:00:00Z",
@@ -50,6 +50,25 @@ Task created.
     "created_by_user_id": 42,
     "assigned_to_user_id": 42,
     "assigned_to_agent_id": 42,
+    "attachments": [
+      {
+        "id": 45,
+        "team_file_id": 101,
+        "preview_url": "/api/v1/files/101/preview",
+        "download_url": "/api/v1/files/101/download",
+        "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+        "file": {
+          "id": 101,
+          "display_name": "incident-timeline.png",
+          "original_filename": "incident-timeline.png",
+          "mime_type": "image/png",
+          "size_bytes": 144220,
+          "preview_kind": "image",
+          "created_at": "2026-02-27T17:20:00Z",
+          "updated_at": "2026-02-27T17:24:00Z"
+        }
+      }
+    ],
     "assignee_type": "human",
     "created_at": "2026-02-22T17:21:00Z",
     "updated_at": "2026-02-22T17:21:00Z"
@@ -170,7 +189,7 @@ const result = await client.operations.createTask({
     "board_id": 5,
     "column_id": 13,
     "title": "Draft post-incident summary",
-    "description": "Capture timeline, impact, and remediation status.",
+    "description": "Capture timeline, impact, and remediation status.\n\n![incident-graph](/api/v1/files/101/preview)",
     "archived_at": null,
     "position": 2,
     "due_at": "2026-02-24T17:00:00Z",

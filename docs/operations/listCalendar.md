@@ -62,6 +62,25 @@ Calendar items returned.
           "created_at": "2026-02-22T17:21:00Z"
         }
       ],
+      "attachments": [
+        {
+          "id": 45,
+          "team_file_id": 101,
+          "preview_url": "/api/v1/files/101/preview",
+          "download_url": "/api/v1/files/101/download",
+          "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+          "file": {
+            "id": 101,
+            "display_name": "incident-timeline.png",
+            "original_filename": "incident-timeline.png",
+            "mime_type": "image/png",
+            "size_bytes": 144220,
+            "preview_kind": "image",
+            "created_at": "2026-02-27T17:20:00Z",
+            "updated_at": "2026-02-27T17:24:00Z"
+          }
+        }
+      ],
       "comments_count": 1,
       "created_at": "2026-02-22T17:21:00Z",
       "updated_at": "2026-02-22T17:21:00Z",

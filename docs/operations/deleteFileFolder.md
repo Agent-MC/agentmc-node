@@ -7,7 +7,7 @@
 
 ## Description
 
-No additional description.
+Deletes one folder node and permanently deletes all nested files and subfolders in that folder subtree.
 
 ## Parameters
 
@@ -75,25 +75,6 @@ Forbidden.
 
 ### 404 (application/json)
 Resource not found.
-
-```json
-{
-  "error": {
-    "code": "validation.failed",
-    "message": "Validation failed.",
-    "details": {
-      "fields": {
-        "title": [
-          "The title field is required."
-        ]
-      }
-    }
-  }
-}
-```
-
-### 409 (application/json)
-Conflict.
 
 ```json
 {

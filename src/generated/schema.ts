@@ -526,7 +526,10 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Delete a managed file folder. */
+        /**
+         * Delete a managed file folder.
+         * @description Deletes one folder node and permanently deletes all nested files and subfolders in that folder subtree.
+         */
         delete: operations["deleteFileFolder"];
         options?: never;
         head?: never;
@@ -1053,6 +1056,125 @@ export interface components {
              *     }
              */
             folder: components["schemas"]["TeamFileFolder"] | null;
+        };
+        /**
+         * @description Team File Attachment File Summary schema.
+         * @example {
+         *       "id": 42,
+         *       "display_name": "Example Name",
+         *       "original_filename": "Example Name",
+         *       "mime_type": "example",
+         *       "size_bytes": 0,
+         *       "preview_kind": "markdown",
+         *       "created_at": "2026-02-22T17:21:00Z",
+         *       "updated_at": "2026-02-22T17:21:00Z"
+         *     }
+         */
+        TeamFileAttachmentFileSummary: {
+            /**
+             * @description Unique identifier for this record.
+             * @example 42
+             */
+            id: number;
+            /**
+             * @description Display name.
+             * @example Example Name
+             */
+            display_name: string;
+            /**
+             * @description Original filename.
+             * @example Example Name
+             */
+            original_filename: string;
+            /**
+             * @description Mime type.
+             * @example example
+             */
+            mime_type: string;
+            /**
+             * @description Size bytes.
+             * @example 0
+             */
+            size_bytes: number;
+            /**
+             * @description Allowed values: markdown, text, image, pdf, other.
+             * @example markdown
+             * @enum {string}
+             */
+            preview_kind: "markdown" | "text" | "image" | "pdf" | "other";
+            /**
+             * Format: date-time
+             * @description ISO-8601 timestamp when this record was created.
+             * @example 2026-02-22T17:21:00Z
+             */
+            created_at: string | null;
+            /**
+             * Format: date-time
+             * @description ISO-8601 timestamp when this record was last updated.
+             * @example 2026-02-22T17:21:00Z
+             */
+            updated_at: string | null;
+        };
+        /**
+         * @description Team File Attachment schema.
+         * @example {
+         *       "id": 45,
+         *       "team_file_id": 101,
+         *       "preview_url": "/api/v1/files/101/preview",
+         *       "download_url": "/api/v1/files/101/download",
+         *       "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+         *       "file": {
+         *         "id": 101,
+         *         "display_name": "incident-timeline.png",
+         *         "original_filename": "incident-timeline.png",
+         *         "mime_type": "image/png",
+         *         "size_bytes": 144220,
+         *         "preview_kind": "image",
+         *         "created_at": "2026-02-27T17:20:00Z",
+         *         "updated_at": "2026-02-27T17:24:00Z"
+         *       }
+         *     }
+         */
+        TeamFileAttachment: {
+            /**
+             * @description Unique identifier for this record.
+             * @example 42
+             */
+            id: number;
+            /**
+             * @description Identifier of the attached team file.
+             * @example 42
+             */
+            team_file_id: number;
+            /**
+             * @description Relative API URL that renders the file inline (short-lived redirect).
+             * @example example
+             */
+            preview_url: string | null;
+            /**
+             * @description Relative API URL that downloads the file (short-lived redirect).
+             * @example example
+             */
+            download_url: string | null;
+            /**
+             * @description Markdown image/embed snippet that references this file preview endpoint.
+             * @example example
+             */
+            markdown_embed: string | null;
+            /**
+             * @description File.
+             * @example {
+             *       "id": 42,
+             *       "display_name": "Example Name",
+             *       "original_filename": "Example Name",
+             *       "mime_type": "example",
+             *       "size_bytes": 0,
+             *       "preview_kind": "markdown",
+             *       "created_at": "2026-02-22T17:21:00Z",
+             *       "updated_at": "2026-02-22T17:21:00Z"
+             *     }
+             */
+            file: components["schemas"]["TeamFileAttachmentFileSummary"] | null;
         };
         /**
          * @description Team File Upload Ticket schema.
@@ -2480,6 +2602,25 @@ export interface components {
          *       "source_meta": {
          *         "key": "value"
          *       },
+         *       "attachments": [
+         *         {
+         *           "id": 45,
+         *           "team_file_id": 101,
+         *           "preview_url": "/api/v1/files/101/preview",
+         *           "download_url": "/api/v1/files/101/download",
+         *           "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+         *           "file": {
+         *             "id": 101,
+         *             "display_name": "incident-timeline.png",
+         *             "original_filename": "incident-timeline.png",
+         *             "mime_type": "image/png",
+         *             "size_bytes": 144220,
+         *             "preview_kind": "image",
+         *             "created_at": "2026-02-27T17:20:00Z",
+         *             "updated_at": "2026-02-27T17:24:00Z"
+         *           }
+         *         }
+         *       ],
          *       "received_at": "2026-02-22T17:21:00Z",
          *       "generated_at": "2026-02-22T17:21:00Z",
          *       "created_at": "2026-02-22T17:21:00Z",
@@ -2534,7 +2675,7 @@ export interface components {
              */
             headline: string | null;
             /**
-             * @description Markdown body content.
+             * @description Markdown body content. Include file embeds as `![alt](/api/v1/files/{id}/preview)`.
              * @example ## Highlights
              *     - Elevated API error rate
              */
@@ -2557,6 +2698,29 @@ export interface components {
             source_meta: {
                 [key: string]: unknown;
             } | null;
+            /**
+             * @description Attached team files resolved from markdown embeds or upload payloads.
+             * @example [
+             *       {
+             *         "id": 45,
+             *         "team_file_id": 101,
+             *         "preview_url": "/api/v1/files/101/preview",
+             *         "download_url": "/api/v1/files/101/download",
+             *         "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+             *         "file": {
+             *           "id": 101,
+             *           "display_name": "incident-timeline.png",
+             *           "original_filename": "incident-timeline.png",
+             *           "mime_type": "image/png",
+             *           "size_bytes": 144220,
+             *           "preview_kind": "image",
+             *           "created_at": "2026-02-27T17:20:00Z",
+             *           "updated_at": "2026-02-27T17:24:00Z"
+             *         }
+             *       }
+             *     ]
+             */
+            attachments: components["schemas"]["TeamFileAttachment"][];
             /**
              * Format: date-time
              * @description ISO-8601 receipt timestamp.
@@ -2606,6 +2770,25 @@ export interface components {
          *       "source_meta": {
          *         "key": "value"
          *       },
+         *       "attachments": [
+         *         {
+         *           "id": 45,
+         *           "team_file_id": 101,
+         *           "preview_url": "/api/v1/files/101/preview",
+         *           "download_url": "/api/v1/files/101/download",
+         *           "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+         *           "file": {
+         *             "id": 101,
+         *             "display_name": "incident-timeline.png",
+         *             "original_filename": "incident-timeline.png",
+         *             "mime_type": "image/png",
+         *             "size_bytes": 144220,
+         *             "preview_kind": "image",
+         *             "created_at": "2026-02-27T17:20:00Z",
+         *             "updated_at": "2026-02-27T17:24:00Z"
+         *           }
+         *         }
+         *       ],
          *       "received_at": "2026-02-22T17:21:00Z",
          *       "generated_at": "2026-02-22T17:21:00Z",
          *       "read_by_user_id": 42,
@@ -2631,6 +2814,25 @@ export interface components {
          *         "source_meta": {
          *           "key": "value"
          *         },
+         *         "attachments": [
+         *           {
+         *             "id": 45,
+         *             "team_file_id": 101,
+         *             "preview_url": "/api/v1/files/101/preview",
+         *             "download_url": "/api/v1/files/101/download",
+         *             "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+         *             "file": {
+         *               "id": 101,
+         *               "display_name": "incident-timeline.png",
+         *               "original_filename": "incident-timeline.png",
+         *               "mime_type": "image/png",
+         *               "size_bytes": 144220,
+         *               "preview_kind": "image",
+         *               "created_at": "2026-02-27T17:20:00Z",
+         *               "updated_at": "2026-02-27T17:24:00Z"
+         *             }
+         *           }
+         *         ],
          *         "received_at": "2026-02-22T17:21:00Z",
          *         "generated_at": "2026-02-22T17:21:00Z",
          *         "created_at": "2026-02-22T17:21:00Z",
@@ -2698,7 +2900,7 @@ export interface components {
              */
             headline: string | null;
             /**
-             * @description Markdown body content.
+             * @description Markdown body content. Include file embeds as `![alt](/api/v1/files/{id}/preview)`.
              * @example ## Highlights
              *     - Elevated API error rate
              */
@@ -2721,6 +2923,29 @@ export interface components {
             source_meta: {
                 [key: string]: unknown;
             } | null;
+            /**
+             * @description Attached team files resolved from markdown embeds or upload payloads.
+             * @example [
+             *       {
+             *         "id": 45,
+             *         "team_file_id": 101,
+             *         "preview_url": "/api/v1/files/101/preview",
+             *         "download_url": "/api/v1/files/101/download",
+             *         "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+             *         "file": {
+             *           "id": 101,
+             *           "display_name": "incident-timeline.png",
+             *           "original_filename": "incident-timeline.png",
+             *           "mime_type": "image/png",
+             *           "size_bytes": 144220,
+             *           "preview_kind": "image",
+             *           "created_at": "2026-02-27T17:20:00Z",
+             *           "updated_at": "2026-02-27T17:24:00Z"
+             *         }
+             *       }
+             *     ]
+             */
+            attachments: components["schemas"]["TeamFileAttachment"][];
             /**
              * Format: date-time
              * @description ISO-8601 receipt timestamp.
@@ -2770,6 +2995,25 @@ export interface components {
              *       "source_meta": {
              *         "key": "value"
              *       },
+             *       "attachments": [
+             *         {
+             *           "id": 45,
+             *           "team_file_id": 101,
+             *           "preview_url": "/api/v1/files/101/preview",
+             *           "download_url": "/api/v1/files/101/download",
+             *           "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+             *           "file": {
+             *             "id": 101,
+             *             "display_name": "incident-timeline.png",
+             *             "original_filename": "incident-timeline.png",
+             *             "mime_type": "image/png",
+             *             "size_bytes": 144220,
+             *             "preview_kind": "image",
+             *             "created_at": "2026-02-27T17:20:00Z",
+             *             "updated_at": "2026-02-27T17:24:00Z"
+             *           }
+             *         }
+             *       ],
              *       "received_at": "2026-02-22T17:21:00Z",
              *       "generated_at": "2026-02-22T17:21:00Z",
              *       "created_at": "2026-02-22T17:21:00Z",
@@ -2815,6 +3059,25 @@ export interface components {
          *         "source_meta": {
          *           "key": "value"
          *         },
+         *         "attachments": [
+         *           {
+         *             "id": 45,
+         *             "team_file_id": 101,
+         *             "preview_url": "/api/v1/files/101/preview",
+         *             "download_url": "/api/v1/files/101/download",
+         *             "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+         *             "file": {
+         *               "id": 101,
+         *               "display_name": "incident-timeline.png",
+         *               "original_filename": "incident-timeline.png",
+         *               "mime_type": "image/png",
+         *               "size_bytes": 144220,
+         *               "preview_kind": "image",
+         *               "created_at": "2026-02-27T17:20:00Z",
+         *               "updated_at": "2026-02-27T17:24:00Z"
+         *             }
+         *           }
+         *         ],
          *         "received_at": "2026-02-22T17:21:00Z",
          *         "generated_at": "2026-02-22T17:21:00Z",
          *         "read_by_user_id": 42,
@@ -2840,6 +3103,25 @@ export interface components {
          *           "source_meta": {
          *             "key": "value"
          *           },
+         *           "attachments": [
+         *             {
+         *               "id": 45,
+         *               "team_file_id": 101,
+         *               "preview_url": "/api/v1/files/101/preview",
+         *               "download_url": "/api/v1/files/101/download",
+         *               "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+         *               "file": {
+         *                 "id": 101,
+         *                 "display_name": "incident-timeline.png",
+         *                 "original_filename": "incident-timeline.png",
+         *                 "mime_type": "image/png",
+         *                 "size_bytes": 144220,
+         *                 "preview_kind": "image",
+         *                 "created_at": "2026-02-27T17:20:00Z",
+         *                 "updated_at": "2026-02-27T17:24:00Z"
+         *               }
+         *             }
+         *           ],
          *           "received_at": "2026-02-22T17:21:00Z",
          *           "generated_at": "2026-02-22T17:21:00Z",
          *           "created_at": "2026-02-22T17:21:00Z",
@@ -2875,6 +3157,25 @@ export interface components {
              *       "source_meta": {
              *         "key": "value"
              *       },
+             *       "attachments": [
+             *         {
+             *           "id": 45,
+             *           "team_file_id": 101,
+             *           "preview_url": "/api/v1/files/101/preview",
+             *           "download_url": "/api/v1/files/101/download",
+             *           "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+             *           "file": {
+             *             "id": 101,
+             *             "display_name": "incident-timeline.png",
+             *             "original_filename": "incident-timeline.png",
+             *             "mime_type": "image/png",
+             *             "size_bytes": 144220,
+             *             "preview_kind": "image",
+             *             "created_at": "2026-02-27T17:20:00Z",
+             *             "updated_at": "2026-02-27T17:24:00Z"
+             *           }
+             *         }
+             *       ],
              *       "received_at": "2026-02-22T17:21:00Z",
              *       "generated_at": "2026-02-22T17:21:00Z",
              *       "read_by_user_id": 42,
@@ -2900,6 +3201,25 @@ export interface components {
              *         "source_meta": {
              *           "key": "value"
              *         },
+             *         "attachments": [
+             *           {
+             *             "id": 45,
+             *             "team_file_id": 101,
+             *             "preview_url": "/api/v1/files/101/preview",
+             *             "download_url": "/api/v1/files/101/download",
+             *             "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+             *             "file": {
+             *               "id": 101,
+             *               "display_name": "incident-timeline.png",
+             *               "original_filename": "incident-timeline.png",
+             *               "mime_type": "image/png",
+             *               "size_bytes": 144220,
+             *               "preview_kind": "image",
+             *               "created_at": "2026-02-27T17:20:00Z",
+             *               "updated_at": "2026-02-27T17:24:00Z"
+             *             }
+             *           }
+             *         ],
              *         "received_at": "2026-02-22T17:21:00Z",
              *         "generated_at": "2026-02-22T17:21:00Z",
              *         "created_at": "2026-02-22T17:21:00Z",
@@ -2936,6 +3256,25 @@ export interface components {
          *         "source_meta": {
          *           "key": "value"
          *         },
+         *         "attachments": [
+         *           {
+         *             "id": 45,
+         *             "team_file_id": 101,
+         *             "preview_url": "/api/v1/files/101/preview",
+         *             "download_url": "/api/v1/files/101/download",
+         *             "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+         *             "file": {
+         *               "id": 101,
+         *               "display_name": "incident-timeline.png",
+         *               "original_filename": "incident-timeline.png",
+         *               "mime_type": "image/png",
+         *               "size_bytes": 144220,
+         *               "preview_kind": "image",
+         *               "created_at": "2026-02-27T17:20:00Z",
+         *               "updated_at": "2026-02-27T17:24:00Z"
+         *             }
+         *           }
+         *         ],
          *         "received_at": "2026-02-22T17:21:00Z",
          *         "generated_at": "2026-02-22T17:21:00Z",
          *         "read_by_user_id": 42,
@@ -2961,6 +3300,25 @@ export interface components {
          *           "source_meta": {
          *             "key": "value"
          *           },
+         *           "attachments": [
+         *             {
+         *               "id": 45,
+         *               "team_file_id": 101,
+         *               "preview_url": "/api/v1/files/101/preview",
+         *               "download_url": "/api/v1/files/101/download",
+         *               "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+         *               "file": {
+         *                 "id": 101,
+         *                 "display_name": "incident-timeline.png",
+         *                 "original_filename": "incident-timeline.png",
+         *                 "mime_type": "image/png",
+         *                 "size_bytes": 144220,
+         *                 "preview_kind": "image",
+         *                 "created_at": "2026-02-27T17:20:00Z",
+         *                 "updated_at": "2026-02-27T17:24:00Z"
+         *               }
+         *             }
+         *           ],
          *           "received_at": "2026-02-22T17:21:00Z",
          *           "generated_at": "2026-02-22T17:21:00Z",
          *           "created_at": "2026-02-22T17:21:00Z",
@@ -2996,6 +3354,25 @@ export interface components {
              *       "source_meta": {
              *         "key": "value"
              *       },
+             *       "attachments": [
+             *         {
+             *           "id": 45,
+             *           "team_file_id": 101,
+             *           "preview_url": "/api/v1/files/101/preview",
+             *           "download_url": "/api/v1/files/101/download",
+             *           "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+             *           "file": {
+             *             "id": 101,
+             *             "display_name": "incident-timeline.png",
+             *             "original_filename": "incident-timeline.png",
+             *             "mime_type": "image/png",
+             *             "size_bytes": 144220,
+             *             "preview_kind": "image",
+             *             "created_at": "2026-02-27T17:20:00Z",
+             *             "updated_at": "2026-02-27T17:24:00Z"
+             *           }
+             *         }
+             *       ],
              *       "received_at": "2026-02-22T17:21:00Z",
              *       "generated_at": "2026-02-22T17:21:00Z",
              *       "read_by_user_id": 42,
@@ -3021,6 +3398,25 @@ export interface components {
              *         "source_meta": {
              *           "key": "value"
              *         },
+             *         "attachments": [
+             *           {
+             *             "id": 45,
+             *             "team_file_id": 101,
+             *             "preview_url": "/api/v1/files/101/preview",
+             *             "download_url": "/api/v1/files/101/download",
+             *             "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+             *             "file": {
+             *               "id": 101,
+             *               "display_name": "incident-timeline.png",
+             *               "original_filename": "incident-timeline.png",
+             *               "mime_type": "image/png",
+             *               "size_bytes": 144220,
+             *               "preview_kind": "image",
+             *               "created_at": "2026-02-27T17:20:00Z",
+             *               "updated_at": "2026-02-27T17:24:00Z"
+             *             }
+             *           }
+             *         ],
              *         "received_at": "2026-02-22T17:21:00Z",
              *         "generated_at": "2026-02-22T17:21:00Z",
              *         "created_at": "2026-02-22T17:21:00Z",
@@ -3058,6 +3454,25 @@ export interface components {
          *           "source_meta": {
          *             "key": "value"
          *           },
+         *           "attachments": [
+         *             {
+         *               "id": 45,
+         *               "team_file_id": 101,
+         *               "preview_url": "/api/v1/files/101/preview",
+         *               "download_url": "/api/v1/files/101/download",
+         *               "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+         *               "file": {
+         *                 "id": 101,
+         *                 "display_name": "incident-timeline.png",
+         *                 "original_filename": "incident-timeline.png",
+         *                 "mime_type": "image/png",
+         *                 "size_bytes": 144220,
+         *                 "preview_kind": "image",
+         *                 "created_at": "2026-02-27T17:20:00Z",
+         *                 "updated_at": "2026-02-27T17:24:00Z"
+         *               }
+         *             }
+         *           ],
          *           "received_at": "2026-02-22T17:21:00Z",
          *           "generated_at": "2026-02-22T17:21:00Z",
          *           "read_by_user_id": 42,
@@ -3083,6 +3498,25 @@ export interface components {
          *             "source_meta": {
          *               "key": "value"
          *             },
+         *             "attachments": [
+         *               {
+         *                 "id": 45,
+         *                 "team_file_id": 101,
+         *                 "preview_url": "/api/v1/files/101/preview",
+         *                 "download_url": "/api/v1/files/101/download",
+         *                 "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+         *                 "file": {
+         *                   "id": 101,
+         *                   "display_name": "incident-timeline.png",
+         *                   "original_filename": "incident-timeline.png",
+         *                   "mime_type": "image/png",
+         *                   "size_bytes": 144220,
+         *                   "preview_kind": "image",
+         *                   "created_at": "2026-02-27T17:20:00Z",
+         *                   "updated_at": "2026-02-27T17:24:00Z"
+         *                 }
+         *               }
+         *             ],
          *             "received_at": "2026-02-22T17:21:00Z",
          *             "generated_at": "2026-02-22T17:21:00Z",
          *             "created_at": "2026-02-22T17:21:00Z",
@@ -3141,6 +3575,25 @@ export interface components {
              *         "source_meta": {
              *           "key": "value"
              *         },
+             *         "attachments": [
+             *           {
+             *             "id": 45,
+             *             "team_file_id": 101,
+             *             "preview_url": "/api/v1/files/101/preview",
+             *             "download_url": "/api/v1/files/101/download",
+             *             "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+             *             "file": {
+             *               "id": 101,
+             *               "display_name": "incident-timeline.png",
+             *               "original_filename": "incident-timeline.png",
+             *               "mime_type": "image/png",
+             *               "size_bytes": 144220,
+             *               "preview_kind": "image",
+             *               "created_at": "2026-02-27T17:20:00Z",
+             *               "updated_at": "2026-02-27T17:24:00Z"
+             *             }
+             *           }
+             *         ],
              *         "received_at": "2026-02-22T17:21:00Z",
              *         "generated_at": "2026-02-22T17:21:00Z",
              *         "read_by_user_id": 42,
@@ -3166,6 +3619,25 @@ export interface components {
              *           "source_meta": {
              *             "key": "value"
              *           },
+             *           "attachments": [
+             *             {
+             *               "id": 45,
+             *               "team_file_id": 101,
+             *               "preview_url": "/api/v1/files/101/preview",
+             *               "download_url": "/api/v1/files/101/download",
+             *               "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+             *               "file": {
+             *                 "id": 101,
+             *                 "display_name": "incident-timeline.png",
+             *                 "original_filename": "incident-timeline.png",
+             *                 "mime_type": "image/png",
+             *                 "size_bytes": 144220,
+             *                 "preview_kind": "image",
+             *                 "created_at": "2026-02-27T17:20:00Z",
+             *                 "updated_at": "2026-02-27T17:24:00Z"
+             *               }
+             *             }
+             *           ],
              *           "received_at": "2026-02-22T17:21:00Z",
              *           "generated_at": "2026-02-22T17:21:00Z",
              *           "created_at": "2026-02-22T17:21:00Z",
@@ -3864,6 +4336,25 @@ export interface components {
          *       "created_by_user_id": 42,
          *       "assigned_to_user_id": 42,
          *       "assigned_to_agent_id": 42,
+         *       "attachments": [
+         *         {
+         *           "id": 45,
+         *           "team_file_id": 101,
+         *           "preview_url": "/api/v1/files/101/preview",
+         *           "download_url": "/api/v1/files/101/download",
+         *           "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+         *           "file": {
+         *             "id": 101,
+         *             "display_name": "incident-timeline.png",
+         *             "original_filename": "incident-timeline.png",
+         *             "mime_type": "image/png",
+         *             "size_bytes": 144220,
+         *             "preview_kind": "image",
+         *             "created_at": "2026-02-27T17:20:00Z",
+         *             "updated_at": "2026-02-27T17:24:00Z"
+         *           }
+         *         }
+         *       ],
          *       "assignee_type": "human",
          *       "created_at": "2026-02-22T17:21:00Z",
          *       "updated_at": "2026-02-22T17:21:00Z"
@@ -3896,7 +4387,7 @@ export interface components {
              */
             title: string;
             /**
-             * @description Long-form description. Supports Markdown formatting.
+             * @description Long-form description. Supports Markdown formatting and file embeds like `![alt](/api/v1/files/{id}/preview)`.
              * @example Example description text.
              */
             description: string | null;
@@ -3948,6 +4439,29 @@ export interface components {
              *     }
              */
             assigned_agent?: components["schemas"]["TaskAssignedAgent"];
+            /**
+             * @description Attached team files resolved from markdown embeds or upload payloads.
+             * @example [
+             *       {
+             *         "id": 45,
+             *         "team_file_id": 101,
+             *         "preview_url": "/api/v1/files/101/preview",
+             *         "download_url": "/api/v1/files/101/download",
+             *         "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+             *         "file": {
+             *           "id": 101,
+             *           "display_name": "incident-timeline.png",
+             *           "original_filename": "incident-timeline.png",
+             *           "mime_type": "image/png",
+             *           "size_bytes": 144220,
+             *           "preview_kind": "image",
+             *           "created_at": "2026-02-27T17:20:00Z",
+             *           "updated_at": "2026-02-27T17:24:00Z"
+             *         }
+             *       }
+             *     ]
+             */
+            attachments: components["schemas"]["TeamFileAttachment"][];
             /**
              * @description Assignee type when this notification is assignment-related. Allowed values: human, agent.
              * @example human
@@ -4030,6 +4544,25 @@ export interface components {
          *           "token": "example"
          *         }
          *       ],
+         *       "attachments": [
+         *         {
+         *           "id": 45,
+         *           "team_file_id": 101,
+         *           "preview_url": "/api/v1/files/101/preview",
+         *           "download_url": "/api/v1/files/101/download",
+         *           "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+         *           "file": {
+         *             "id": 101,
+         *             "display_name": "incident-timeline.png",
+         *             "original_filename": "incident-timeline.png",
+         *             "mime_type": "image/png",
+         *             "size_bytes": 144220,
+         *             "preview_kind": "image",
+         *             "created_at": "2026-02-27T17:20:00Z",
+         *             "updated_at": "2026-02-27T17:24:00Z"
+         *           }
+         *         }
+         *       ],
          *       "edited_at": "2026-02-22T17:21:00Z",
          *       "created_at": "2026-02-22T17:21:00Z"
          *     }
@@ -4062,7 +4595,7 @@ export interface components {
              */
             actor_name: string;
             /**
-             * @description Markdown comment body.
+             * @description Markdown comment body. Include file embeds as `![alt](/api/v1/files/{id}/preview)`.
              * @example Example content.
              */
             body: string;
@@ -4080,6 +4613,29 @@ export interface components {
              *     ]
              */
             mentions: components["schemas"]["TaskCommentMention"][];
+            /**
+             * @description Attached team files resolved from markdown embeds or upload payloads.
+             * @example [
+             *       {
+             *         "id": 45,
+             *         "team_file_id": 101,
+             *         "preview_url": "/api/v1/files/101/preview",
+             *         "download_url": "/api/v1/files/101/download",
+             *         "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+             *         "file": {
+             *           "id": 101,
+             *           "display_name": "incident-timeline.png",
+             *           "original_filename": "incident-timeline.png",
+             *           "mime_type": "image/png",
+             *           "size_bytes": 144220,
+             *           "preview_kind": "image",
+             *           "created_at": "2026-02-27T17:20:00Z",
+             *           "updated_at": "2026-02-27T17:24:00Z"
+             *         }
+             *       }
+             *     ]
+             */
+            attachments: components["schemas"]["TeamFileAttachment"][];
             /**
              * Format: date-time
              * @description ISO-8601 timestamp when this comment body was last edited.
@@ -4404,6 +4960,25 @@ export interface components {
          *       "actor_type": "user",
          *       "actor_id": 42,
          *       "body": "Example content.",
+         *       "attachments": [
+         *         {
+         *           "id": 45,
+         *           "team_file_id": 101,
+         *           "preview_url": "/api/v1/files/101/preview",
+         *           "download_url": "/api/v1/files/101/download",
+         *           "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+         *           "file": {
+         *             "id": 101,
+         *             "display_name": "incident-timeline.png",
+         *             "original_filename": "incident-timeline.png",
+         *             "mime_type": "image/png",
+         *             "size_bytes": 144220,
+         *             "preview_kind": "image",
+         *             "created_at": "2026-02-27T17:20:00Z",
+         *             "updated_at": "2026-02-27T17:24:00Z"
+         *           }
+         *         }
+         *       ],
          *       "created_at": "2026-02-22T17:21:00Z"
          *     }
          */
@@ -4425,10 +5000,33 @@ export interface components {
              */
             actor_id: number | null;
             /**
-             * @description Markdown comment body.
+             * @description Markdown comment body. Include file embeds as `![alt](/api/v1/files/{id}/preview)`.
              * @example Example content.
              */
             body: string;
+            /**
+             * @description Attached team files resolved from markdown embeds or upload payloads.
+             * @example [
+             *       {
+             *         "id": 45,
+             *         "team_file_id": 101,
+             *         "preview_url": "/api/v1/files/101/preview",
+             *         "download_url": "/api/v1/files/101/download",
+             *         "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+             *         "file": {
+             *           "id": 101,
+             *           "display_name": "incident-timeline.png",
+             *           "original_filename": "incident-timeline.png",
+             *           "mime_type": "image/png",
+             *           "size_bytes": 144220,
+             *           "preview_kind": "image",
+             *           "created_at": "2026-02-27T17:20:00Z",
+             *           "updated_at": "2026-02-27T17:24:00Z"
+             *         }
+             *       }
+             *     ]
+             */
+            attachments: components["schemas"]["TeamFileAttachment"][];
             /**
              * Format: date-time
              * @description ISO-8601 timestamp when this record was created.
@@ -4465,6 +5063,25 @@ export interface components {
          *           "created_at": "2026-02-22T17:21:00Z"
          *         }
          *       ],
+         *       "attachments": [
+         *         {
+         *           "id": 45,
+         *           "team_file_id": 101,
+         *           "preview_url": "/api/v1/files/101/preview",
+         *           "download_url": "/api/v1/files/101/download",
+         *           "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+         *           "file": {
+         *             "id": 101,
+         *             "display_name": "incident-timeline.png",
+         *             "original_filename": "incident-timeline.png",
+         *             "mime_type": "image/png",
+         *             "size_bytes": 144220,
+         *             "preview_kind": "image",
+         *             "created_at": "2026-02-27T17:20:00Z",
+         *             "updated_at": "2026-02-27T17:24:00Z"
+         *           }
+         *         }
+         *       ],
          *       "comments_count": 1,
          *       "created_at": "2026-02-22T17:21:00Z",
          *       "updated_at": "2026-02-22T17:21:00Z",
@@ -4494,7 +5111,7 @@ export interface components {
              */
             title: string;
             /**
-             * @description Long-form description. Supports Markdown formatting.
+             * @description Long-form description. Supports Markdown formatting and file embeds like `![alt](/api/v1/files/{id}/preview)`.
              * @example Example description text.
              */
             description: string | null;
@@ -4573,6 +5190,29 @@ export interface components {
              *     ]
              */
             assignees: components["schemas"]["CalendarItemAssignee"][];
+            /**
+             * @description Attached team files resolved from markdown embeds or upload payloads.
+             * @example [
+             *       {
+             *         "id": 45,
+             *         "team_file_id": 101,
+             *         "preview_url": "/api/v1/files/101/preview",
+             *         "download_url": "/api/v1/files/101/download",
+             *         "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+             *         "file": {
+             *           "id": 101,
+             *           "display_name": "incident-timeline.png",
+             *           "original_filename": "incident-timeline.png",
+             *           "mime_type": "image/png",
+             *           "size_bytes": 144220,
+             *           "preview_kind": "image",
+             *           "created_at": "2026-02-27T17:20:00Z",
+             *           "updated_at": "2026-02-27T17:24:00Z"
+             *         }
+             *       }
+             *     ]
+             */
+            attachments: components["schemas"]["TeamFileAttachment"][];
             /**
              * @description Comments count.
              * @example 1
@@ -5088,6 +5728,25 @@ export interface components {
          *         "created_by_user_id": 42,
          *         "assigned_to_user_id": 42,
          *         "assigned_to_agent_id": 42,
+         *         "attachments": [
+         *           {
+         *             "id": 45,
+         *             "team_file_id": 101,
+         *             "preview_url": "/api/v1/files/101/preview",
+         *             "download_url": "/api/v1/files/101/download",
+         *             "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+         *             "file": {
+         *               "id": 101,
+         *               "display_name": "incident-timeline.png",
+         *               "original_filename": "incident-timeline.png",
+         *               "mime_type": "image/png",
+         *               "size_bytes": 144220,
+         *               "preview_kind": "image",
+         *               "created_at": "2026-02-27T17:20:00Z",
+         *               "updated_at": "2026-02-27T17:24:00Z"
+         *             }
+         *           }
+         *         ],
          *         "assignee_type": "human",
          *         "created_at": "2026-02-22T17:21:00Z",
          *         "updated_at": "2026-02-22T17:21:00Z"
@@ -5111,6 +5770,25 @@ export interface components {
              *       "created_by_user_id": 42,
              *       "assigned_to_user_id": 42,
              *       "assigned_to_agent_id": 42,
+             *       "attachments": [
+             *         {
+             *           "id": 45,
+             *           "team_file_id": 101,
+             *           "preview_url": "/api/v1/files/101/preview",
+             *           "download_url": "/api/v1/files/101/download",
+             *           "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+             *           "file": {
+             *             "id": 101,
+             *             "display_name": "incident-timeline.png",
+             *             "original_filename": "incident-timeline.png",
+             *             "mime_type": "image/png",
+             *             "size_bytes": 144220,
+             *             "preview_kind": "image",
+             *             "created_at": "2026-02-27T17:20:00Z",
+             *             "updated_at": "2026-02-27T17:24:00Z"
+             *           }
+             *         }
+             *       ],
              *       "assignee_type": "human",
              *       "created_at": "2026-02-22T17:21:00Z",
              *       "updated_at": "2026-02-22T17:21:00Z"
@@ -5138,6 +5816,25 @@ export interface components {
          *             "token": "example"
          *           }
          *         ],
+         *         "attachments": [
+         *           {
+         *             "id": 45,
+         *             "team_file_id": 101,
+         *             "preview_url": "/api/v1/files/101/preview",
+         *             "download_url": "/api/v1/files/101/download",
+         *             "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+         *             "file": {
+         *               "id": 101,
+         *               "display_name": "incident-timeline.png",
+         *               "original_filename": "incident-timeline.png",
+         *               "mime_type": "image/png",
+         *               "size_bytes": 144220,
+         *               "preview_kind": "image",
+         *               "created_at": "2026-02-27T17:20:00Z",
+         *               "updated_at": "2026-02-27T17:24:00Z"
+         *             }
+         *           }
+         *         ],
          *         "edited_at": "2026-02-22T17:21:00Z",
          *         "created_at": "2026-02-22T17:21:00Z"
          *       }
@@ -5161,6 +5858,25 @@ export interface components {
              *           "label": "example",
              *           "handle": "example",
              *           "token": "example"
+             *         }
+             *       ],
+             *       "attachments": [
+             *         {
+             *           "id": 45,
+             *           "team_file_id": 101,
+             *           "preview_url": "/api/v1/files/101/preview",
+             *           "download_url": "/api/v1/files/101/download",
+             *           "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+             *           "file": {
+             *             "id": 101,
+             *             "display_name": "incident-timeline.png",
+             *             "original_filename": "incident-timeline.png",
+             *             "mime_type": "image/png",
+             *             "size_bytes": 144220,
+             *             "preview_kind": "image",
+             *             "created_at": "2026-02-27T17:20:00Z",
+             *             "updated_at": "2026-02-27T17:24:00Z"
+             *           }
              *         }
              *       ],
              *       "edited_at": "2026-02-22T17:21:00Z",
@@ -5236,6 +5952,25 @@ export interface components {
          *             "created_at": "2026-02-22T17:21:00Z"
          *           }
          *         ],
+         *         "attachments": [
+         *           {
+         *             "id": 45,
+         *             "team_file_id": 101,
+         *             "preview_url": "/api/v1/files/101/preview",
+         *             "download_url": "/api/v1/files/101/download",
+         *             "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+         *             "file": {
+         *               "id": 101,
+         *               "display_name": "incident-timeline.png",
+         *               "original_filename": "incident-timeline.png",
+         *               "mime_type": "image/png",
+         *               "size_bytes": 144220,
+         *               "preview_kind": "image",
+         *               "created_at": "2026-02-27T17:20:00Z",
+         *               "updated_at": "2026-02-27T17:24:00Z"
+         *             }
+         *           }
+         *         ],
          *         "comments_count": 1,
          *         "created_at": "2026-02-22T17:21:00Z",
          *         "updated_at": "2026-02-22T17:21:00Z",
@@ -5273,6 +6008,25 @@ export interface components {
              *           "created_at": "2026-02-22T17:21:00Z"
              *         }
              *       ],
+             *       "attachments": [
+             *         {
+             *           "id": 45,
+             *           "team_file_id": 101,
+             *           "preview_url": "/api/v1/files/101/preview",
+             *           "download_url": "/api/v1/files/101/download",
+             *           "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+             *           "file": {
+             *             "id": 101,
+             *             "display_name": "incident-timeline.png",
+             *             "original_filename": "incident-timeline.png",
+             *             "mime_type": "image/png",
+             *             "size_bytes": 144220,
+             *             "preview_kind": "image",
+             *             "created_at": "2026-02-27T17:20:00Z",
+             *             "updated_at": "2026-02-27T17:24:00Z"
+             *           }
+             *         }
+             *       ],
              *       "comments_count": 1,
              *       "created_at": "2026-02-22T17:21:00Z",
              *       "updated_at": "2026-02-22T17:21:00Z",
@@ -5289,6 +6043,25 @@ export interface components {
          *         "actor_type": "user",
          *         "actor_id": 42,
          *         "body": "Example content.",
+         *         "attachments": [
+         *           {
+         *             "id": 45,
+         *             "team_file_id": 101,
+         *             "preview_url": "/api/v1/files/101/preview",
+         *             "download_url": "/api/v1/files/101/download",
+         *             "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+         *             "file": {
+         *               "id": 101,
+         *               "display_name": "incident-timeline.png",
+         *               "original_filename": "incident-timeline.png",
+         *               "mime_type": "image/png",
+         *               "size_bytes": 144220,
+         *               "preview_kind": "image",
+         *               "created_at": "2026-02-27T17:20:00Z",
+         *               "updated_at": "2026-02-27T17:24:00Z"
+         *             }
+         *           }
+         *         ],
          *         "created_at": "2026-02-22T17:21:00Z"
          *       }
          *     }
@@ -5301,6 +6074,25 @@ export interface components {
              *       "actor_type": "user",
              *       "actor_id": 42,
              *       "body": "Example content.",
+             *       "attachments": [
+             *         {
+             *           "id": 45,
+             *           "team_file_id": 101,
+             *           "preview_url": "/api/v1/files/101/preview",
+             *           "download_url": "/api/v1/files/101/download",
+             *           "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+             *           "file": {
+             *             "id": 101,
+             *             "display_name": "incident-timeline.png",
+             *             "original_filename": "incident-timeline.png",
+             *             "mime_type": "image/png",
+             *             "size_bytes": 144220,
+             *             "preview_kind": "image",
+             *             "created_at": "2026-02-27T17:20:00Z",
+             *             "updated_at": "2026-02-27T17:24:00Z"
+             *           }
+             *         }
+             *       ],
              *       "created_at": "2026-02-22T17:21:00Z"
              *     }
              */
@@ -5545,6 +6337,25 @@ export interface components {
          *           "created_by_user_id": 42,
          *           "assigned_to_user_id": 42,
          *           "assigned_to_agent_id": 42,
+         *           "attachments": [
+         *             {
+         *               "id": 45,
+         *               "team_file_id": 101,
+         *               "preview_url": "/api/v1/files/101/preview",
+         *               "download_url": "/api/v1/files/101/download",
+         *               "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+         *               "file": {
+         *                 "id": 101,
+         *                 "display_name": "incident-timeline.png",
+         *                 "original_filename": "incident-timeline.png",
+         *                 "mime_type": "image/png",
+         *                 "size_bytes": 144220,
+         *                 "preview_kind": "image",
+         *                 "created_at": "2026-02-27T17:20:00Z",
+         *                 "updated_at": "2026-02-27T17:24:00Z"
+         *               }
+         *             }
+         *           ],
          *           "assignee_type": "human",
          *           "created_at": "2026-02-22T17:21:00Z",
          *           "updated_at": "2026-02-22T17:21:00Z"
@@ -5591,6 +6402,25 @@ export interface components {
              *         "created_by_user_id": 42,
              *         "assigned_to_user_id": 42,
              *         "assigned_to_agent_id": 42,
+             *         "attachments": [
+             *           {
+             *             "id": 45,
+             *             "team_file_id": 101,
+             *             "preview_url": "/api/v1/files/101/preview",
+             *             "download_url": "/api/v1/files/101/download",
+             *             "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+             *             "file": {
+             *               "id": 101,
+             *               "display_name": "incident-timeline.png",
+             *               "original_filename": "incident-timeline.png",
+             *               "mime_type": "image/png",
+             *               "size_bytes": 144220,
+             *               "preview_kind": "image",
+             *               "created_at": "2026-02-27T17:20:00Z",
+             *               "updated_at": "2026-02-27T17:24:00Z"
+             *             }
+             *           }
+             *         ],
              *         "assignee_type": "human",
              *         "created_at": "2026-02-22T17:21:00Z",
              *         "updated_at": "2026-02-22T17:21:00Z"
@@ -5649,6 +6479,25 @@ export interface components {
          *               "token": "example"
          *             }
          *           ],
+         *           "attachments": [
+         *             {
+         *               "id": 45,
+         *               "team_file_id": 101,
+         *               "preview_url": "/api/v1/files/101/preview",
+         *               "download_url": "/api/v1/files/101/download",
+         *               "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+         *               "file": {
+         *                 "id": 101,
+         *                 "display_name": "incident-timeline.png",
+         *                 "original_filename": "incident-timeline.png",
+         *                 "mime_type": "image/png",
+         *                 "size_bytes": 144220,
+         *                 "preview_kind": "image",
+         *                 "created_at": "2026-02-27T17:20:00Z",
+         *                 "updated_at": "2026-02-27T17:24:00Z"
+         *               }
+         *             }
+         *           ],
          *           "edited_at": "2026-02-22T17:21:00Z",
          *           "created_at": "2026-02-22T17:21:00Z"
          *         }
@@ -5695,6 +6544,25 @@ export interface components {
              *             "label": "example",
              *             "handle": "example",
              *             "token": "example"
+             *           }
+             *         ],
+             *         "attachments": [
+             *           {
+             *             "id": 45,
+             *             "team_file_id": 101,
+             *             "preview_url": "/api/v1/files/101/preview",
+             *             "download_url": "/api/v1/files/101/download",
+             *             "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+             *             "file": {
+             *               "id": 101,
+             *               "display_name": "incident-timeline.png",
+             *               "original_filename": "incident-timeline.png",
+             *               "mime_type": "image/png",
+             *               "size_bytes": 144220,
+             *               "preview_kind": "image",
+             *               "created_at": "2026-02-27T17:20:00Z",
+             *               "updated_at": "2026-02-27T17:24:00Z"
+             *             }
              *           }
              *         ],
              *         "edited_at": "2026-02-22T17:21:00Z",
@@ -5855,6 +6723,25 @@ export interface components {
          *               "created_at": "2026-02-22T17:21:00Z"
          *             }
          *           ],
+         *           "attachments": [
+         *             {
+         *               "id": 45,
+         *               "team_file_id": 101,
+         *               "preview_url": "/api/v1/files/101/preview",
+         *               "download_url": "/api/v1/files/101/download",
+         *               "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+         *               "file": {
+         *                 "id": 101,
+         *                 "display_name": "incident-timeline.png",
+         *                 "original_filename": "incident-timeline.png",
+         *                 "mime_type": "image/png",
+         *                 "size_bytes": 144220,
+         *                 "preview_kind": "image",
+         *                 "created_at": "2026-02-27T17:20:00Z",
+         *                 "updated_at": "2026-02-27T17:24:00Z"
+         *               }
+         *             }
+         *           ],
          *           "comments_count": 1,
          *           "created_at": "2026-02-22T17:21:00Z",
          *           "updated_at": "2026-02-22T17:21:00Z",
@@ -5913,6 +6800,25 @@ export interface components {
              *             "role": "owner",
              *             "name": "Example Name",
              *             "created_at": "2026-02-22T17:21:00Z"
+             *           }
+             *         ],
+             *         "attachments": [
+             *           {
+             *             "id": 45,
+             *             "team_file_id": 101,
+             *             "preview_url": "/api/v1/files/101/preview",
+             *             "download_url": "/api/v1/files/101/download",
+             *             "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+             *             "file": {
+             *               "id": 101,
+             *               "display_name": "incident-timeline.png",
+             *               "original_filename": "incident-timeline.png",
+             *               "mime_type": "image/png",
+             *               "size_bytes": 144220,
+             *               "preview_kind": "image",
+             *               "created_at": "2026-02-27T17:20:00Z",
+             *               "updated_at": "2026-02-27T17:24:00Z"
+             *             }
              *           }
              *         ],
              *         "comments_count": 1,
@@ -6989,7 +7895,7 @@ export interface components {
                  */
                 headline?: string | null;
                 /**
-                 * @description Markdown body content.
+                 * @description Markdown body content. Include file embeds as `![alt](/api/v1/files/{id}/preview)`.
                  * @example ## Highlights
                  *     - Elevated API error rate
                  */
@@ -7175,7 +8081,7 @@ export interface components {
              */
             title: string;
             /**
-             * @description Long-form description. Supports Markdown formatting.
+             * @description Long-form description. Supports Markdown formatting and file embeds like `![alt](/api/v1/files/{id}/preview)`.
              * @example Example description text.
              */
             description?: string | null;
@@ -7272,7 +8178,7 @@ export interface components {
          */
         StoreCalendarItemCommentApiRequest: {
             /**
-             * @description Markdown comment body.
+             * @description Markdown comment body. Include file embeds as `![alt](/api/v1/files/{id}/preview)`.
              * @example Example content.
              */
             body: string;
@@ -7348,7 +8254,7 @@ export interface components {
          */
         StoreTaskCommentApiRequest: {
             /**
-             * @description Markdown comment body.
+             * @description Markdown comment body. Include file embeds as `![alt](/api/v1/files/{id}/preview)`.
              * @example Example content.
              */
             body: string;
@@ -7390,7 +8296,7 @@ export interface components {
              */
             title: string;
             /**
-             * @description Long-form description. Supports Markdown formatting.
+             * @description Long-form description. Supports Markdown formatting and file embeds like `![alt](/api/v1/files/{id}/preview)`.
              * @example Example description text.
              */
             description: string;
@@ -7483,7 +8389,7 @@ export interface components {
                  */
                 headline?: string | null;
                 /**
-                 * @description Markdown body content.
+                 * @description Markdown body content. Include file embeds as `![alt](/api/v1/files/{id}/preview)`.
                  * @example ## Highlights
                  *     - Elevated API error rate
                  */
@@ -7623,7 +8529,7 @@ export interface components {
              */
             title?: string;
             /**
-             * @description Long-form description. Supports Markdown formatting.
+             * @description Long-form description. Supports Markdown formatting and file embeds like `![alt](/api/v1/files/{id}/preview)`.
              * @example Example description text.
              */
             description?: string | null;
@@ -7731,7 +8637,7 @@ export interface components {
          */
         UpdateTaskCommentApiRequest: {
             /**
-             * @description Markdown comment body.
+             * @description Markdown comment body. Include file embeds as `![alt](/api/v1/files/{id}/preview)`.
              * @example Example content.
              */
             body: string;
@@ -7757,7 +8663,7 @@ export interface components {
              */
             title?: string;
             /**
-             * @description Long-form description. Supports Markdown formatting.
+             * @description Long-form description. Supports Markdown formatting and file embeds like `![alt](/api/v1/files/{id}/preview)`.
              * @example Example description text.
              */
             description?: string;
@@ -7965,6 +8871,25 @@ export interface components {
                  *         "source_meta": {
                  *           "key": "value"
                  *         },
+                 *         "attachments": [
+                 *           {
+                 *             "id": 45,
+                 *             "team_file_id": 101,
+                 *             "preview_url": "/api/v1/files/101/preview",
+                 *             "download_url": "/api/v1/files/101/download",
+                 *             "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+                 *             "file": {
+                 *               "id": 101,
+                 *               "display_name": "incident-timeline.png",
+                 *               "original_filename": "incident-timeline.png",
+                 *               "mime_type": "image/png",
+                 *               "size_bytes": 144220,
+                 *               "preview_kind": "image",
+                 *               "created_at": "2026-02-27T17:20:00Z",
+                 *               "updated_at": "2026-02-27T17:24:00Z"
+                 *             }
+                 *           }
+                 *         ],
                  *         "received_at": "2026-02-22T17:21:00Z",
                  *         "generated_at": "2026-02-22T17:21:00Z",
                  *         "read_by_user_id": 42,
@@ -7990,6 +8915,25 @@ export interface components {
                  *           "source_meta": {
                  *             "key": "value"
                  *           },
+                 *           "attachments": [
+                 *             {
+                 *               "id": 45,
+                 *               "team_file_id": 101,
+                 *               "preview_url": "/api/v1/files/101/preview",
+                 *               "download_url": "/api/v1/files/101/download",
+                 *               "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+                 *               "file": {
+                 *                 "id": 101,
+                 *                 "display_name": "incident-timeline.png",
+                 *                 "original_filename": "incident-timeline.png",
+                 *                 "mime_type": "image/png",
+                 *                 "size_bytes": 144220,
+                 *                 "preview_kind": "image",
+                 *                 "created_at": "2026-02-27T17:20:00Z",
+                 *                 "updated_at": "2026-02-27T17:24:00Z"
+                 *               }
+                 *             }
+                 *           ],
                  *           "received_at": "2026-02-22T17:21:00Z",
                  *           "generated_at": "2026-02-22T17:21:00Z",
                  *           "created_at": "2026-02-22T17:21:00Z",
@@ -8033,6 +8977,25 @@ export interface components {
                  *         "source_meta": {
                  *           "key": "value"
                  *         },
+                 *         "attachments": [
+                 *           {
+                 *             "id": 45,
+                 *             "team_file_id": 101,
+                 *             "preview_url": "/api/v1/files/101/preview",
+                 *             "download_url": "/api/v1/files/101/download",
+                 *             "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+                 *             "file": {
+                 *               "id": 101,
+                 *               "display_name": "incident-timeline.png",
+                 *               "original_filename": "incident-timeline.png",
+                 *               "mime_type": "image/png",
+                 *               "size_bytes": 144220,
+                 *               "preview_kind": "image",
+                 *               "created_at": "2026-02-27T17:20:00Z",
+                 *               "updated_at": "2026-02-27T17:24:00Z"
+                 *             }
+                 *           }
+                 *         ],
                  *         "received_at": "2026-02-22T17:21:00Z",
                  *         "generated_at": "2026-02-22T17:21:00Z",
                  *         "read_by_user_id": 42,
@@ -8058,6 +9021,25 @@ export interface components {
                  *           "source_meta": {
                  *             "key": "value"
                  *           },
+                 *           "attachments": [
+                 *             {
+                 *               "id": 45,
+                 *               "team_file_id": 101,
+                 *               "preview_url": "/api/v1/files/101/preview",
+                 *               "download_url": "/api/v1/files/101/download",
+                 *               "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+                 *               "file": {
+                 *                 "id": 101,
+                 *                 "display_name": "incident-timeline.png",
+                 *                 "original_filename": "incident-timeline.png",
+                 *                 "mime_type": "image/png",
+                 *                 "size_bytes": 144220,
+                 *                 "preview_kind": "image",
+                 *                 "created_at": "2026-02-27T17:20:00Z",
+                 *                 "updated_at": "2026-02-27T17:24:00Z"
+                 *               }
+                 *             }
+                 *           ],
                  *           "received_at": "2026-02-22T17:21:00Z",
                  *           "generated_at": "2026-02-22T17:21:00Z",
                  *           "created_at": "2026-02-22T17:21:00Z",
@@ -8102,6 +9084,25 @@ export interface components {
                  *           "source_meta": {
                  *             "key": "value"
                  *           },
+                 *           "attachments": [
+                 *             {
+                 *               "id": 45,
+                 *               "team_file_id": 101,
+                 *               "preview_url": "/api/v1/files/101/preview",
+                 *               "download_url": "/api/v1/files/101/download",
+                 *               "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+                 *               "file": {
+                 *                 "id": 101,
+                 *                 "display_name": "incident-timeline.png",
+                 *                 "original_filename": "incident-timeline.png",
+                 *                 "mime_type": "image/png",
+                 *                 "size_bytes": 144220,
+                 *                 "preview_kind": "image",
+                 *                 "created_at": "2026-02-27T17:20:00Z",
+                 *                 "updated_at": "2026-02-27T17:24:00Z"
+                 *               }
+                 *             }
+                 *           ],
                  *           "received_at": "2026-02-22T17:21:00Z",
                  *           "generated_at": "2026-02-22T17:21:00Z",
                  *           "read_by_user_id": 42,
@@ -8127,6 +9128,25 @@ export interface components {
                  *             "source_meta": {
                  *               "key": "value"
                  *             },
+                 *             "attachments": [
+                 *               {
+                 *                 "id": 45,
+                 *                 "team_file_id": 101,
+                 *                 "preview_url": "/api/v1/files/101/preview",
+                 *                 "download_url": "/api/v1/files/101/download",
+                 *                 "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+                 *                 "file": {
+                 *                   "id": 101,
+                 *                   "display_name": "incident-timeline.png",
+                 *                   "original_filename": "incident-timeline.png",
+                 *                   "mime_type": "image/png",
+                 *                   "size_bytes": 144220,
+                 *                   "preview_kind": "image",
+                 *                   "created_at": "2026-02-27T17:20:00Z",
+                 *                   "updated_at": "2026-02-27T17:24:00Z"
+                 *                 }
+                 *               }
+                 *             ],
                  *             "received_at": "2026-02-22T17:21:00Z",
                  *             "generated_at": "2026-02-22T17:21:00Z",
                  *             "created_at": "2026-02-22T17:21:00Z",
@@ -8869,7 +9889,7 @@ export interface components {
                  *         "summary": "Operations handoff digest for the morning window.",
                  *         "timezone": "America/Los_Angeles",
                  *         "headline": "3 overdue tasks | 4 upcoming events",
-                 *         "content_markdown": "## Highlights\n- Elevated API error rate\n- Two incidents resolved",
+                 *         "content_markdown": "## Highlights\n- Elevated API error rate\n- Two incidents resolved\n\n![ops-dashboard](/api/v1/files/101/preview)",
                  *         "meta": {
                  *           "external_source": "daily-ops-job",
                  *           "schedule": "0 7 * * *"
@@ -8894,7 +9914,7 @@ export interface components {
                  *       "payload": {
                  *         "type": "chat.user",
                  *         "payload": {
-                 *           "content": "Create a AgentMC task for this afternoon to draft the postmortem outline.",
+                 *           "content": "Create an AgentMC task for this afternoon to draft the postmortem outline.\n\n![incident-chart](/api/v1/files/101/preview)",
                  *           "message_id": 512,
                  *           "timezone": "America/Los_Angeles",
                  *           "source": "agentmc_chat",
@@ -8935,7 +9955,7 @@ export interface components {
                  * @example {
                  *       "type": "task",
                  *       "title": "Review outage timeline",
-                 *       "description": "Confirm sequence of events with on-call notes.",
+                 *       "description": "Confirm sequence of events with on-call notes.\n\n![timeline](/api/v1/files/101/preview)",
                  *       "due_at": "2026-02-24T09:00:00Z",
                  *       "timezone": "America/Los_Angeles",
                  *       "status": "todo",
@@ -8957,7 +9977,7 @@ export interface components {
             content: {
                 /**
                  * @example {
-                 *       "body": "Added links to logs and timeline document.",
+                 *       "body": "Added links to logs and timeline document.\n\n![handoff](/api/v1/files/101/preview)",
                  *       "actor_type": "agent",
                  *       "actor_id": 42
                  *     }
@@ -8993,7 +10013,7 @@ export interface components {
             content: {
                 /**
                  * @example {
-                 *       "body": "Posting a handoff note for [@Alex Morgan](/mentions/user/8) to review before standup.",
+                 *       "body": "Posting a handoff note for [@Alex Morgan](/mentions/user/8) to review before standup.\n\n![error-budget](/api/v1/files/101/preview)",
                  *       "actor_type": "agent",
                  *       "actor_id": 42
                  *     }
@@ -9008,7 +10028,7 @@ export interface components {
                  *       "board_id": 5,
                  *       "column_id": 13,
                  *       "title": "Draft post-incident summary",
-                 *       "description": "Capture timeline, impact, and remediation status.",
+                 *       "description": "Capture timeline, impact, and remediation status.\n\n![incident-graph](/api/v1/files/101/preview)",
                  *       "archived_at": null,
                  *       "position": 2,
                  *       "due_at": "2026-02-24T17:00:00Z",
@@ -9036,7 +10056,7 @@ export interface components {
                  *             "label": "Follow-ups"
                  *           }
                  *         ],
-                 *         "content_markdown": "## Updates\n- Incident queue cleared\n- Follow-up tasks assigned",
+                 *         "content_markdown": "## Updates\n- Incident queue cleared\n- Follow-up tasks assigned\n\n![timeline](/api/v1/files/102/preview)",
                  *         "meta": {
                  *           "external_source": "daily-ops-job",
                  *           "schedule": "0 7 * * *"
@@ -9083,7 +10103,7 @@ export interface components {
                 /**
                  * @example {
                  *       "title": "Review outage timeline",
-                 *       "description": "Add links to root-cause analysis notes.",
+                 *       "description": "Add links to root-cause analysis notes.\n\n![rca-notes](/api/v1/files/102/preview)",
                  *       "due_at": "2026-02-24T11:00:00Z",
                  *       "status": "in_progress",
                  *       "priority": "urgent",
@@ -9512,6 +10532,25 @@ export interface operations {
                      *           "source_meta": {
                      *             "key": "value"
                      *           },
+                     *           "attachments": [
+                     *             {
+                     *               "id": 45,
+                     *               "team_file_id": 101,
+                     *               "preview_url": "/api/v1/files/101/preview",
+                     *               "download_url": "/api/v1/files/101/download",
+                     *               "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+                     *               "file": {
+                     *                 "id": 101,
+                     *                 "display_name": "incident-timeline.png",
+                     *                 "original_filename": "incident-timeline.png",
+                     *                 "mime_type": "image/png",
+                     *                 "size_bytes": 144220,
+                     *                 "preview_kind": "image",
+                     *                 "created_at": "2026-02-27T17:20:00Z",
+                     *                 "updated_at": "2026-02-27T17:24:00Z"
+                     *               }
+                     *             }
+                     *           ],
                      *           "received_at": "2026-02-22T17:21:00Z",
                      *           "generated_at": "2026-02-22T17:21:00Z",
                      *           "read_by_user_id": 42,
@@ -9537,6 +10576,25 @@ export interface operations {
                      *             "source_meta": {
                      *               "key": "value"
                      *             },
+                     *             "attachments": [
+                     *               {
+                     *                 "id": 45,
+                     *                 "team_file_id": 101,
+                     *                 "preview_url": "/api/v1/files/101/preview",
+                     *                 "download_url": "/api/v1/files/101/download",
+                     *                 "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+                     *                 "file": {
+                     *                   "id": 101,
+                     *                   "display_name": "incident-timeline.png",
+                     *                   "original_filename": "incident-timeline.png",
+                     *                   "mime_type": "image/png",
+                     *                   "size_bytes": 144220,
+                     *                   "preview_kind": "image",
+                     *                   "created_at": "2026-02-27T17:20:00Z",
+                     *                   "updated_at": "2026-02-27T17:24:00Z"
+                     *                 }
+                     *               }
+                     *             ],
                      *             "received_at": "2026-02-22T17:21:00Z",
                      *             "generated_at": "2026-02-22T17:21:00Z",
                      *             "created_at": "2026-02-22T17:21:00Z",
@@ -9616,6 +10674,25 @@ export interface operations {
                      *         "source_meta": {
                      *           "key": "value"
                      *         },
+                     *         "attachments": [
+                     *           {
+                     *             "id": 45,
+                     *             "team_file_id": 101,
+                     *             "preview_url": "/api/v1/files/101/preview",
+                     *             "download_url": "/api/v1/files/101/download",
+                     *             "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+                     *             "file": {
+                     *               "id": 101,
+                     *               "display_name": "incident-timeline.png",
+                     *               "original_filename": "incident-timeline.png",
+                     *               "mime_type": "image/png",
+                     *               "size_bytes": 144220,
+                     *               "preview_kind": "image",
+                     *               "created_at": "2026-02-27T17:20:00Z",
+                     *               "updated_at": "2026-02-27T17:24:00Z"
+                     *             }
+                     *           }
+                     *         ],
                      *         "received_at": "2026-02-22T17:21:00Z",
                      *         "generated_at": "2026-02-22T17:21:00Z",
                      *         "read_by_user_id": 42,
@@ -9641,6 +10718,25 @@ export interface operations {
                      *           "source_meta": {
                      *             "key": "value"
                      *           },
+                     *           "attachments": [
+                     *             {
+                     *               "id": 45,
+                     *               "team_file_id": 101,
+                     *               "preview_url": "/api/v1/files/101/preview",
+                     *               "download_url": "/api/v1/files/101/download",
+                     *               "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+                     *               "file": {
+                     *                 "id": 101,
+                     *                 "display_name": "incident-timeline.png",
+                     *                 "original_filename": "incident-timeline.png",
+                     *                 "mime_type": "image/png",
+                     *                 "size_bytes": 144220,
+                     *                 "preview_kind": "image",
+                     *                 "created_at": "2026-02-27T17:20:00Z",
+                     *                 "updated_at": "2026-02-27T17:24:00Z"
+                     *               }
+                     *             }
+                     *           ],
                      *           "received_at": "2026-02-22T17:21:00Z",
                      *           "generated_at": "2026-02-22T17:21:00Z",
                      *           "created_at": "2026-02-22T17:21:00Z",
@@ -9741,6 +10837,25 @@ export interface operations {
                      *         "source_meta": {
                      *           "key": "value"
                      *         },
+                     *         "attachments": [
+                     *           {
+                     *             "id": 45,
+                     *             "team_file_id": 101,
+                     *             "preview_url": "/api/v1/files/101/preview",
+                     *             "download_url": "/api/v1/files/101/download",
+                     *             "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+                     *             "file": {
+                     *               "id": 101,
+                     *               "display_name": "incident-timeline.png",
+                     *               "original_filename": "incident-timeline.png",
+                     *               "mime_type": "image/png",
+                     *               "size_bytes": 144220,
+                     *               "preview_kind": "image",
+                     *               "created_at": "2026-02-27T17:20:00Z",
+                     *               "updated_at": "2026-02-27T17:24:00Z"
+                     *             }
+                     *           }
+                     *         ],
                      *         "received_at": "2026-02-22T17:21:00Z",
                      *         "generated_at": "2026-02-22T17:21:00Z",
                      *         "read_by_user_id": 42,
@@ -9766,6 +10881,25 @@ export interface operations {
                      *           "source_meta": {
                      *             "key": "value"
                      *           },
+                     *           "attachments": [
+                     *             {
+                     *               "id": 45,
+                     *               "team_file_id": 101,
+                     *               "preview_url": "/api/v1/files/101/preview",
+                     *               "download_url": "/api/v1/files/101/download",
+                     *               "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+                     *               "file": {
+                     *                 "id": 101,
+                     *                 "display_name": "incident-timeline.png",
+                     *                 "original_filename": "incident-timeline.png",
+                     *                 "mime_type": "image/png",
+                     *                 "size_bytes": 144220,
+                     *                 "preview_kind": "image",
+                     *                 "created_at": "2026-02-27T17:20:00Z",
+                     *                 "updated_at": "2026-02-27T17:24:00Z"
+                     *               }
+                     *             }
+                     *           ],
                      *           "received_at": "2026-02-22T17:21:00Z",
                      *           "generated_at": "2026-02-22T17:21:00Z",
                      *           "created_at": "2026-02-22T17:21:00Z",
@@ -10607,6 +11741,25 @@ export interface operations {
                      *           "created_by_user_id": 42,
                      *           "assigned_to_user_id": 42,
                      *           "assigned_to_agent_id": 42,
+                     *           "attachments": [
+                     *             {
+                     *               "id": 45,
+                     *               "team_file_id": 101,
+                     *               "preview_url": "/api/v1/files/101/preview",
+                     *               "download_url": "/api/v1/files/101/download",
+                     *               "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+                     *               "file": {
+                     *                 "id": 101,
+                     *                 "display_name": "incident-timeline.png",
+                     *                 "original_filename": "incident-timeline.png",
+                     *                 "mime_type": "image/png",
+                     *                 "size_bytes": 144220,
+                     *                 "preview_kind": "image",
+                     *                 "created_at": "2026-02-27T17:20:00Z",
+                     *                 "updated_at": "2026-02-27T17:24:00Z"
+                     *               }
+                     *             }
+                     *           ],
                      *           "assignee_type": "human",
                      *           "created_at": "2026-02-22T17:21:00Z",
                      *           "updated_at": "2026-02-22T17:21:00Z"
@@ -10673,6 +11826,25 @@ export interface operations {
                      *         "created_by_user_id": 42,
                      *         "assigned_to_user_id": 42,
                      *         "assigned_to_agent_id": 42,
+                     *         "attachments": [
+                     *           {
+                     *             "id": 45,
+                     *             "team_file_id": 101,
+                     *             "preview_url": "/api/v1/files/101/preview",
+                     *             "download_url": "/api/v1/files/101/download",
+                     *             "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+                     *             "file": {
+                     *               "id": 101,
+                     *               "display_name": "incident-timeline.png",
+                     *               "original_filename": "incident-timeline.png",
+                     *               "mime_type": "image/png",
+                     *               "size_bytes": 144220,
+                     *               "preview_kind": "image",
+                     *               "created_at": "2026-02-27T17:20:00Z",
+                     *               "updated_at": "2026-02-27T17:24:00Z"
+                     *             }
+                     *           }
+                     *         ],
                      *         "assignee_type": "human",
                      *         "created_at": "2026-02-22T17:21:00Z",
                      *         "updated_at": "2026-02-22T17:21:00Z"
@@ -10726,6 +11898,25 @@ export interface operations {
                      *         "created_by_user_id": 42,
                      *         "assigned_to_user_id": 42,
                      *         "assigned_to_agent_id": 42,
+                     *         "attachments": [
+                     *           {
+                     *             "id": 45,
+                     *             "team_file_id": 101,
+                     *             "preview_url": "/api/v1/files/101/preview",
+                     *             "download_url": "/api/v1/files/101/download",
+                     *             "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+                     *             "file": {
+                     *               "id": 101,
+                     *               "display_name": "incident-timeline.png",
+                     *               "original_filename": "incident-timeline.png",
+                     *               "mime_type": "image/png",
+                     *               "size_bytes": 144220,
+                     *               "preview_kind": "image",
+                     *               "created_at": "2026-02-27T17:20:00Z",
+                     *               "updated_at": "2026-02-27T17:24:00Z"
+                     *             }
+                     *           }
+                     *         ],
                      *         "assignee_type": "human",
                      *         "created_at": "2026-02-22T17:21:00Z",
                      *         "updated_at": "2026-02-22T17:21:00Z"
@@ -10825,6 +12016,25 @@ export interface operations {
                      *         "created_by_user_id": 42,
                      *         "assigned_to_user_id": 42,
                      *         "assigned_to_agent_id": 42,
+                     *         "attachments": [
+                     *           {
+                     *             "id": 45,
+                     *             "team_file_id": 101,
+                     *             "preview_url": "/api/v1/files/101/preview",
+                     *             "download_url": "/api/v1/files/101/download",
+                     *             "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+                     *             "file": {
+                     *               "id": 101,
+                     *               "display_name": "incident-timeline.png",
+                     *               "original_filename": "incident-timeline.png",
+                     *               "mime_type": "image/png",
+                     *               "size_bytes": 144220,
+                     *               "preview_kind": "image",
+                     *               "created_at": "2026-02-27T17:20:00Z",
+                     *               "updated_at": "2026-02-27T17:24:00Z"
+                     *             }
+                     *           }
+                     *         ],
                      *         "assignee_type": "human",
                      *         "created_at": "2026-02-22T17:21:00Z",
                      *         "updated_at": "2026-02-22T17:21:00Z"
@@ -10885,6 +12095,25 @@ export interface operations {
                      *               "label": "example",
                      *               "handle": "example",
                      *               "token": "example"
+                     *             }
+                     *           ],
+                     *           "attachments": [
+                     *             {
+                     *               "id": 45,
+                     *               "team_file_id": 101,
+                     *               "preview_url": "/api/v1/files/101/preview",
+                     *               "download_url": "/api/v1/files/101/download",
+                     *               "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+                     *               "file": {
+                     *                 "id": 101,
+                     *                 "display_name": "incident-timeline.png",
+                     *                 "original_filename": "incident-timeline.png",
+                     *                 "mime_type": "image/png",
+                     *                 "size_bytes": 144220,
+                     *                 "preview_kind": "image",
+                     *                 "created_at": "2026-02-27T17:20:00Z",
+                     *                 "updated_at": "2026-02-27T17:24:00Z"
+                     *               }
                      *             }
                      *           ],
                      *           "edited_at": "2026-02-22T17:21:00Z",
@@ -10960,6 +12189,25 @@ export interface operations {
                      *             "label": "example",
                      *             "handle": "example",
                      *             "token": "example"
+                     *           }
+                     *         ],
+                     *         "attachments": [
+                     *           {
+                     *             "id": 45,
+                     *             "team_file_id": 101,
+                     *             "preview_url": "/api/v1/files/101/preview",
+                     *             "download_url": "/api/v1/files/101/download",
+                     *             "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+                     *             "file": {
+                     *               "id": 101,
+                     *               "display_name": "incident-timeline.png",
+                     *               "original_filename": "incident-timeline.png",
+                     *               "mime_type": "image/png",
+                     *               "size_bytes": 144220,
+                     *               "preview_kind": "image",
+                     *               "created_at": "2026-02-27T17:20:00Z",
+                     *               "updated_at": "2026-02-27T17:24:00Z"
+                     *             }
                      *           }
                      *         ],
                      *         "edited_at": "2026-02-22T17:21:00Z",
@@ -11060,6 +12308,25 @@ export interface operations {
                      *             "label": "example",
                      *             "handle": "example",
                      *             "token": "example"
+                     *           }
+                     *         ],
+                     *         "attachments": [
+                     *           {
+                     *             "id": 45,
+                     *             "team_file_id": 101,
+                     *             "preview_url": "/api/v1/files/101/preview",
+                     *             "download_url": "/api/v1/files/101/download",
+                     *             "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+                     *             "file": {
+                     *               "id": 101,
+                     *               "display_name": "incident-timeline.png",
+                     *               "original_filename": "incident-timeline.png",
+                     *               "mime_type": "image/png",
+                     *               "size_bytes": 144220,
+                     *               "preview_kind": "image",
+                     *               "created_at": "2026-02-27T17:20:00Z",
+                     *               "updated_at": "2026-02-27T17:24:00Z"
+                     *             }
                      *           }
                      *         ],
                      *         "edited_at": "2026-02-22T17:21:00Z",
@@ -11846,7 +13113,6 @@ export interface operations {
             401: components["responses"]["ApiError401"];
             403: components["responses"]["ApiError403"];
             404: components["responses"]["ApiError404"];
-            409: components["responses"]["ApiError409"];
         };
     };
     updateFileFolder: {
@@ -12189,6 +13455,25 @@ export interface operations {
                      *               "created_at": "2026-02-22T17:21:00Z"
                      *             }
                      *           ],
+                     *           "attachments": [
+                     *             {
+                     *               "id": 45,
+                     *               "team_file_id": 101,
+                     *               "preview_url": "/api/v1/files/101/preview",
+                     *               "download_url": "/api/v1/files/101/download",
+                     *               "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+                     *               "file": {
+                     *                 "id": 101,
+                     *                 "display_name": "incident-timeline.png",
+                     *                 "original_filename": "incident-timeline.png",
+                     *                 "mime_type": "image/png",
+                     *                 "size_bytes": 144220,
+                     *                 "preview_kind": "image",
+                     *                 "created_at": "2026-02-27T17:20:00Z",
+                     *                 "updated_at": "2026-02-27T17:24:00Z"
+                     *               }
+                     *             }
+                     *           ],
                      *           "comments_count": 1,
                      *           "created_at": "2026-02-22T17:21:00Z",
                      *           "updated_at": "2026-02-22T17:21:00Z",
@@ -12269,6 +13554,25 @@ export interface operations {
                      *             "created_at": "2026-02-22T17:21:00Z"
                      *           }
                      *         ],
+                     *         "attachments": [
+                     *           {
+                     *             "id": 45,
+                     *             "team_file_id": 101,
+                     *             "preview_url": "/api/v1/files/101/preview",
+                     *             "download_url": "/api/v1/files/101/download",
+                     *             "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+                     *             "file": {
+                     *               "id": 101,
+                     *               "display_name": "incident-timeline.png",
+                     *               "original_filename": "incident-timeline.png",
+                     *               "mime_type": "image/png",
+                     *               "size_bytes": 144220,
+                     *               "preview_kind": "image",
+                     *               "created_at": "2026-02-27T17:20:00Z",
+                     *               "updated_at": "2026-02-27T17:24:00Z"
+                     *             }
+                     *           }
+                     *         ],
                      *         "comments_count": 1,
                      *         "created_at": "2026-02-22T17:21:00Z",
                      *         "updated_at": "2026-02-22T17:21:00Z",
@@ -12336,6 +13640,25 @@ export interface operations {
                      *             "created_at": "2026-02-22T17:21:00Z"
                      *           }
                      *         ],
+                     *         "attachments": [
+                     *           {
+                     *             "id": 45,
+                     *             "team_file_id": 101,
+                     *             "preview_url": "/api/v1/files/101/preview",
+                     *             "download_url": "/api/v1/files/101/download",
+                     *             "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+                     *             "file": {
+                     *               "id": 101,
+                     *               "display_name": "incident-timeline.png",
+                     *               "original_filename": "incident-timeline.png",
+                     *               "mime_type": "image/png",
+                     *               "size_bytes": 144220,
+                     *               "preview_kind": "image",
+                     *               "created_at": "2026-02-27T17:20:00Z",
+                     *               "updated_at": "2026-02-27T17:24:00Z"
+                     *             }
+                     *           }
+                     *         ],
                      *         "comments_count": 1,
                      *         "created_at": "2026-02-22T17:21:00Z",
                      *         "updated_at": "2026-02-22T17:21:00Z",
@@ -12369,7 +13692,7 @@ export interface operations {
                 /**
                  * @example {
                  *       "title": "Review outage timeline",
-                 *       "description": "Add links to root-cause analysis notes.",
+                 *       "description": "Add links to root-cause analysis notes.\n\n![rca-notes](/api/v1/files/102/preview)",
                  *       "due_at": "2026-02-24T11:00:00Z",
                  *       "status": "in_progress",
                  *       "priority": "urgent",
@@ -12413,6 +13736,25 @@ export interface operations {
                      *             "role": "owner",
                      *             "name": "Example Name",
                      *             "created_at": "2026-02-22T17:21:00Z"
+                     *           }
+                     *         ],
+                     *         "attachments": [
+                     *           {
+                     *             "id": 45,
+                     *             "team_file_id": 101,
+                     *             "preview_url": "/api/v1/files/101/preview",
+                     *             "download_url": "/api/v1/files/101/download",
+                     *             "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+                     *             "file": {
+                     *               "id": 101,
+                     *               "display_name": "incident-timeline.png",
+                     *               "original_filename": "incident-timeline.png",
+                     *               "mime_type": "image/png",
+                     *               "size_bytes": 144220,
+                     *               "preview_kind": "image",
+                     *               "created_at": "2026-02-27T17:20:00Z",
+                     *               "updated_at": "2026-02-27T17:24:00Z"
+                     *             }
                      *           }
                      *         ],
                      *         "comments_count": 1,
@@ -12495,6 +13837,25 @@ export interface operations {
                      *         "actor_type": "user",
                      *         "actor_id": 42,
                      *         "body": "Example content.",
+                     *         "attachments": [
+                     *           {
+                     *             "id": 45,
+                     *             "team_file_id": 101,
+                     *             "preview_url": "/api/v1/files/101/preview",
+                     *             "download_url": "/api/v1/files/101/download",
+                     *             "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+                     *             "file": {
+                     *               "id": 101,
+                     *               "display_name": "incident-timeline.png",
+                     *               "original_filename": "incident-timeline.png",
+                     *               "mime_type": "image/png",
+                     *               "size_bytes": 144220,
+                     *               "preview_kind": "image",
+                     *               "created_at": "2026-02-27T17:20:00Z",
+                     *               "updated_at": "2026-02-27T17:24:00Z"
+                     *             }
+                     *           }
+                     *         ],
                      *         "created_at": "2026-02-22T17:21:00Z"
                      *       }
                      *     }

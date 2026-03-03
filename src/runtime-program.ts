@@ -233,7 +233,6 @@ export class AgentRuntimeProgram {
     const hostKey = nonEmpty(env.AGENTMC_API_KEY);
     const requestedAgentId = toPositiveInt(env.AGENTMC_AGENT_ID);
     const disableHeartbeat = valueAsBoolean(env.AGENTMC_DISABLE_HEARTBEAT) === true;
-    const disableRequestedSessionPolling = valueAsBoolean(env.AGENTMC_DISABLE_REQUESTED_SESSION_POLLING) === true;
     const heartbeatIntervalSeconds =
       toPositiveInt(env.AGENTMC_HEARTBEAT_INTERVAL_SECONDS) ?? DEFAULT_HEARTBEAT_INTERVAL_SECONDS;
 
@@ -250,7 +249,6 @@ export class AgentRuntimeProgram {
       baseUrl: nonEmpty(env.AGENTMC_BASE_URL) ?? DEFAULT_AGENTMC_API_BASE_URL,
       agentId: requestedAgentId ?? undefined,
       heartbeatEnabled: !disableHeartbeat,
-      realtimeSessionsEnabled: !disableRequestedSessionPolling,
       heartbeatIntervalSeconds,
       workspaceDir: nonEmpty(env.AGENTMC_WORKSPACE_DIR) ?? undefined,
       statePath: nonEmpty(env.AGENTMC_STATE_PATH) ?? undefined,
@@ -317,15 +315,6 @@ export class AgentRuntimeProgram {
     if (this.loopPromise) {
       await this.loopPromise;
     }
-  }
-
-  enqueueRequestedRealtimeSession(sessionId: number): boolean {
-    const runtime = this.realtimeRuntime as { enqueueRequestedSession?: (nextSessionId: number) => boolean } | null;
-    if (!runtime || typeof runtime.enqueueRequestedSession !== "function") {
-      return false;
-    }
-
-    return runtime.enqueueRequestedSession(sessionId);
   }
 
   private async runLoop(): Promise<void> {

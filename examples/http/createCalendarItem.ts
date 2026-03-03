@@ -8,7 +8,7 @@ const result = await client.operations.createCalendarItem({
   "body": {
     "type": "task",
     "title": "Review outage timeline",
-    "description": "Confirm sequence of events with on-call notes.",
+    "description": "Confirm sequence of events with on-call notes.\n\n![timeline](/api/v1/files/101/preview)",
     "due_at": "2026-02-24T09:00:00Z",
     "timezone": "America/Los_Angeles",
     "status": "todo",

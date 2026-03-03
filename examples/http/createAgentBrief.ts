@@ -12,7 +12,7 @@ const result = await client.operations.createAgentBrief({
       "summary": "Operations handoff digest for the morning window.",
       "timezone": "America/Los_Angeles",
       "headline": "3 overdue tasks | 4 upcoming events",
-      "content_markdown": "## Highlights\n- Elevated API error rate\n- Two incidents resolved",
+      "content_markdown": "## Highlights\n- Elevated API error rate\n- Two incidents resolved\n\n![ops-dashboard](/api/v1/files/101/preview)",
       "meta": {
         "external_source": "daily-ops-job",
         "schedule": "0 7 * * *"

@@ -712,7 +712,7 @@ export const operations = [
       {
         "mediaType": "application/json",
         "example": {
-          "body": "Added links to logs and timeline document.",
+          "body": "Added links to logs and timeline document.\n\n![handoff](/api/v1/files/101/preview)",
           "actor_type": "agent",
           "actor_id": 42
         }
@@ -730,6 +730,25 @@ export const operations = [
             "actor_type": "user",
             "actor_id": 42,
             "body": "Example content.",
+            "attachments": [
+              {
+                "id": 45,
+                "team_file_id": 101,
+                "preview_url": "/api/v1/files/101/preview",
+                "download_url": "/api/v1/files/101/download",
+                "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+                "file": {
+                  "id": 101,
+                  "display_name": "incident-timeline.png",
+                  "original_filename": "incident-timeline.png",
+                  "mime_type": "image/png",
+                  "size_bytes": 144220,
+                  "preview_kind": "image",
+                  "created_at": "2026-02-27T17:20:00Z",
+                  "updated_at": "2026-02-27T17:24:00Z"
+                }
+              }
+            ],
             "created_at": "2026-02-22T17:21:00Z"
           }
         }
@@ -1007,7 +1026,7 @@ export const operations = [
             "summary": "Operations handoff digest for the morning window.",
             "timezone": "America/Los_Angeles",
             "headline": "3 overdue tasks | 4 upcoming events",
-            "content_markdown": "## Highlights\n- Elevated API error rate\n- Two incidents resolved",
+            "content_markdown": "## Highlights\n- Elevated API error rate\n- Two incidents resolved\n\n![ops-dashboard](/api/v1/files/101/preview)",
             "meta": {
               "external_source": "daily-ops-job",
               "schedule": "0 7 * * *"
@@ -1051,6 +1070,25 @@ export const operations = [
             "source_meta": {
               "key": "value"
             },
+            "attachments": [
+              {
+                "id": 45,
+                "team_file_id": 101,
+                "preview_url": "/api/v1/files/101/preview",
+                "download_url": "/api/v1/files/101/download",
+                "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+                "file": {
+                  "id": 101,
+                  "display_name": "incident-timeline.png",
+                  "original_filename": "incident-timeline.png",
+                  "mime_type": "image/png",
+                  "size_bytes": 144220,
+                  "preview_kind": "image",
+                  "created_at": "2026-02-27T17:20:00Z",
+                  "updated_at": "2026-02-27T17:24:00Z"
+                }
+              }
+            ],
             "received_at": "2026-02-22T17:21:00Z",
             "generated_at": "2026-02-22T17:21:00Z",
             "read_by_user_id": 42,
@@ -1076,6 +1114,25 @@ export const operations = [
               "source_meta": {
                 "key": "value"
               },
+              "attachments": [
+                {
+                  "id": 45,
+                  "team_file_id": 101,
+                  "preview_url": "/api/v1/files/101/preview",
+                  "download_url": "/api/v1/files/101/download",
+                  "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+                  "file": {
+                    "id": 101,
+                    "display_name": "incident-timeline.png",
+                    "original_filename": "incident-timeline.png",
+                    "mime_type": "image/png",
+                    "size_bytes": 144220,
+                    "preview_kind": "image",
+                    "created_at": "2026-02-27T17:20:00Z",
+                    "updated_at": "2026-02-27T17:24:00Z"
+                  }
+                }
+              ],
               "received_at": "2026-02-22T17:21:00Z",
               "generated_at": "2026-02-22T17:21:00Z",
               "created_at": "2026-02-22T17:21:00Z",
@@ -1177,7 +1234,7 @@ export const operations = [
           "payload": {
             "type": "chat.user",
             "payload": {
-              "content": "Create a AgentMC task for this afternoon to draft the postmortem outline.",
+              "content": "Create an AgentMC task for this afternoon to draft the postmortem outline.\n\n![incident-chart](/api/v1/files/101/preview)",
               "message_id": 512,
               "timezone": "America/Los_Angeles",
               "source": "agentmc_chat",
@@ -1608,7 +1665,7 @@ export const operations = [
         "example": {
           "type": "task",
           "title": "Review outage timeline",
-          "description": "Confirm sequence of events with on-call notes.",
+          "description": "Confirm sequence of events with on-call notes.\n\n![timeline](/api/v1/files/101/preview)",
           "due_at": "2026-02-24T09:00:00Z",
           "timezone": "America/Los_Angeles",
           "status": "todo",
@@ -1656,6 +1713,25 @@ export const operations = [
                 "role": "owner",
                 "name": "Example Name",
                 "created_at": "2026-02-22T17:21:00Z"
+              }
+            ],
+            "attachments": [
+              {
+                "id": 45,
+                "team_file_id": 101,
+                "preview_url": "/api/v1/files/101/preview",
+                "download_url": "/api/v1/files/101/download",
+                "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+                "file": {
+                  "id": 101,
+                  "display_name": "incident-timeline.png",
+                  "original_filename": "incident-timeline.png",
+                  "mime_type": "image/png",
+                  "size_bytes": 144220,
+                  "preview_kind": "image",
+                  "created_at": "2026-02-27T17:20:00Z",
+                  "updated_at": "2026-02-27T17:24:00Z"
+                }
               }
             ],
             "comments_count": 1,
@@ -2220,7 +2296,7 @@ export const operations = [
           "board_id": 5,
           "column_id": 13,
           "title": "Draft post-incident summary",
-          "description": "Capture timeline, impact, and remediation status.",
+          "description": "Capture timeline, impact, and remediation status.\n\n![incident-graph](/api/v1/files/101/preview)",
           "archived_at": null,
           "position": 2,
           "due_at": "2026-02-24T17:00:00Z",
@@ -2249,6 +2325,25 @@ export const operations = [
             "created_by_user_id": 42,
             "assigned_to_user_id": 42,
             "assigned_to_agent_id": 42,
+            "attachments": [
+              {
+                "id": 45,
+                "team_file_id": 101,
+                "preview_url": "/api/v1/files/101/preview",
+                "download_url": "/api/v1/files/101/download",
+                "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+                "file": {
+                  "id": 101,
+                  "display_name": "incident-timeline.png",
+                  "original_filename": "incident-timeline.png",
+                  "mime_type": "image/png",
+                  "size_bytes": 144220,
+                  "preview_kind": "image",
+                  "created_at": "2026-02-27T17:20:00Z",
+                  "updated_at": "2026-02-27T17:24:00Z"
+                }
+              }
+            ],
             "assignee_type": "human",
             "created_at": "2026-02-22T17:21:00Z",
             "updated_at": "2026-02-22T17:21:00Z"
@@ -2383,7 +2478,7 @@ export const operations = [
       {
         "mediaType": "application/json",
         "example": {
-          "body": "Posting a handoff note for [@Alex Morgan](/mentions/user/8) to review before standup.",
+          "body": "Posting a handoff note for [@Alex Morgan](/mentions/user/8) to review before standup.\n\n![error-budget](/api/v1/files/101/preview)",
           "actor_type": "agent",
           "actor_id": 42
         }
@@ -2411,6 +2506,25 @@ export const operations = [
                 "label": "example",
                 "handle": "example",
                 "token": "example"
+              }
+            ],
+            "attachments": [
+              {
+                "id": 45,
+                "team_file_id": 101,
+                "preview_url": "/api/v1/files/101/preview",
+                "download_url": "/api/v1/files/101/download",
+                "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+                "file": {
+                  "id": 101,
+                  "display_name": "incident-timeline.png",
+                  "original_filename": "incident-timeline.png",
+                  "mime_type": "image/png",
+                  "size_bytes": 144220,
+                  "preview_kind": "image",
+                  "created_at": "2026-02-27T17:20:00Z",
+                  "updated_at": "2026-02-27T17:24:00Z"
+                }
               }
             ],
             "edited_at": "2026-02-22T17:21:00Z",
@@ -3060,7 +3174,7 @@ export const operations = [
     "method": "delete",
     "path": "/files/folders/{id}",
     "summary": "Delete a managed file folder.",
-    "description": "",
+    "description": "Deletes one folder node and permanently deletes all nested files and subfolders in that folder subtree.",
     "tags": [
       "Files"
     ],
@@ -3137,25 +3251,6 @@ export const operations = [
         "status": "404",
         "mediaType": "application/json",
         "description": "Resource not found.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "409",
-        "mediaType": "application/json",
-        "description": "Conflict.",
         "hasContent": true,
         "example": {
           "error": {
@@ -3685,6 +3780,25 @@ export const operations = [
               "source_meta": {
                 "key": "value"
               },
+              "attachments": [
+                {
+                  "id": 45,
+                  "team_file_id": 101,
+                  "preview_url": "/api/v1/files/101/preview",
+                  "download_url": "/api/v1/files/101/download",
+                  "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+                  "file": {
+                    "id": 101,
+                    "display_name": "incident-timeline.png",
+                    "original_filename": "incident-timeline.png",
+                    "mime_type": "image/png",
+                    "size_bytes": 144220,
+                    "preview_kind": "image",
+                    "created_at": "2026-02-27T17:20:00Z",
+                    "updated_at": "2026-02-27T17:24:00Z"
+                  }
+                }
+              ],
               "received_at": "2026-02-22T17:21:00Z",
               "generated_at": "2026-02-22T17:21:00Z",
               "read_by_user_id": 42,
@@ -3710,6 +3824,25 @@ export const operations = [
                 "source_meta": {
                   "key": "value"
                 },
+                "attachments": [
+                  {
+                    "id": 45,
+                    "team_file_id": 101,
+                    "preview_url": "/api/v1/files/101/preview",
+                    "download_url": "/api/v1/files/101/download",
+                    "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+                    "file": {
+                      "id": 101,
+                      "display_name": "incident-timeline.png",
+                      "original_filename": "incident-timeline.png",
+                      "mime_type": "image/png",
+                      "size_bytes": 144220,
+                      "preview_kind": "image",
+                      "created_at": "2026-02-27T17:20:00Z",
+                      "updated_at": "2026-02-27T17:24:00Z"
+                    }
+                  }
+                ],
                 "received_at": "2026-02-22T17:21:00Z",
                 "generated_at": "2026-02-22T17:21:00Z",
                 "created_at": "2026-02-22T17:21:00Z",
@@ -4475,6 +4608,25 @@ export const operations = [
                   "role": "owner",
                   "name": "Example Name",
                   "created_at": "2026-02-22T17:21:00Z"
+                }
+              ],
+              "attachments": [
+                {
+                  "id": 45,
+                  "team_file_id": 101,
+                  "preview_url": "/api/v1/files/101/preview",
+                  "download_url": "/api/v1/files/101/download",
+                  "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+                  "file": {
+                    "id": 101,
+                    "display_name": "incident-timeline.png",
+                    "original_filename": "incident-timeline.png",
+                    "mime_type": "image/png",
+                    "size_bytes": 144220,
+                    "preview_kind": "image",
+                    "created_at": "2026-02-27T17:20:00Z",
+                    "updated_at": "2026-02-27T17:24:00Z"
+                  }
                 }
               ],
               "comments_count": 1,
@@ -5409,6 +5561,25 @@ export const operations = [
                   "token": "example"
                 }
               ],
+              "attachments": [
+                {
+                  "id": 45,
+                  "team_file_id": 101,
+                  "preview_url": "/api/v1/files/101/preview",
+                  "download_url": "/api/v1/files/101/download",
+                  "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+                  "file": {
+                    "id": 101,
+                    "display_name": "incident-timeline.png",
+                    "original_filename": "incident-timeline.png",
+                    "mime_type": "image/png",
+                    "size_bytes": 144220,
+                    "preview_kind": "image",
+                    "created_at": "2026-02-27T17:20:00Z",
+                    "updated_at": "2026-02-27T17:24:00Z"
+                  }
+                }
+              ],
               "edited_at": "2026-02-22T17:21:00Z",
               "created_at": "2026-02-22T17:21:00Z"
             }
@@ -5594,6 +5765,25 @@ export const operations = [
               "created_by_user_id": 42,
               "assigned_to_user_id": 42,
               "assigned_to_agent_id": 42,
+              "attachments": [
+                {
+                  "id": 45,
+                  "team_file_id": 101,
+                  "preview_url": "/api/v1/files/101/preview",
+                  "download_url": "/api/v1/files/101/download",
+                  "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+                  "file": {
+                    "id": 101,
+                    "display_name": "incident-timeline.png",
+                    "original_filename": "incident-timeline.png",
+                    "mime_type": "image/png",
+                    "size_bytes": 144220,
+                    "preview_kind": "image",
+                    "created_at": "2026-02-27T17:20:00Z",
+                    "updated_at": "2026-02-27T17:24:00Z"
+                  }
+                }
+              ],
               "assignee_type": "human",
               "created_at": "2026-02-22T17:21:00Z",
               "updated_at": "2026-02-22T17:21:00Z"
@@ -6289,6 +6479,25 @@ export const operations = [
                 "created_at": "2026-02-22T17:21:00Z"
               }
             ],
+            "attachments": [
+              {
+                "id": 45,
+                "team_file_id": 101,
+                "preview_url": "/api/v1/files/101/preview",
+                "download_url": "/api/v1/files/101/download",
+                "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+                "file": {
+                  "id": 101,
+                  "display_name": "incident-timeline.png",
+                  "original_filename": "incident-timeline.png",
+                  "mime_type": "image/png",
+                  "size_bytes": 144220,
+                  "preview_kind": "image",
+                  "created_at": "2026-02-27T17:20:00Z",
+                  "updated_at": "2026-02-27T17:24:00Z"
+                }
+              }
+            ],
             "comments_count": 1,
             "created_at": "2026-02-22T17:21:00Z",
             "updated_at": "2026-02-22T17:21:00Z",
@@ -6676,6 +6885,25 @@ export const operations = [
             "created_by_user_id": 42,
             "assigned_to_user_id": 42,
             "assigned_to_agent_id": 42,
+            "attachments": [
+              {
+                "id": 45,
+                "team_file_id": 101,
+                "preview_url": "/api/v1/files/101/preview",
+                "download_url": "/api/v1/files/101/download",
+                "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+                "file": {
+                  "id": 101,
+                  "display_name": "incident-timeline.png",
+                  "original_filename": "incident-timeline.png",
+                  "mime_type": "image/png",
+                  "size_bytes": 144220,
+                  "preview_kind": "image",
+                  "created_at": "2026-02-27T17:20:00Z",
+                  "updated_at": "2026-02-27T17:24:00Z"
+                }
+              }
+            ],
             "assignee_type": "human",
             "created_at": "2026-02-22T17:21:00Z",
             "updated_at": "2026-02-22T17:21:00Z"
@@ -6786,7 +7014,7 @@ export const operations = [
                 "label": "Follow-ups"
               }
             ],
-            "content_markdown": "## Updates\n- Incident queue cleared\n- Follow-up tasks assigned",
+            "content_markdown": "## Updates\n- Incident queue cleared\n- Follow-up tasks assigned\n\n![timeline](/api/v1/files/102/preview)",
             "meta": {
               "external_source": "daily-ops-job",
               "schedule": "0 7 * * *"
@@ -6830,6 +7058,25 @@ export const operations = [
             "source_meta": {
               "key": "value"
             },
+            "attachments": [
+              {
+                "id": 45,
+                "team_file_id": 101,
+                "preview_url": "/api/v1/files/101/preview",
+                "download_url": "/api/v1/files/101/download",
+                "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+                "file": {
+                  "id": 101,
+                  "display_name": "incident-timeline.png",
+                  "original_filename": "incident-timeline.png",
+                  "mime_type": "image/png",
+                  "size_bytes": 144220,
+                  "preview_kind": "image",
+                  "created_at": "2026-02-27T17:20:00Z",
+                  "updated_at": "2026-02-27T17:24:00Z"
+                }
+              }
+            ],
             "received_at": "2026-02-22T17:21:00Z",
             "generated_at": "2026-02-22T17:21:00Z",
             "read_by_user_id": 42,
@@ -6855,6 +7102,25 @@ export const operations = [
               "source_meta": {
                 "key": "value"
               },
+              "attachments": [
+                {
+                  "id": 45,
+                  "team_file_id": 101,
+                  "preview_url": "/api/v1/files/101/preview",
+                  "download_url": "/api/v1/files/101/download",
+                  "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+                  "file": {
+                    "id": 101,
+                    "display_name": "incident-timeline.png",
+                    "original_filename": "incident-timeline.png",
+                    "mime_type": "image/png",
+                    "size_bytes": 144220,
+                    "preview_kind": "image",
+                    "created_at": "2026-02-27T17:20:00Z",
+                    "updated_at": "2026-02-27T17:24:00Z"
+                  }
+                }
+              ],
               "received_at": "2026-02-22T17:21:00Z",
               "generated_at": "2026-02-22T17:21:00Z",
               "created_at": "2026-02-22T17:21:00Z",
@@ -7244,7 +7510,7 @@ export const operations = [
         "mediaType": "application/json",
         "example": {
           "title": "Review outage timeline",
-          "description": "Add links to root-cause analysis notes.",
+          "description": "Add links to root-cause analysis notes.\n\n![rca-notes](/api/v1/files/102/preview)",
           "due_at": "2026-02-24T11:00:00Z",
           "status": "in_progress",
           "priority": "urgent",
@@ -7284,6 +7550,25 @@ export const operations = [
                 "role": "owner",
                 "name": "Example Name",
                 "created_at": "2026-02-22T17:21:00Z"
+              }
+            ],
+            "attachments": [
+              {
+                "id": 45,
+                "team_file_id": 101,
+                "preview_url": "/api/v1/files/101/preview",
+                "download_url": "/api/v1/files/101/download",
+                "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+                "file": {
+                  "id": 101,
+                  "display_name": "incident-timeline.png",
+                  "original_filename": "incident-timeline.png",
+                  "mime_type": "image/png",
+                  "size_bytes": 144220,
+                  "preview_kind": "image",
+                  "created_at": "2026-02-27T17:20:00Z",
+                  "updated_at": "2026-02-27T17:24:00Z"
+                }
               }
             ],
             "comments_count": 1,
@@ -7712,6 +7997,25 @@ export const operations = [
             "created_by_user_id": 42,
             "assigned_to_user_id": 42,
             "assigned_to_agent_id": 42,
+            "attachments": [
+              {
+                "id": 45,
+                "team_file_id": 101,
+                "preview_url": "/api/v1/files/101/preview",
+                "download_url": "/api/v1/files/101/download",
+                "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+                "file": {
+                  "id": 101,
+                  "display_name": "incident-timeline.png",
+                  "original_filename": "incident-timeline.png",
+                  "mime_type": "image/png",
+                  "size_bytes": 144220,
+                  "preview_kind": "image",
+                  "created_at": "2026-02-27T17:20:00Z",
+                  "updated_at": "2026-02-27T17:24:00Z"
+                }
+              }
+            ],
             "assignee_type": "human",
             "created_at": "2026-02-22T17:21:00Z",
             "updated_at": "2026-02-22T17:21:00Z"
@@ -7860,6 +8164,25 @@ export const operations = [
                 "label": "example",
                 "handle": "example",
                 "token": "example"
+              }
+            ],
+            "attachments": [
+              {
+                "id": 45,
+                "team_file_id": 101,
+                "preview_url": "/api/v1/files/101/preview",
+                "download_url": "/api/v1/files/101/download",
+                "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+                "file": {
+                  "id": 101,
+                  "display_name": "incident-timeline.png",
+                  "original_filename": "incident-timeline.png",
+                  "mime_type": "image/png",
+                  "size_bytes": 144220,
+                  "preview_kind": "image",
+                  "created_at": "2026-02-27T17:20:00Z",
+                  "updated_at": "2026-02-27T17:24:00Z"
+                }
               }
             ],
             "edited_at": "2026-02-22T17:21:00Z",

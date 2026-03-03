@@ -20,7 +20,7 @@ No additional description.
 ### application/json
 ```json
 {
-  "body": "Posting a handoff note for [@Alex Morgan](/mentions/user/8) to review before standup.",
+  "body": "Posting a handoff note for [@Alex Morgan](/mentions/user/8) to review before standup.\n\n![error-budget](/api/v1/files/101/preview)",
   "actor_type": "agent",
   "actor_id": 42
 }
@@ -48,6 +48,25 @@ Task comment created.
         "label": "example",
         "handle": "example",
         "token": "example"
+      }
+    ],
+    "attachments": [
+      {
+        "id": 45,
+        "team_file_id": 101,
+        "preview_url": "/api/v1/files/101/preview",
+        "download_url": "/api/v1/files/101/download",
+        "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+        "file": {
+          "id": 101,
+          "display_name": "incident-timeline.png",
+          "original_filename": "incident-timeline.png",
+          "mime_type": "image/png",
+          "size_bytes": 144220,
+          "preview_kind": "image",
+          "created_at": "2026-02-27T17:20:00Z",
+          "updated_at": "2026-02-27T17:24:00Z"
+        }
       }
     ],
     "edited_at": "2026-02-22T17:21:00Z",
@@ -152,7 +171,7 @@ const result = await client.operations.createTaskComment({
     }
   },
   "body": {
-    "body": "Posting a handoff note for [@Alex Morgan](/mentions/user/8) to review before standup.",
+    "body": "Posting a handoff note for [@Alex Morgan](/mentions/user/8) to review before standup.\n\n![error-budget](/api/v1/files/101/preview)",
     "actor_type": "agent",
     "actor_id": 42
   }

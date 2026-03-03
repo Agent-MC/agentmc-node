@@ -12,7 +12,7 @@ const result = await client.operations.updateCalendarItem({
   },
   "body": {
     "title": "Review outage timeline",
-    "description": "Add links to root-cause analysis notes.",
+    "description": "Add links to root-cause analysis notes.\n\n![rca-notes](/api/v1/files/102/preview)",
     "due_at": "2026-02-24T11:00:00Z",
     "status": "in_progress",
     "priority": "urgent",

@@ -25,7 +25,7 @@ const result = await client.operations.updateAgentBrief({
           "label": "Follow-ups"
         }
       ],
-      "content_markdown": "## Updates\n- Incident queue cleared\n- Follow-up tasks assigned",
+      "content_markdown": "## Updates\n- Incident queue cleared\n- Follow-up tasks assigned\n\n![timeline](/api/v1/files/102/preview)",
       "meta": {
         "external_source": "daily-ops-job",
         "schedule": "0 7 * * *"

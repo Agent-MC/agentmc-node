@@ -20,7 +20,7 @@ None.
 {
   "type": "task",
   "title": "Review outage timeline",
-  "description": "Confirm sequence of events with on-call notes.",
+  "description": "Confirm sequence of events with on-call notes.\n\n![timeline](/api/v1/files/101/preview)",
   "due_at": "2026-02-24T09:00:00Z",
   "timezone": "America/Los_Angeles",
   "status": "todo",
@@ -68,6 +68,25 @@ Calendar item created.
         "role": "owner",
         "name": "Example Name",
         "created_at": "2026-02-22T17:21:00Z"
+      }
+    ],
+    "attachments": [
+      {
+        "id": 45,
+        "team_file_id": 101,
+        "preview_url": "/api/v1/files/101/preview",
+        "download_url": "/api/v1/files/101/download",
+        "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
+        "file": {
+          "id": 101,
+          "display_name": "incident-timeline.png",
+          "original_filename": "incident-timeline.png",
+          "mime_type": "image/png",
+          "size_bytes": 144220,
+          "preview_kind": "image",
+          "created_at": "2026-02-27T17:20:00Z",
+          "updated_at": "2026-02-27T17:24:00Z"
+        }
       }
     ],
     "comments_count": 1,
@@ -190,7 +209,7 @@ const result = await client.operations.createCalendarItem({
   "body": {
     "type": "task",
     "title": "Review outage timeline",
-    "description": "Confirm sequence of events with on-call notes.",
+    "description": "Confirm sequence of events with on-call notes.\n\n![timeline](/api/v1/files/101/preview)",
     "due_at": "2026-02-24T09:00:00Z",
     "timezone": "America/Los_Angeles",
     "status": "todo",
