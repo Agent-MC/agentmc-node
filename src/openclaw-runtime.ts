@@ -251,9 +251,28 @@ interface SessionState {
   lastHealthActivityAtMs: number;
   lastConnectionStateChangeAtMs: number;
   processedInboundKeys: Map<string, number>;
+  inboundChunkBuffers: Map<string, InboundChunkBuffer>;
 }
 
 interface OpenClawRunResult extends OpenClawRuntimeNotificationBridgeRunResult {}
+
+interface InboundChunkFrame {
+  channelType: string;
+  chunkId: string;
+  chunkIndex: number;
+  chunkTotal: number;
+  requestId: string | null;
+  data: string;
+}
+
+interface InboundChunkBuffer {
+  channelType: string;
+  chunkId: string;
+  chunkTotal: number;
+  requestId: string | null;
+  chunks: Map<number, string>;
+  updatedAtMs: number;
+}
 
 interface BridgedAgentMcContext {
   source: string;
@@ -496,7 +515,8 @@ export class OpenClawAgentRuntime {
       createdAtMs: nowMs,
       lastHealthActivityAtMs: nowMs,
       lastConnectionStateChangeAtMs: nowMs,
-      processedInboundKeys: new Map()
+      processedInboundKeys: new Map(),
+      inboundChunkBuffers: new Map()
     };
 
     this.sessions.set(sessionId, state);
@@ -925,19 +945,67 @@ export class OpenClawAgentRuntime {
     envelope: JsonObject,
     payload: JsonObject
   ): Promise<void> {
+    this.pruneInboundChunkBuffers(state);
+
+    let resolvedPayload = payload;
+    let requestIdHint: string | null = null;
+    let chunkIdHint: string | null = null;
+    const channelType = normalizeLowercase(envelope.type) || "chat.user";
+    const inboundChunkFrame = parseInboundChunkFrame(channelType, payload);
+
+    if (inboundChunkFrame) {
+      const chunkFrameDedupeKey = `chat:chunk:${inboundChunkFrame.chunkId}:${inboundChunkFrame.chunkIndex}`;
+      if (!shouldProcessInboundKey(state, chunkFrameDedupeKey, this.options.duplicateTtlMs)) {
+        return;
+      }
+
+      const chunkResult = this.collectInboundChunk(state, inboundChunkFrame);
+      requestIdHint = chunkResult.requestId;
+      chunkIdHint = inboundChunkFrame.chunkId;
+
+      if (chunkResult.status === "pending") {
+        return;
+      }
+
+      if (chunkResult.status === "error") {
+        const chunkRequestId =
+          requestIdHint ||
+          valueAsString(payload.request_id)?.trim() ||
+          valueAsString(envelope.request_id)?.trim() ||
+          `req-${state.sessionId}-${inboundChunkFrame.chunkId}`;
+        await this.publishChannelMessage(state.sessionId, "chat.agent.done", chunkRequestId, {
+          content: chunkResult.error,
+          meta: {
+            source: this.options.runtimeSource,
+            run_id: `agentmc-${state.sessionId}-${chunkRequestId}`,
+            status: "error",
+            text_source: "error",
+            signal_id: signal.id,
+            generated_at: new Date().toISOString()
+          }
+        });
+        return;
+      }
+
+      resolvedPayload = chunkResult.payload;
+      requestIdHint = chunkResult.requestId;
+    }
+
     const requestId =
+      valueAsString(resolvedPayload.request_id)?.trim() ||
       valueAsString(payload.request_id)?.trim() ||
       valueAsString(envelope.request_id)?.trim() ||
-      `req-${state.sessionId}-${Date.now().toString(36)}`;
-    const messageId = toPositiveInteger(payload.message_id);
+      requestIdHint ||
+      (chunkIdHint ? `req-${state.sessionId}-${chunkIdHint}` : `req-${state.sessionId}-${Date.now().toString(36)}`);
+    const messageId = toPositiveInteger(resolvedPayload.message_id);
     const dedupeKey = messageId > 0 ? `chat:message:${messageId}` : `chat:request:${requestId}`;
     if (!shouldProcessInboundKey(state, dedupeKey, this.options.duplicateTtlMs)) {
       return;
     }
 
     const userText =
-      valueAsString(payload.content)?.trim() ||
-      valueAsString(payload.message)?.trim() ||
+      valueAsString(resolvedPayload.content)?.trim() ||
+      valueAsString(resolvedPayload.message)?.trim() ||
       "";
 
     if (userText === "") {
@@ -965,7 +1033,7 @@ export class OpenClawAgentRuntime {
 
     const bridgedUserText = buildAgentMcBridgeMessage({
       userText,
-      payload,
+      payload: resolvedPayload,
       session: state.session,
       runtimeContext: {
         apiKey: this.options.agentmcApiKey,
@@ -1008,6 +1076,106 @@ export class OpenClawAgentRuntime {
         generated_at: new Date().toISOString()
       }
     });
+  }
+
+  private collectInboundChunk(
+    state: SessionState,
+    frame: InboundChunkFrame
+  ): {
+    status: "pending" | "ready" | "error";
+    requestId: string | null;
+    payload: JsonObject;
+    error: string;
+  } {
+    const chunkBufferKey = `${frame.channelType}:${frame.chunkId}`;
+    const nowMs = Date.now();
+    let buffer = state.inboundChunkBuffers.get(chunkBufferKey);
+
+    if (!buffer) {
+      buffer = {
+        channelType: frame.channelType,
+        chunkId: frame.chunkId,
+        chunkTotal: frame.chunkTotal,
+        requestId: frame.requestId,
+        chunks: new Map(),
+        updatedAtMs: nowMs
+      };
+      state.inboundChunkBuffers.set(chunkBufferKey, buffer);
+    }
+
+    if (buffer.chunkTotal !== frame.chunkTotal) {
+      state.inboundChunkBuffers.delete(chunkBufferKey);
+      return {
+        status: "error",
+        requestId: frame.requestId,
+        payload: {},
+        error: "I received conflicting chunk metadata for this request. Please retry."
+      };
+    }
+
+    buffer.updatedAtMs = nowMs;
+    if (!buffer.requestId && frame.requestId) {
+      buffer.requestId = frame.requestId;
+    }
+    buffer.chunks.set(frame.chunkIndex, frame.data);
+
+    if (buffer.chunks.size < buffer.chunkTotal) {
+      return {
+        status: "pending",
+        requestId: buffer.requestId,
+        payload: {},
+        error: ""
+      };
+    }
+
+    const orderedChunks: string[] = [];
+    for (let index = 1; index <= buffer.chunkTotal; index += 1) {
+      const chunk = buffer.chunks.get(index);
+      if (typeof chunk !== "string") {
+        return {
+          status: "pending",
+          requestId: buffer.requestId,
+          payload: {},
+          error: ""
+        };
+      }
+
+      orderedChunks.push(chunk);
+    }
+
+    state.inboundChunkBuffers.delete(chunkBufferKey);
+    const payloadBase64 = orderedChunks.join("");
+    const decodedPayload = decodeChunkedPayloadObject(payloadBase64);
+    if (!decodedPayload) {
+      return {
+        status: "error",
+        requestId: buffer.requestId,
+        payload: {},
+        error: "I could not decode the chunked user message. Please retry."
+      };
+    }
+
+    const requestId =
+      valueAsString(decodedPayload.request_id)?.trim() ||
+      buffer.requestId ||
+      null;
+
+    return {
+      status: "ready",
+      requestId,
+      payload: decodedPayload,
+      error: ""
+    };
+  }
+
+  private pruneInboundChunkBuffers(state: SessionState): void {
+    const nowMs = Date.now();
+    const ttlMs = Math.max(5_000, this.options.duplicateTtlMs);
+    for (const [key, buffer] of state.inboundChunkBuffers.entries()) {
+      if (!Number.isFinite(buffer.updatedAtMs) || nowMs - buffer.updatedAtMs > ttlMs) {
+        state.inboundChunkBuffers.delete(key);
+      }
+    }
   }
 
   private async runAgentChat(input: AgentRuntimeRunInput): Promise<OpenClawRunResult> {
@@ -2909,6 +3077,81 @@ function shouldProcessCacheKey(cache: Map<string, number>, key: string, ttlMs: n
 
   cache.set(key, nowMs);
   return true;
+}
+
+function parseInboundChunkFrame(channelType: string, payload: JsonObject): InboundChunkFrame | null {
+  const chunkId = valueAsString(payload.chunk_id)?.trim() || "";
+  if (chunkId === "") {
+    return null;
+  }
+
+  const chunkIndex = toPositiveInteger(payload.chunk_index);
+  const chunkTotal = toPositiveInteger(payload.chunk_total);
+  if (chunkIndex < 1 || chunkTotal < 1 || chunkIndex > chunkTotal) {
+    return null;
+  }
+
+  const encoding = normalizeLowercase(payload.chunk_encoding);
+  if (encoding !== "base64json") {
+    return null;
+  }
+
+  const data = extractInboundChunkData(payload);
+  if (!data) {
+    return null;
+  }
+
+  const requestId = valueAsString(payload.request_id)?.trim() || null;
+  return {
+    channelType,
+    chunkId,
+    chunkIndex,
+    chunkTotal,
+    requestId,
+    data
+  };
+}
+
+function extractInboundChunkData(payload: JsonObject): string | null {
+  const direct = valueAsString(payload.chunk_data)?.trim();
+  if (direct) {
+    return direct;
+  }
+
+  const reservedKeys = new Set([
+    "chunk_id",
+    "chunk_index",
+    "chunk_total",
+    "chunk_encoding",
+    "request_id",
+    "message_id",
+    "content",
+    "message"
+  ]);
+  const candidateKey = Object.keys(payload).find((key) => {
+    if (reservedKeys.has(key)) {
+      return false;
+    }
+
+    const value = valueAsString(payload[key]);
+    return Boolean(value && value.trim() !== "");
+  });
+  if (!candidateKey) {
+    return null;
+  }
+
+  const candidate = valueAsString(payload[candidateKey])?.trim();
+  return candidate || null;
+}
+
+function decodeChunkedPayloadObject(payloadBase64: string): JsonObject | null {
+  try {
+    const decodedJson = Buffer.from(payloadBase64, "base64").toString("utf8");
+    const parsed = JSON.parse(decodedJson);
+    return valueAsObject(parsed);
+  } catch {
+    return null;
+  }
 }
 
 function buildAgentMcBridgeMessage(input: {

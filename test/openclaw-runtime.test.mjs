@@ -44,7 +44,11 @@ function createSessionState(sessionId = 114) {
     lastNonAgentSignalId: 0,
     connectionState: "connected",
     sawConnectedState: true,
-    processedInboundKeys: new Map()
+    createdAtMs: Date.now(),
+    lastHealthActivityAtMs: Date.now(),
+    lastConnectionStateChangeAtMs: Date.now(),
+    processedInboundKeys: new Map(),
+    inboundChunkBuffers: new Map()
   };
 }
 
@@ -918,6 +922,125 @@ test("chat bridge errors do not leak raw exception details to chat output", asyn
       "I hit an OpenClaw bridge error and could not produce assistant output."
     );
     assert.equal(lastPublished.content.includes(secret), false);
+  });
+});
+
+test("chunked chat.user messages are reassembled before runtime execution", async () => {
+  await withFixture(async ({ dir, sessionsPath }) => {
+    const runtime = createRuntime(sessionsPath, dir, {
+      sendThinkingDelta: false
+    });
+    const state = createSessionState();
+    const published = [];
+    let runCount = 0;
+    let capturedInput = null;
+
+    runtime.runOpenClawChat = async (input) => {
+      runCount += 1;
+      capturedInput = input;
+      return {
+        requestId: input.requestId,
+        runId: "run-chunked-chat",
+        status: "ok",
+        textSource: "wait",
+        content: "Chunked response"
+      };
+    };
+    runtime.publishChannelMessage = async (_sessionId, channelType, requestId, payload) => {
+      published.push({ channelType, requestId, payload });
+    };
+
+    const sourcePayload = {
+      request_id: "req-chunk-1",
+      message_id: 55,
+      content: "Please process this chunked payload."
+    };
+    const encoded = Buffer.from(JSON.stringify(sourcePayload), "utf8").toString("base64");
+    const midpoint = Math.ceil(encoded.length / 2);
+    const chunkOne = encoded.slice(0, midpoint);
+    const chunkTwo = encoded.slice(midpoint);
+
+    await runtime.handleSignal(
+      state,
+      {
+        id: 801,
+        session_id: 114,
+        sender: "browser",
+        type: "message",
+        payload: {
+          type: "chat.user",
+          payload: {
+            request_id: "req-chunk-1",
+            chunk_id: "chunk-demo-1",
+            chunk_index: 1,
+            chunk_total: 2,
+            chunk_encoding: "base64json",
+            chunk_data: chunkOne
+          }
+        },
+        created_at: null
+      },
+      "websocket"
+    );
+
+    assert.equal(runCount, 0);
+    assert.equal(published.length, 0);
+
+    await runtime.handleSignal(
+      state,
+      {
+        id: 802,
+        session_id: 114,
+        sender: "browser",
+        type: "message",
+        payload: {
+          type: "chat.user",
+          payload: {
+            request_id: "req-chunk-1",
+            chunk_id: "chunk-demo-1",
+            chunk_index: 2,
+            chunk_total: 2,
+            chunk_encoding: "base64json",
+            chunk_data: chunkTwo
+          }
+        },
+        created_at: null
+      },
+      "websocket"
+    );
+
+    await runtime.handleSignal(
+      state,
+      {
+        id: 803,
+        session_id: 114,
+        sender: "browser",
+        type: "message",
+        payload: {
+          type: "chat.user",
+          payload: {
+            request_id: "req-chunk-1",
+            chunk_id: "chunk-demo-1",
+            chunk_index: 2,
+            chunk_total: 2,
+            chunk_encoding: "base64json",
+            chunk_data: chunkTwo
+          }
+        },
+        created_at: null
+      },
+      "websocket"
+    );
+
+    assert.equal(runCount, 1);
+    assert.equal(capturedInput?.requestId, "req-chunk-1");
+    assert.match(capturedInput?.userText ?? "", /Please process this chunked payload\./);
+
+    const doneMessages = published.filter((entry) => entry.channelType === "chat.agent.done");
+    assert.equal(doneMessages.length, 1);
+    assert.equal(doneMessages[0]?.requestId, "req-chunk-1");
+    assert.equal(doneMessages[0]?.payload?.message_id, 55);
+    assert.equal(doneMessages[0]?.payload?.content, "Chunked response");
   });
 });
 

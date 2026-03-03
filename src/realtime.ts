@@ -217,6 +217,11 @@ class RealtimeNotificationsSubscription implements AgentRealtimeNotificationsSub
 
     try {
       this.pusher.unsubscribe(this.channel);
+    } catch {
+      // Best-effort teardown; ignore local socket cleanup failures.
+    }
+
+    try {
       if (this.onTransportDisconnect) {
         this.onTransportDisconnect();
       } else {
@@ -349,6 +354,7 @@ export async function subscribeToRealtimeNotifications(
   let resubscribeTimerHandle: ReturnType<typeof setTimeout> | null = null;
   let readyTimeoutHandle: ReturnType<typeof setTimeout> | null = null;
   let resubscribeAttempt = 0;
+  let eventQueue: Promise<void> = Promise.resolve();
 
   const clearResubscribeTimer = (): void => {
     if (resubscribeTimerHandle !== null) {
@@ -366,6 +372,63 @@ export async function subscribeToRealtimeNotifications(
 
   const readyTimeoutMs = normalizeReadyTimeoutMs(options.readyTimeoutMs);
 
+  const enqueueEvent = (task: () => Promise<void>): void => {
+    eventQueue = eventQueue
+      .catch(() => {})
+      .then(async () => {
+        if (disconnected) {
+          return;
+        }
+
+        await task();
+      })
+      .catch(async (error) => {
+        await callErrorHandler(options.onError, normalizeError(error));
+      });
+  };
+
+  const onConnectionStateEvent = (statePayload: unknown): void => {
+    const state = valueAsObject(statePayload);
+    const current = valueAsString(state?.current)?.toLowerCase();
+    if (!current) {
+      return;
+    }
+
+    if (isConnectionState(current) && options.onConnectionStateChange) {
+      void callOptionalHandler(options.onConnectionStateChange, current, options.onError);
+    }
+
+    if (isConnectionState(current)) {
+      currentConnectionState = current;
+      if (current === "connected") {
+        clearResubscribeTimer();
+        resubscribeAttempt = 0;
+      }
+    }
+  };
+
+  const onConnectionErrorEvent = (payload: unknown): void => {
+    const error = normalizeError(payload, "Realtime websocket connection error.");
+    void callErrorHandler(options.onError, error);
+  };
+
+  const onConnectionDisconnectedEvent = (): void => {
+    currentConnectionState = "disconnected";
+    if (options.onConnectionStateChange) {
+      void callOptionalHandler(options.onConnectionStateChange, "disconnected", options.onError);
+    }
+  };
+
+  const unbindConnectionHandlers = (): void => {
+    if (!pusher.connection.unbind) {
+      return;
+    }
+
+    pusher.connection.unbind("state_change", onConnectionStateEvent);
+    pusher.connection.unbind("error", onConnectionErrorEvent);
+    pusher.connection.unbind("disconnected", onConnectionDisconnectedEvent);
+  };
+
   const subscription = new RealtimeNotificationsSubscription({
     client,
     options,
@@ -377,6 +440,7 @@ export async function subscribeToRealtimeNotifications(
       disconnected = true;
       clearReadyTimeout();
       clearResubscribeTimer();
+      unbindConnectionHandlers();
       if (boundChannel) {
         unbindChannel(
           boundChannel,
@@ -399,25 +463,27 @@ export async function subscribeToRealtimeNotifications(
       return;
     }
 
-    void callOptionalHandler(options.onSignal, signal, options.onError);
+    enqueueEvent(async () => {
+      await callOptionalHandler(options.onSignal, signal, options.onError);
 
-    const channelType = extractChannelType(signal.payload);
-    const body = extractEventBody(signal.payload);
-    const notification = extractNotification(body, channelType);
+      const channelType = extractChannelType(signal.payload);
+      const body = extractEventBody(signal.payload);
+      const notification = extractNotification(body, channelType);
 
-    if (notification && options.onNotification) {
-      const notificationType = valueAsString(notification.notification_type)?.toLowerCase() ?? null;
-      void callOptionalHandler(
-        options.onNotification,
-        {
-          signal,
-          notification,
-          notificationType,
-          channelType
-        },
-        options.onError
-      );
-    }
+      if (notification && options.onNotification) {
+        const notificationType = valueAsString(notification.notification_type)?.toLowerCase() ?? null;
+        await callOptionalHandler(
+          options.onNotification,
+          {
+            signal,
+            notification,
+            notificationType,
+            channelType
+          },
+          options.onError
+        );
+      }
+    });
   };
 
   const onSubscriptionSucceeded = (): void => {
@@ -509,37 +575,9 @@ export async function subscribeToRealtimeNotifications(
     void callErrorHandler(options.onError, error);
   }, readyTimeoutMs);
 
-  pusher.connection.bind("state_change", (statePayload) => {
-    const state = valueAsObject(statePayload);
-    const current = valueAsString(state?.current)?.toLowerCase();
-    if (!current) {
-      return;
-    }
-
-    if (isConnectionState(current) && options.onConnectionStateChange) {
-      void callOptionalHandler(options.onConnectionStateChange, current, options.onError);
-    }
-
-    if (isConnectionState(current)) {
-      currentConnectionState = current;
-      if (current === "connected") {
-        clearResubscribeTimer();
-        resubscribeAttempt = 0;
-      }
-    }
-  });
-
-  pusher.connection.bind("error", (payload) => {
-    const error = normalizeError(payload, "Realtime websocket connection error.");
-    void callErrorHandler(options.onError, error);
-  });
-
-  pusher.connection.bind("disconnected", () => {
-    currentConnectionState = "disconnected";
-    if (options.onConnectionStateChange) {
-      void callOptionalHandler(options.onConnectionStateChange, "disconnected", options.onError);
-    }
-  });
+  pusher.connection.bind("state_change", onConnectionStateEvent);
+  pusher.connection.bind("error", onConnectionErrorEvent);
+  pusher.connection.bind("disconnected", onConnectionDisconnectedEvent);
 
   return subscription;
 }
@@ -768,6 +806,17 @@ function releaseSharedPusher(key: string, channelName: string): void {
 
   entry.channelAuthorizers.delete(channelName);
   entry.refCount = Math.max(0, entry.refCount - 1);
+  if (entry.refCount > 0) {
+    return;
+  }
+
+  try {
+    entry.pusher.disconnect();
+  } catch {
+    // Best-effort local cleanup.
+  } finally {
+    sharedPusherEntries.delete(key);
+  }
 }
 
 export function closeSharedRealtimeTransports(): void {
@@ -1086,7 +1135,12 @@ async function createRealtimeSignal(
     throw createOperationError("createAgentRealtimeSignal", response.status, response.error);
   }
 
-  return valueAsPositiveInteger(response.data?.data?.id) ?? 0;
+  const signalId = valueAsPositiveInteger(response.data?.data?.id);
+  if (signalId === null) {
+    throw new Error("createAgentRealtimeSignal succeeded but returned no valid signal id.");
+  }
+
+  return signalId;
 }
 
 function buildRealtimeMessagePayload(channelType: string, payload: JsonObject): JsonObject {

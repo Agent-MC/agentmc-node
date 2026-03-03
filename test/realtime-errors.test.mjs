@@ -40,3 +40,37 @@ test("publishRealtimeMessage redacts backend error payload details", async () =>
     }
   );
 });
+
+test("publishRealtimeMessage fails closed when create signal response is missing id", async () => {
+  const client = {
+    operations: {
+      createAgentRealtimeSignal: async () => ({
+        error: null,
+        status: 201,
+        data: {
+          data: {}
+        }
+      })
+    }
+  };
+
+  await assert.rejects(
+    () =>
+      publishRealtimeMessage(client, {
+        agent: 7,
+        session: 42,
+        channelType: "chat.user",
+        payload: {
+          content: "hello"
+        }
+      }),
+    (error) => {
+      assert.ok(error instanceof Error);
+      assert.equal(
+        error.message,
+        "createAgentRealtimeSignal succeeded but returned no valid signal id."
+      );
+      return true;
+    }
+  );
+});
