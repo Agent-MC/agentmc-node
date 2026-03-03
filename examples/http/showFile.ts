@@ -7,7 +7,7 @@ const client = new AgentMCApi({
 const result = await client.operations.showFile({
   "params": {
     "path": {
-      "id": 42
+      "id": 1
     }
   }
 });

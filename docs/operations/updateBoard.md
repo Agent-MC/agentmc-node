@@ -13,118 +13,29 @@ No additional description.
 
 | Name | In | Required | Description | Example |
 | --- | --- | --- | --- | --- |
-| id | path | yes | Board identifier. | 42 |
+| id | path | yes | Board identifier. | 1 |
 
 ## Request Example
 
-### application/json
-```json
-{
-  "name": "Incident Response",
-  "description": "Updated board description with escalation runbook links.",
-  "visibility": "personal",
-  "personal_owner_user_id": 8
-}
-```
+None.
 
 ## Success Responses
 
-### 200 (application/json)
+### 200 (none)
 Board updated.
 
-```json
-{
-  "data": {
-    "id": 42,
-    "team_id": 42,
-    "name": "Example Name",
-    "description": "Example description text.",
-    "visibility": "team",
-    "personal_owner_user_id": 42,
-    "created_by_user_id": 42,
-    "created_at": "2026-02-22T17:21:00Z",
-    "updated_at": "2026-02-22T17:21:00Z"
-  }
-}
+```text
+No response body.
 ```
 
 
 ## Error Responses
 
-### 401 (application/json)
-Missing or invalid credentials.
+### default (none)
+Error response.
 
-```json
-{
-  "error": {
-    "code": "validation.failed",
-    "message": "Validation failed.",
-    "details": {
-      "fields": {
-        "title": [
-          "The title field is required."
-        ]
-      }
-    }
-  }
-}
-```
-
-### 403 (application/json)
-Forbidden.
-
-```json
-{
-  "error": {
-    "code": "validation.failed",
-    "message": "Validation failed.",
-    "details": {
-      "fields": {
-        "title": [
-          "The title field is required."
-        ]
-      }
-    }
-  }
-}
-```
-
-### 404 (application/json)
-Resource not found.
-
-```json
-{
-  "error": {
-    "code": "validation.failed",
-    "message": "Validation failed.",
-    "details": {
-      "fields": {
-        "title": [
-          "The title field is required."
-        ]
-      }
-    }
-  }
-}
-```
-
-### 422 (application/json)
-Validation failed.
-
-```json
-{
-  "error": {
-    "code": "validation.failed",
-    "message": "Validation failed.",
-    "details": {
-      "fields": {
-        "title": [
-          "The title field is required."
-        ]
-      }
-    }
-  }
-}
+```text
+No response body.
 ```
 
 
@@ -140,14 +51,8 @@ const client = new AgentMCApi({
 const result = await client.operations.updateBoard({
   "params": {
     "path": {
-      "id": 42
+      "id": 1
     }
-  },
-  "body": {
-    "name": "Incident Response",
-    "description": "Updated board description with escalation runbook links.",
-    "visibility": "personal",
-    "personal_owner_user_id": 8
   }
 });
 

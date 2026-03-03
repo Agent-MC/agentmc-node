@@ -11,9 +11,7 @@ No additional description.
 
 ## Parameters
 
-| Name | In | Required | Description | Example |
-| --- | --- | --- | --- | --- |
-| per_page | query | no | Page size for paginated responses. | 25 |
+None.
 
 ## Request Example
 
@@ -21,89 +19,21 @@ None.
 
 ## Success Responses
 
-### 200 (application/json)
+### 200 (none)
 Logs returned.
 
-```json
-{
-  "data": [
-    {
-      "id": 42,
-      "team_id": 42,
-      "actor_type": "example",
-      "actor_id": 42,
-      "action": "example",
-      "subject_type": "example",
-      "subject_id": 42,
-      "meta": {
-        "key": "value"
-      },
-      "created_at": "2026-02-22T17:21:00Z"
-    }
-  ],
-  "links": {
-    "first": "example",
-    "last": "example",
-    "prev": "example",
-    "next": "example"
-  },
-  "meta": {
-    "current_page": 1,
-    "from": 1,
-    "last_page": 1,
-    "links": [
-      {
-        "url": "https://agentmc.example.com/docs/incident-123",
-        "label": "example",
-        "active": true
-      }
-    ],
-    "path": "notes/daily-ops.md",
-    "per_page": 25,
-    "total": 0
-  }
-}
+```text
+No response body.
 ```
 
 
 ## Error Responses
 
-### 401 (application/json)
-Missing or invalid credentials.
+### default (none)
+Error response.
 
-```json
-{
-  "error": {
-    "code": "validation.failed",
-    "message": "Validation failed.",
-    "details": {
-      "fields": {
-        "title": [
-          "The title field is required."
-        ]
-      }
-    }
-  }
-}
-```
-
-### 403 (application/json)
-Forbidden.
-
-```json
-{
-  "error": {
-    "code": "validation.failed",
-    "message": "Validation failed.",
-    "details": {
-      "fields": {
-        "title": [
-          "The title field is required."
-        ]
-      }
-    }
-  }
-}
+```text
+No response body.
 ```
 
 
@@ -116,13 +46,7 @@ const client = new AgentMCApi({
   apiKey: process.env.AGENTMC_API_KEY
 });
 
-const result = await client.operations.listLogs({
-  "params": {
-    "query": {
-      "per_page": 25
-    }
-  }
-});
+const result = await client.operations.listLogs();
 
 if (result.error) {
   console.error(result.status, result.error);

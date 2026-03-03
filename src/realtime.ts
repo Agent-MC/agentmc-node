@@ -58,8 +58,12 @@ const DEFAULT_REALTIME_CHUNK_ENCODING = "base64json";
 const DEFAULT_REALTIME_READY_TIMEOUT_MS = 45_000;
 const DEFAULT_RESUBSCRIBE_BACKOFF_MS = 1_000;
 const MAX_RESUBSCRIBE_BACKOFF_MS = 12_000;
+const DEFAULT_RECONNECT_CATCHUP_LIMIT = 100;
+const MAX_RECONNECT_CATCHUP_BATCHES = 20;
 const DEFAULT_SENDER_FOR_ENVELOPE_ESTIMATE = "agent";
 const DEFAULT_ENVELOPE_TIMESTAMP = "2026-01-01T00:00:00Z";
+const DEFAULT_HTTP_USER_AGENT =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36";
 const TEXT_ENCODER = new TextEncoder();
 
 export type AgentRealtimeSessionRecord = components["schemas"]["AgentRealtimeSession"];
@@ -368,6 +372,8 @@ export async function subscribeToRealtimeNotifications(
     let readyTimeoutHandle: ReturnType<typeof setTimeout> | null = null;
     let resubscribeAttempt = 0;
     let eventQueue: Promise<void> = Promise.resolve();
+    let hasSubscriptionReady = false;
+    let lastDeliveredSignalId = 0;
 
     const clearResubscribeTimer = (): void => {
       if (resubscribeTimerHandle !== null) {
@@ -398,6 +404,79 @@ export async function subscribeToRealtimeNotifications(
         .catch(async (error) => {
           await callErrorHandler(options.onError, normalizeError(error));
         });
+    };
+
+    const processSignal = async (signal: AgentRealtimeSignalMessage): Promise<void> => {
+      if (!signal || signal.id <= 0) {
+        return;
+      }
+
+      if (signal.id <= lastDeliveredSignalId) {
+        return;
+      }
+
+      lastDeliveredSignalId = signal.id;
+      await callOptionalHandler(options.onSignal, signal, options.onError);
+
+      const channelType = extractChannelType(signal.payload);
+      const body = extractEventBody(signal.payload);
+      const notification = extractNotification(body, channelType);
+
+      if (notification && options.onNotification) {
+        const notificationType = valueAsString(notification.notification_type)?.toLowerCase() ?? null;
+        await callOptionalHandler(
+          options.onNotification,
+          {
+            signal,
+            notification,
+            notificationType,
+            channelType
+          },
+          options.onError
+        );
+      }
+    };
+
+    const replayMissedSignals = async (): Promise<void> => {
+      let cursor = Math.max(0, lastDeliveredSignalId);
+
+      for (let batch = 0; batch < MAX_RECONNECT_CATCHUP_BATCHES; batch += 1) {
+        if (disconnected) {
+          return;
+        }
+
+        const signals = await listRealtimeSignalsForCatchup(client, {
+          agentId: options.agent,
+          sessionId: claimedSession.id,
+          afterId: cursor,
+          limit: DEFAULT_RECONNECT_CATCHUP_LIMIT
+        });
+
+        if (signals.length === 0) {
+          return;
+        }
+
+        for (const signal of signals) {
+          await processSignal(signal);
+        }
+
+        const nextCursor = signals.reduce((maxId, signal) => Math.max(maxId, signal.id), cursor);
+        if (nextCursor <= cursor) {
+          return;
+        }
+        cursor = nextCursor;
+
+        if (signals.length < DEFAULT_RECONNECT_CATCHUP_LIMIT) {
+          return;
+        }
+      }
+
+      await callErrorHandler(
+        options.onError,
+        new Error(
+          `Realtime reconnect catch-up reached ${MAX_RECONNECT_CATCHUP_BATCHES} batches for session ${claimedSession.id}.`
+        )
+      );
     };
 
     const onConnectionStateEvent = (statePayload: unknown): void => {
@@ -478,34 +557,28 @@ export async function subscribeToRealtimeNotifications(
       }
 
       enqueueEvent(async () => {
-        await callOptionalHandler(options.onSignal, signal, options.onError);
-
-        const channelType = extractChannelType(signal.payload);
-        const body = extractEventBody(signal.payload);
-        const notification = extractNotification(body, channelType);
-
-        if (notification && options.onNotification) {
-          const notificationType = valueAsString(notification.notification_type)?.toLowerCase() ?? null;
-          await callOptionalHandler(
-            options.onNotification,
-            {
-              signal,
-              notification,
-              notificationType,
-              channelType
-            },
-            options.onError
-          );
-        }
+        await processSignal(signal);
       });
     };
 
     const onSubscriptionSucceeded = (): void => {
-      clearReadyTimeout();
-      clearResubscribeTimer();
-      resubscribeAttempt = 0;
-      subscription.markReady();
-      void callOptionalHandler(options.onReady, claimedSession, options.onError);
+      enqueueEvent(async () => {
+        clearReadyTimeout();
+        clearResubscribeTimer();
+        resubscribeAttempt = 0;
+
+        if (hasSubscriptionReady) {
+          try {
+            await replayMissedSignals();
+          } catch (error) {
+            await callErrorHandler(options.onError, normalizeError(error));
+          }
+        }
+
+        hasSubscriptionReady = true;
+        subscription.markReady();
+        await callOptionalHandler(options.onReady, claimedSession, options.onError);
+      });
     };
 
     const onSubscriptionError = (payload: unknown): void => {
@@ -790,6 +863,54 @@ async function resolveAndClaimSession(
   }
 
   throw new Error(`No claimable realtime sessions are available for agent ${options.agent}.`);
+}
+
+async function listRealtimeSignalsForCatchup(
+  client: AgentMCApi,
+  options: {
+    agentId: number;
+    sessionId: number;
+    afterId: number;
+    limit: number;
+  }
+): Promise<AgentRealtimeSignalMessage[]> {
+  const baseUrl = valueAsString(client.getBaseUrl())?.trim();
+  const apiKey = valueAsString(client.getConfiguredApiKey())?.trim();
+  if (!baseUrl || !apiKey) {
+    throw new Error("Realtime catch-up requires configured base URL and API key.");
+  }
+
+  const path = `hosts/realtime/sessions/${options.sessionId}/signals`;
+  const url = new URL(path, `${baseUrl.replace(/\/+$/, "")}/`);
+  url.searchParams.set("after_id", String(Math.max(0, options.afterId)));
+  url.searchParams.set("limit", String(Math.max(1, options.limit)));
+
+  const response = await fetch(url.toString(), {
+    method: "GET",
+    headers: {
+      Accept: "application/json",
+      "X-Api-Key": apiKey,
+      "X-Agent-Id": String(options.agentId),
+      "User-Agent": DEFAULT_HTTP_USER_AGENT
+    }
+  });
+
+  if (response.status === 404) {
+    // Backward compatibility for older API deployments without replay endpoint.
+    return [];
+  }
+
+  if (!response.ok) {
+    throw new Error(`listAgentRealtimeSignals failed with status ${response.status}`);
+  }
+
+  const payload = valueAsObject(await response.json()) ?? {};
+  const rows = Array.isArray(payload.data) ? payload.data : [];
+
+  return rows
+    .map((row) => normalizeSignal(row, options.sessionId))
+    .filter((row): row is AgentRealtimeSignalMessage => row !== null)
+    .sort((left, right) => left.id - right.id);
 }
 
 function buildSharedTransportKey(input: {

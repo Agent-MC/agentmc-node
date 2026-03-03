@@ -4,10 +4,14 @@ const client = new AgentMCApi({
   apiKey: process.env.AGENTMC_API_KEY
 });
 
-const result = await client.operations.listDueRecurringTaskRuns({
+const result = await client.operations.listAgentRealtimeSignals({
   "params": {
+    "path": {
+      "session": 1
+    },
     "query": {
-      "limit": 20
+      "after_id": 1,
+      "limit": 1
     }
   }
 });

@@ -136,6 +136,7 @@ Notes:
 -   `OpenClawAgentRuntime` keeps long-lived websocket subscriptions and relies on realtime fanout for chat/files/notifications routing.
 -   In multi-agent supervisor mode, one host-level websocket transport is multiplexed across workers; requested sessions are routed to the correct worker by `agent_id`.
 -   Realtime transport uses the session socket metadata and signs channel subscriptions via `authenticateAgentRealtimeSocket`.
+-   Websocket reconnect automatically replays missed persisted signals (`after_id` catch-up) before resuming live delivery.
 -   Use `publishRealtimeMessage(...)` if you need to emit your own channel events.
 -   `publishRealtimeMessage(...)` automatically chunks oversized channel payloads into multiple realtime signals so each signal stays within websocket broadcast limits.
     -   Chunk envelopes include `chunk_id`, `chunk_index`, `chunk_total`, `chunk_encoding`, and `chunk_data` under the channel payload.
@@ -237,7 +238,8 @@ Required env:
     -   `AGENTMC_AUTO_UPDATE_INSTALL_DIR` (default inferred install root from runtime package path; falls back to package root near CLI file, then `process.cwd()`)
     -   `AGENTMC_AUTO_UPDATE_REGISTRY_URL` (default `https://registry.npmjs.org/@agentmc%2Fapi/latest`)
 -   Realtime fallback defaults in host-supervisor mode:
-    -   Worker runtimes force `AGENTMC_REALTIME_SESSION_POLLING=1` when heartbeat is disabled (`AGENTMC_DISABLE_HEARTBEAT=1`) so requested chat sessions recover if websocket routing disconnects.
+    -   Worker runtimes default to websocket routing + reconnect catch-up when heartbeat is disabled (`AGENTMC_DISABLE_HEARTBEAT=1`).
+    -   To enable requested-session polling fallback for workers, set `AGENTMC_REALTIME_SESSION_POLLING=1`.
 
 Keep these env values up to date for each running agent worker. Update and restart the runtime whenever provider/model/network settings change.
 

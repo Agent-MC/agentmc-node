@@ -7,7 +7,7 @@ const client = new AgentMCApi({
 const result = await client.operations.getAgentInstructions({
   "params": {
     "query": {
-      "current_bundle_version": "example"
+      "current_bundle_version": "bundle_2fa07fcadd6575cc"
     }
   }
 });

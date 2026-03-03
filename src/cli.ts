@@ -2477,9 +2477,9 @@ function buildRuntimeEnv(baseEnv: NodeJS.ProcessEnv, worker: RuntimeWorkerConfig
 
   if (disableHeartbeat) {
     runtimeEnv.AGENTMC_DISABLE_HEARTBEAT = "1";
-    // Host supervisor workers must always keep polling fallback enabled so
-    // requested chat sessions still recover when websocket routing blips.
-    runtimeEnv.AGENTMC_REALTIME_SESSION_POLLING = "1";
+    if (nonEmpty(runtimeEnv.AGENTMC_REALTIME_SESSION_POLLING) === null) {
+      runtimeEnv.AGENTMC_REALTIME_SESSION_POLLING = "0";
+    }
   } else {
     delete runtimeEnv.AGENTMC_DISABLE_HEARTBEAT;
     delete runtimeEnv.AGENTMC_REALTIME_SESSION_POLLING;

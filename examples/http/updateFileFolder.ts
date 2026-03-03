@@ -7,12 +7,8 @@ const client = new AgentMCApi({
 const result = await client.operations.updateFileFolder({
   "params": {
     "path": {
-      "id": 42
+      "id": 1
     }
-  },
-  "body": {
-    "name": "Incident Runbooks",
-    "parent_id": null
   }
 });
 

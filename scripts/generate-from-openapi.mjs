@@ -171,6 +171,34 @@ function filterExcludedOperations(spec) {
   };
 }
 
+function ensureErrorResponses(spec) {
+  for (const pathItem of Object.values(spec.paths ?? {})) {
+    for (const [method, operation] of Object.entries(pathItem)) {
+      if (!HTTP_METHODS.has(method)) {
+        continue;
+      }
+
+      if (!operation || typeof operation !== "object") {
+        continue;
+      }
+
+      const responses =
+        operation.responses && typeof operation.responses === "object" ? operation.responses : null;
+
+      if (!responses) {
+        continue;
+      }
+
+      const hasErrorResponse = Object.keys(responses).some((status) => isErrorStatus(status));
+      if (!hasErrorResponse) {
+        responses.default = {
+          description: "Error response."
+        };
+      }
+    }
+  }
+}
+
 function normalizeLegacyPhrasing(value) {
   if (Array.isArray(value)) {
     return value.map((entry) => normalizeLegacyPhrasing(entry));
@@ -911,6 +939,7 @@ function main() {
 
   const sourceSpec = readJson(inputSpecPath);
   const { filteredSpec, removedCount } = filterExcludedOperations(sourceSpec);
+  ensureErrorResponses(filteredSpec);
   const normalizedFilteredSpec = normalizeLegacyPhrasing(filteredSpec);
   writeJson(filteredSpecPath, normalizedFilteredSpec);
 

@@ -13,7 +13,7 @@ Returns managed runtime files and bundle metadata. Send current_bundle_version t
 
 | Name | In | Required | Description | Example |
 | --- | --- | --- | --- | --- |
-| current_bundle_version | query | no | Current bundle version. | "example" |
+| current_bundle_version | query | no | Last applied instruction bundle version from local runtime state. | "bundle_2fa07fcadd6575cc" |
 
 ## Request Example
 
@@ -21,90 +21,35 @@ None.
 
 ## Success Responses
 
-### 200 (application/json)
+### 200 (none)
 Instruction bundle returned.
 
-```json
-{
-  "ok": true,
-  "changed": true,
-  "bundle_version": "bundle_2fa07fcadd6575cc",
-  "generated_at": "2026-02-25T14:10:00Z",
-  "defaults": {
-    "heartbeat_interval_seconds": 60
-  },
-  "agent": {
-    "id": 42
-  },
-  "files": [
-    {
-      "id": "skill.md",
-      "path": ".agentmc/skills/skill.md",
-      "content": "# AgentMC Skill\n",
-      "sha256": "f96c95bd27dc9f3415cc0f4d817b5ec6f14185b6fcb5db9f6b6f14f648f8e9e4"
-    }
-  ]
-}
+```text
+No response body.
 ```
 
 
 ## Error Responses
 
-### 401 (application/json)
+### 401 (none)
 Missing or invalid credentials.
 
-```json
-{
-  "error": {
-    "code": "validation.failed",
-    "message": "Validation failed.",
-    "details": {
-      "fields": {
-        "title": [
-          "The title field is required."
-        ]
-      }
-    }
-  }
-}
+```text
+No response body.
 ```
 
-### 403 (application/json)
+### 403 (none)
 Forbidden.
 
-```json
-{
-  "error": {
-    "code": "validation.failed",
-    "message": "Validation failed.",
-    "details": {
-      "fields": {
-        "title": [
-          "The title field is required."
-        ]
-      }
-    }
-  }
-}
+```text
+No response body.
 ```
 
-### 422 (application/json)
+### 422 (none)
 Validation failed.
 
-```json
-{
-  "error": {
-    "code": "validation.failed",
-    "message": "Validation failed.",
-    "details": {
-      "fields": {
-        "title": [
-          "The title field is required."
-        ]
-      }
-    }
-  }
-}
+```text
+No response body.
 ```
 
 
@@ -120,7 +65,7 @@ const client = new AgentMCApi({
 const result = await client.operations.getAgentInstructions({
   "params": {
     "query": {
-      "current_bundle_version": "example"
+      "current_bundle_version": "bundle_2fa07fcadd6575cc"
     }
   }
 });

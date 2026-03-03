@@ -11,12 +11,7 @@ No additional description.
 
 ## Parameters
 
-| Name | In | Required | Description | Example |
-| --- | --- | --- | --- | --- |
-| search | query | no | Case-insensitive text search query. | "operations" |
-| external_key | query | no | Stable external key used for upsert/idempotent writes. | "daily-operations" |
-| agent_id | query | no | Identifier for agent. | 42 |
-| per_page | query | no | Page size for paginated responses. | 25 |
+None.
 
 ## Request Example
 
@@ -24,188 +19,21 @@ None.
 
 ## Success Responses
 
-### 200 (application/json)
+### 200 (none)
 Brief list returned.
 
-```json
-{
-  "data": [
-    {
-      "id": 42,
-      "team_id": 42,
-      "agent_id": 42,
-      "external_key": "daily-operations",
-      "external_id": "ops-brief-2026-02-22",
-      "name": "Example Name",
-      "timezone": "America/Los_Angeles",
-      "summary": "Morning operations handoff digest.",
-      "include_sections": [
-        {
-          "key": "value"
-        }
-      ],
-      "headline": "3 overdue tasks | 4 upcoming events",
-      "content_markdown": "## Highlights\n- Elevated API error rate",
-      "content_json": {
-        "key": "value"
-      },
-      "source_meta": {
-        "key": "value"
-      },
-      "attachments": [
-        {
-          "id": 45,
-          "team_file_id": 101,
-          "preview_url": "/api/v1/files/101/preview",
-          "download_url": "/api/v1/files/101/download",
-          "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-          "file": {
-            "id": 101,
-            "display_name": "incident-timeline.png",
-            "original_filename": "incident-timeline.png",
-            "mime_type": "image/png",
-            "size_bytes": 144220,
-            "preview_kind": "image",
-            "created_at": "2026-02-27T17:20:00Z",
-            "updated_at": "2026-02-27T17:24:00Z"
-          }
-        }
-      ],
-      "received_at": "2026-02-22T17:21:00Z",
-      "generated_at": "2026-02-22T17:21:00Z",
-      "read_by_user_id": 42,
-      "latest_entry_id": 42,
-      "entries_count": 0,
-      "latest_entry": {
-        "id": 42,
-        "agent_id": 42,
-        "external_id": "ops-brief-2026-02-22",
-        "name": "Example Name",
-        "timezone": "America/Los_Angeles",
-        "summary": "Morning operations handoff digest.",
-        "include_sections": [
-          {
-            "key": "value"
-          }
-        ],
-        "headline": "3 overdue tasks | 4 upcoming events",
-        "content_markdown": "## Highlights\n- Elevated API error rate",
-        "content_json": {
-          "key": "value"
-        },
-        "source_meta": {
-          "key": "value"
-        },
-        "attachments": [
-          {
-            "id": 45,
-            "team_file_id": 101,
-            "preview_url": "/api/v1/files/101/preview",
-            "download_url": "/api/v1/files/101/download",
-            "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-            "file": {
-              "id": 101,
-              "display_name": "incident-timeline.png",
-              "original_filename": "incident-timeline.png",
-              "mime_type": "image/png",
-              "size_bytes": 144220,
-              "preview_kind": "image",
-              "created_at": "2026-02-27T17:20:00Z",
-              "updated_at": "2026-02-27T17:24:00Z"
-            }
-          }
-        ],
-        "received_at": "2026-02-22T17:21:00Z",
-        "generated_at": "2026-02-22T17:21:00Z",
-        "created_at": "2026-02-22T17:21:00Z",
-        "updated_at": "2026-02-22T17:21:00Z"
-      },
-      "created_at": "2026-02-22T17:21:00Z",
-      "updated_at": "2026-02-22T17:21:00Z"
-    }
-  ],
-  "links": {
-    "first": "example",
-    "last": "example",
-    "prev": "example",
-    "next": "example"
-  },
-  "meta": {
-    "current_page": 1,
-    "from": 1,
-    "last_page": 1,
-    "links": [
-      {
-        "url": "https://agentmc.example.com/docs/incident-123",
-        "label": "example",
-        "active": true
-      }
-    ],
-    "path": "notes/daily-ops.md",
-    "per_page": 25,
-    "total": 0
-  }
-}
+```text
+No response body.
 ```
 
 
 ## Error Responses
 
-### 401 (application/json)
-Missing or invalid credentials.
+### default (none)
+Error response.
 
-```json
-{
-  "error": {
-    "code": "validation.failed",
-    "message": "Validation failed.",
-    "details": {
-      "fields": {
-        "title": [
-          "The title field is required."
-        ]
-      }
-    }
-  }
-}
-```
-
-### 403 (application/json)
-Forbidden.
-
-```json
-{
-  "error": {
-    "code": "validation.failed",
-    "message": "Validation failed.",
-    "details": {
-      "fields": {
-        "title": [
-          "The title field is required."
-        ]
-      }
-    }
-  }
-}
-```
-
-### 422 (application/json)
-Validation failed.
-
-```json
-{
-  "error": {
-    "code": "validation.failed",
-    "message": "Validation failed.",
-    "details": {
-      "fields": {
-        "title": [
-          "The title field is required."
-        ]
-      }
-    }
-  }
-}
+```text
+No response body.
 ```
 
 
@@ -218,16 +46,7 @@ const client = new AgentMCApi({
   apiKey: process.env.AGENTMC_API_KEY
 });
 
-const result = await client.operations.listAgentBriefs({
-  "params": {
-    "query": {
-      "search": "operations",
-      "external_key": "daily-operations",
-      "agent_id": 42,
-      "per_page": 25
-    }
-  }
-});
+const result = await client.operations.listAgentBriefs();
 
 if (result.error) {
   console.error(result.status, result.error);

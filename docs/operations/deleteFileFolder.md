@@ -13,7 +13,7 @@ Deletes one folder node and permanently deletes all nested files and subfolders 
 
 | Name | In | Required | Description | Example |
 | --- | --- | --- | --- | --- |
-| id | path | yes | Folder identifier. | 42 |
+| id | path | yes | Folder identifier. | 1 |
 
 ## Request Example
 
@@ -21,75 +21,21 @@ None.
 
 ## Success Responses
 
-### 204 (application/json)
-No content.
+### 204 (none)
+Folder deleted.
 
-```json
-{
-  "data": {
-    "key": "value"
-  }
-}
+```text
+No response body.
 ```
 
 
 ## Error Responses
 
-### 401 (application/json)
-Missing or invalid credentials.
+### default (none)
+Error response.
 
-```json
-{
-  "error": {
-    "code": "validation.failed",
-    "message": "Validation failed.",
-    "details": {
-      "fields": {
-        "title": [
-          "The title field is required."
-        ]
-      }
-    }
-  }
-}
-```
-
-### 403 (application/json)
-Forbidden.
-
-```json
-{
-  "error": {
-    "code": "validation.failed",
-    "message": "Validation failed.",
-    "details": {
-      "fields": {
-        "title": [
-          "The title field is required."
-        ]
-      }
-    }
-  }
-}
-```
-
-### 404 (application/json)
-Resource not found.
-
-```json
-{
-  "error": {
-    "code": "validation.failed",
-    "message": "Validation failed.",
-    "details": {
-      "fields": {
-        "title": [
-          "The title field is required."
-        ]
-      }
-    }
-  }
-}
+```text
+No response body.
 ```
 
 
@@ -105,7 +51,7 @@ const client = new AgentMCApi({
 const result = await client.operations.deleteFileFolder({
   "params": {
     "path": {
-      "id": 42
+      "id": 1
     }
   }
 });
