@@ -423,11 +423,6 @@ export class OpenClawAgentRuntime {
   private async acquirePersistentSession(): Promise<void> {
     const nowMs = Date.now();
     const response = await this.options.client.operations.listAgentRealtimeRequestedSessions({
-      params: {
-        query: {
-          limit: this.options.requestedSessionLimit
-        }
-      },
       headers: {
         "X-Agent-Id": String(this.options.agent)
       },
@@ -464,13 +459,15 @@ export class OpenClawAgentRuntime {
     this.nextSessionAcquireAtMs =
       nowMs + withJitter(this.options.requestPollMs, resolveBackoffJitterMs(this.options.requestPollMs));
 
-    const sessions = Array.isArray(response.data?.data) ? response.data.data : [];
+    const payload = valueAsObject(response.data) ?? (await readJsonResponseObject(response.response));
+    const sessions = Array.isArray(payload?.data) ? payload.data : [];
     const orderedSessions = [...sessions].sort(
       (left, right) => toPositiveInteger(right?.id) - toPositiveInteger(left?.id)
     );
+    const limitedSessions = orderedSessions.slice(0, Math.max(1, this.options.requestedSessionLimit));
 
-    const preferredSessions = orderedSessions.filter((session) => toPositiveInteger(session?.requested_by_user_id) >= 1);
-    const fallbackSessions = orderedSessions.filter((session) => toPositiveInteger(session?.requested_by_user_id) < 1);
+    const preferredSessions = limitedSessions.filter((session) => toPositiveInteger(session?.requested_by_user_id) >= 1);
+    const fallbackSessions = limitedSessions.filter((session) => toPositiveInteger(session?.requested_by_user_id) < 1);
     const nextSessionId = [...preferredSessions, ...fallbackSessions]
       .map((session) => toPositiveInteger(session?.id))
       .find((sessionId) => sessionId > 0 && !this.sessions.has(sessionId));
@@ -944,8 +941,7 @@ export class OpenClawAgentRuntime {
           path: {
             notification: notificationId
           }
-        },
-        body: {}
+        }
       });
 
       if (response.error) {
@@ -2013,10 +2009,6 @@ export class OpenClawAgentRuntime {
         },
         headers: {
           "X-Agent-Id": String(this.options.agent)
-        },
-        body: {
-          reason,
-          status: closeStatusOverride ?? this.options.closeStatus
         }
       });
 
@@ -3313,7 +3305,7 @@ function deriveBridgedAgentMcContext(
   payload: JsonObject,
   session: AgentRealtimeSessionRecord | null
 ): BridgedAgentMcContext {
-  const sessionRequesterUserId = toPositiveInteger(session?.requested_by_user_id);
+  const sessionRequesterUserId = toPositiveInteger(valueAsObject(session)?.requested_by_user_id);
   const actorUserId = firstPositiveInteger(
     payload.actor_user_id,
     payload.user_id,
@@ -3466,6 +3458,14 @@ function createOperationError(operationId: string, status: number, _errorPayload
   const statusSuffix = resolvedStatus === null ? "unknown status" : `status ${resolvedStatus}`;
 
   return new Error(`${operationId} failed with ${statusSuffix}.`);
+}
+
+async function readJsonResponseObject(response: Response): Promise<Record<string, unknown> | null> {
+  try {
+    return valueAsObject(await response.clone().json());
+  } catch {
+    return null;
+  }
 }
 
 function operationErrorStatus(error: Error): number | null {

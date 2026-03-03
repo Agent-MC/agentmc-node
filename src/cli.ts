@@ -1307,13 +1307,7 @@ async function runHostRealtimeSessionRoutingLoop(input: {
 }): Promise<void> {
   while (!input.shouldStop()) {
     try {
-      const response = await input.client.operations.listAgentRealtimeRequestedSessions({
-        params: {
-          query: {
-            limit: input.queryLimit
-          }
-        }
-      });
+      const response = await input.client.operations.listAgentRealtimeRequestedSessions();
 
       if (response.error) {
         const summary = summarizeApiError(response.error);
@@ -1322,7 +1316,8 @@ async function runHostRealtimeSessionRoutingLoop(input: {
         );
       }
 
-      const sessions = Array.isArray(response.data?.data) ? response.data.data : [];
+      const payload = valueAsObject(response.data) ?? (await readJsonResponseObject(response.response));
+      const sessions = Array.isArray(payload?.data) ? payload.data : [];
       const orderedSessions = [...sessions].sort((left, right) => {
         const leftId = toPositiveInt(valueAsObject(left)?.id) ?? 0;
         const rightId = toPositiveInt(valueAsObject(right)?.id) ?? 0;
@@ -1435,6 +1430,14 @@ async function fetchLatestPackageVersion(registryUrl: string): Promise<string | 
 
   const payload = valueAsObject(await response.json());
   return nonEmpty(payload?.version);
+}
+
+async function readJsonResponseObject(response: Response): Promise<Record<string, unknown> | null> {
+  try {
+    return valueAsObject(await response.clone().json());
+  } catch {
+    return null;
+  }
 }
 
 function installLatestPackageVersion(input: {
