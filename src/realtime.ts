@@ -568,11 +568,26 @@ export async function subscribeToRealtimeNotifications(
   );
 
   readyTimeoutHandle = setTimeout(() => {
+    if (disconnected) {
+      return;
+    }
+
     const error = new Error(
       `Realtime subscription was not ready after ${readyTimeoutMs}ms for session ${session.id}.`
     );
+
+    if (currentConnectionState !== "failed") {
+      currentConnectionState = "failed";
+      if (options.onConnectionStateChange) {
+        void callOptionalHandler(options.onConnectionStateChange, "failed", options.onError);
+      }
+    }
+
     subscription.markReadyError(error);
     void callErrorHandler(options.onError, error);
+    void subscription.disconnect().catch(async (disconnectError) => {
+      await callErrorHandler(options.onError, normalizeError(disconnectError));
+    });
   }, readyTimeoutMs);
 
   pusher.connection.bind("state_change", onConnectionStateEvent);
