@@ -10,7 +10,6 @@ import { promisify } from "node:util";
 import { AgentMCApi } from "./client";
 import { AgentRuntime, type AgentRuntimeRunInput, type AgentRuntimeRunResult } from "./openclaw-runtime";
 import { AGENTMC_NODE_PACKAGE_VERSION } from "./package-version";
-import type { RequestOptionsById, ResultById } from "./types";
 
 const execFileAsync = promisify(execFile);
 const OPENCLAW_TELEMETRY_COMMAND_CANDIDATES: readonly string[][] = [
@@ -55,9 +54,33 @@ type JsonObject = Record<string, unknown>;
 
 type RuntimeProviderKind = "openclaw" | "external";
 
-type HeartbeatBody = NonNullable<RequestOptionsById<"agentHeartbeat">["body"]>;
-type CompleteRecurringTaskRunBody = NonNullable<RequestOptionsById<"completeRecurringTaskRun">["body"]>;
-type DueRecurringTaskRunsResult = NonNullable<ResultById<"listDueRecurringTaskRuns">["data"]>;
+type HeartbeatBody = {
+  meta: JsonObject;
+  host: {
+    fingerprint: string;
+    name: string;
+    meta: JsonObject;
+  };
+  agent: {
+    id?: number;
+    name: string;
+    type: string;
+    identity: JsonObject | string;
+    emoji?: string | null;
+  };
+};
+type CompleteRecurringTaskRunBody = {
+  status: "success" | "error";
+  claim_token: string;
+  summary: string | null;
+  error_message: string | null;
+  started_at: string;
+  finished_at: string;
+  runtime_meta: JsonObject;
+};
+type DueRecurringTaskRunsResult = { data: unknown[] };
+type ApiOperationResult = { data?: unknown; error?: unknown; response: Response; status: number };
+type ApiOperationHandler = (options?: unknown) => Promise<ApiOperationResult>;
 
 interface RuntimeMachineIdentitySnapshot {
   name: string | null;
@@ -1018,7 +1041,9 @@ export class AgentRuntimeProgram {
         this.emitError(error, { source: "realtime.runtime" });
       },
       onSessionReady: (session) => {
-        this.emitInfo("Realtime session ready", { session_id: session.id });
+        this.emitInfo("Realtime session ready", {
+          session_id: toPositiveInt(valueAsObject(session)?.id)
+        });
       },
       onSessionClosed: (sessionId, reason) => {
         this.emitInfo("Realtime session closed", { session_id: sessionId, reason });
@@ -1351,7 +1376,12 @@ export class AgentRuntimeProgram {
       throw new Error("Heartbeat host fingerprint is missing.");
     }
 
-    const response = await this.client.operations.agentHeartbeat({
+    const sendHeartbeatOperation = this.getOptionalOperation("agentHeartbeat");
+    if (!sendHeartbeatOperation) {
+      throw new Error("agentHeartbeat operation is not available.");
+    }
+
+    const response = await sendHeartbeatOperation({
       params: {
         header: {
           "X-Host-Fingerprint": hostFingerprint
@@ -1383,8 +1413,18 @@ export class AgentRuntimeProgram {
     return responseAgentId;
   }
 
+  private getOptionalOperation(operationId: string): ApiOperationHandler | null {
+    const operation = valueAsObject(this.client.operations)?.[operationId];
+    return typeof operation === "function" ? (operation as ApiOperationHandler) : null;
+  }
+
   private async pollRecurringTaskRuns(agentId: number, provider: RuntimeProviderDescriptor): Promise<void> {
-    const response = await this.client.operations.listDueRecurringTaskRuns({
+    const listDueRecurringTaskRuns = this.getOptionalOperation("listDueRecurringTaskRuns");
+    if (!listDueRecurringTaskRuns) {
+      return;
+    }
+
+    const response = await listDueRecurringTaskRuns({
       params: {
         query: {
           limit: this.recurringTaskPollLimit
@@ -1399,7 +1439,9 @@ export class AgentRuntimeProgram {
       throw createOperationFailureError("listDueRecurringTaskRuns", response);
     }
 
-    const payload = (response.data ?? { data: [] }) as DueRecurringTaskRunsResult;
+    const payload = (valueAsObject(response.data) ?? (await readJsonResponseObject(response.response)) ?? {
+      data: []
+    }) as DueRecurringTaskRunsResult;
     const rows = Array.isArray(payload.data) ? payload.data : [];
     if (rows.length === 0) {
       return;
@@ -1474,7 +1516,12 @@ export class AgentRuntimeProgram {
       runtime_meta: execution.runtimeMeta
     };
 
-    const response = await this.client.operations.completeRecurringTaskRun({
+    const completeRecurringTaskRun = this.getOptionalOperation("completeRecurringTaskRun");
+    if (!completeRecurringTaskRun) {
+      return;
+    }
+
+    const response = await completeRecurringTaskRun({
       params: {
         path: {
           run: claimed.runId
@@ -3605,6 +3652,14 @@ function createOperationFailureError(
   const summary = summarizeApiError(response.error);
   const suffix = summary ? ` (${summary})` : "";
   return new Error(`${operationId} failed with status ${response.status}${suffix}.`);
+}
+
+async function readJsonResponseObject(response: Response): Promise<Record<string, unknown> | null> {
+  try {
+    return valueAsObject(await response.clone().json());
+  } catch {
+    return null;
+  }
 }
 
 function summarizeApiError(error: unknown): string | null {
