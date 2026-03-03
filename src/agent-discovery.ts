@@ -8,6 +8,7 @@ export interface DiscoveredRuntimeAgent {
   provider: RuntimeProvider;
   key: string;
   name: string;
+  emoji?: string | null;
   workspaceDir: string | null;
   meta: Record<string, unknown>;
 }
@@ -108,11 +109,13 @@ async function detectOpenClawAgents(options: DetectRuntimeAgentsOptions): Promis
       asString(identity?.name) ??
       asString(row.name) ??
       key;
+    const emoji = extractIdentityEmoji(row) ?? extractIdentityEmoji(identity);
 
     discovered.push({
       provider: "openclaw",
       key,
       name,
+      emoji,
       workspaceDir,
       meta: {
         id: asString(row.id),
@@ -213,4 +216,47 @@ function asString(value: unknown): string | null {
   }
   const normalized = String(value).trim();
   return normalized.length > 0 ? normalized : null;
+}
+
+function extractIdentityEmoji(value: unknown): string | null {
+  const object = asObject(value);
+  if (!object) {
+    return null;
+  }
+
+  const direct =
+    asString(object.emoji) ??
+    asString(object.avatar_emoji) ??
+    asString(object.avatarEmoji) ??
+    asString(object.profile_emoji) ??
+    asString(object.profileEmoji) ??
+    asString(object.icon_emoji) ??
+    asString(object.iconEmoji) ??
+    asString(object.icon) ??
+    asString(object.avatar) ??
+    asString(object.symbol) ??
+    asString(object.glyph);
+  if (direct) {
+    return direct;
+  }
+
+  const nestedIdentity = asObject(object.identity);
+  if (!nestedIdentity) {
+    return null;
+  }
+
+  return (
+    asString(nestedIdentity.emoji) ??
+    asString(nestedIdentity.avatar_emoji) ??
+    asString(nestedIdentity.avatarEmoji) ??
+    asString(nestedIdentity.profile_emoji) ??
+    asString(nestedIdentity.profileEmoji) ??
+    asString(nestedIdentity.icon_emoji) ??
+    asString(nestedIdentity.iconEmoji) ??
+    asString(nestedIdentity.icon) ??
+    asString(nestedIdentity.avatar) ??
+    asString(nestedIdentity.symbol) ??
+    asString(nestedIdentity.glyph) ??
+    null
+  );
 }

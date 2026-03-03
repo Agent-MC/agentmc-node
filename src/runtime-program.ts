@@ -1285,7 +1285,9 @@ export class AgentRuntimeProgram {
     if (profile.id !== null) {
       agentPayload.id = profile.id;
     }
-    agentPayload.emoji = profileEmoji ?? null;
+    if (profileEmoji) {
+      agentPayload.emoji = profileEmoji;
+    }
 
     const openclawAgentKey = normalizeOpenClawAgentName(this.options.openclawAgent);
     if (provider.kind === "openclaw" && openclawAgentKey) {
@@ -2236,7 +2238,10 @@ function extractIdentityEmoji(value: unknown): string | null {
     nonEmpty(objectValue.profileEmoji) ??
     nonEmpty(objectValue.icon_emoji) ??
     nonEmpty(objectValue.iconEmoji) ??
-    nonEmpty(objectValue.icon);
+    nonEmpty(objectValue.icon) ??
+    nonEmpty(objectValue.avatar) ??
+    nonEmpty(objectValue.symbol) ??
+    nonEmpty(objectValue.glyph);
   if (direct) {
     return direct;
   }
@@ -2255,6 +2260,9 @@ function extractIdentityEmoji(value: unknown): string | null {
     nonEmpty(nestedIdentity.icon_emoji) ??
     nonEmpty(nestedIdentity.iconEmoji) ??
     nonEmpty(nestedIdentity.icon) ??
+    nonEmpty(nestedIdentity.avatar) ??
+    nonEmpty(nestedIdentity.symbol) ??
+    nonEmpty(nestedIdentity.glyph) ??
     null
   );
 }

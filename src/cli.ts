@@ -1603,16 +1603,16 @@ async function sendHostHeartbeat(
     agents: workers.map((worker) => {
       updateWorkerProfileFromHeartbeat(worker, latestOpenClawProfiles);
       const resolvedName = worker.localName ?? worker.localKey;
-      const resolvedEmoji = worker.localEmoji ?? null;
+      const resolvedEmoji = nonEmpty(worker.localEmoji) ?? null;
 
       return {
         ...(worker.agentId !== null ? { id: worker.agentId } : {}),
         name: resolvedName,
-        emoji: resolvedEmoji,
+        ...(resolvedEmoji ? { emoji: resolvedEmoji } : {}),
         type: worker.provider ?? "runtime",
         identity: {
           name: resolvedName,
-          ...(worker.localEmoji ? { emoji: worker.localEmoji } : {}),
+          ...(resolvedEmoji ? { emoji: resolvedEmoji } : {}),
           agent_key: worker.localKey,
           openclaw_agent: worker.openclawAgent ?? worker.localKey
         }
@@ -1694,13 +1694,27 @@ function resolveLatestHostHeartbeatOpenClawProfiles(
 
   for (const row of rows) {
     const identity = valueAsObject(row.identity);
+    const runtimeAgent = valueAsObject(row.runtime_agent);
+    const rowAgent = valueAsObject(row.agent);
     const key =
       nonEmpty(row.key) ??
       nonEmpty(row.id) ??
       nonEmpty(row.agent) ??
       nonEmpty(row.agent_key) ??
       nonEmpty(row.agentKey) ??
-      nonEmpty(row.slug);
+      nonEmpty(row.slug) ??
+      nonEmpty(row.openclaw_agent) ??
+      nonEmpty(row.openclawAgent) ??
+      nonEmpty(identity?.agent_key) ??
+      nonEmpty(identity?.agentKey) ??
+      nonEmpty(identity?.openclaw_agent) ??
+      nonEmpty(identity?.openclawAgent) ??
+      nonEmpty(runtimeAgent?.key) ??
+      nonEmpty(runtimeAgent?.agent_key) ??
+      nonEmpty(runtimeAgent?.agentKey) ??
+      nonEmpty(rowAgent?.key) ??
+      nonEmpty(rowAgent?.agent_key) ??
+      nonEmpty(rowAgent?.agentKey);
     if (!key) {
       continue;
     }
@@ -2009,7 +2023,10 @@ function extractIdentityEmojiFromObject(value: Record<string, unknown> | null): 
     nonEmpty(value.profileEmoji) ??
     nonEmpty(value.icon_emoji) ??
     nonEmpty(value.iconEmoji) ??
-    nonEmpty(value.icon);
+    nonEmpty(value.icon) ??
+    nonEmpty(value.avatar) ??
+    nonEmpty(value.symbol) ??
+    nonEmpty(value.glyph);
   if (direct) {
     return direct;
   }
@@ -2028,6 +2045,9 @@ function extractIdentityEmojiFromObject(value: Record<string, unknown> | null): 
     nonEmpty(nestedIdentity.icon_emoji) ??
     nonEmpty(nestedIdentity.iconEmoji) ??
     nonEmpty(nestedIdentity.icon) ??
+    nonEmpty(nestedIdentity.avatar) ??
+    nonEmpty(nestedIdentity.symbol) ??
+    nonEmpty(nestedIdentity.glyph) ??
     null
   );
 }
@@ -2633,8 +2653,34 @@ function buildWorkerConfig(
     localKey: safeKey,
     openclawAgent: local.provider === "openclaw" ? local.key : undefined,
     localName: local.name,
+    localEmoji: resolveDiscoveredAgentEmoji(local),
     provider: local.provider
   };
+}
+
+function resolveDiscoveredAgentEmoji(agent: DiscoveredRuntimeAgent): string | undefined {
+  const discoveredEmoji = nonEmpty(agent.emoji);
+  if (discoveredEmoji) {
+    return discoveredEmoji;
+  }
+
+  const meta = valueAsObject(agent.meta);
+  if (!meta) {
+    return undefined;
+  }
+
+  return (
+    nonEmpty(meta.emoji) ??
+    nonEmpty(meta.avatar_emoji) ??
+    nonEmpty(meta.avatarEmoji) ??
+    nonEmpty(meta.profile_emoji) ??
+    nonEmpty(meta.profileEmoji) ??
+    nonEmpty(meta.icon_emoji) ??
+    nonEmpty(meta.iconEmoji) ??
+    nonEmpty(meta.icon) ??
+    nonEmpty(valueAsObject(meta.identity)?.emoji) ??
+    undefined
+  );
 }
 function valueAsObject(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
