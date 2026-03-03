@@ -324,16 +324,29 @@ test("does not strip normal bracketed text", async () => {
 
 test("falls back to session history when wait text is only a control tag", async () => {
   await withFixture(async ({ dir, sessionsPath }) => {
-    const runtime = createRuntime(sessionsPath, dir);
-    runtime.gatewayCall = async (method) => {
-      if (method === "agent") {
-        return { runId: "run-1" };
-      }
-      if (method === "agent.wait") {
-        return { status: "ok", content: " [[reply_to_current]] " };
-      }
-      throw new Error(`Unexpected gateway method: ${method}`);
-    };
+    const openclawStubPath = join(dir, "openclaw-stub.mjs");
+    await writeFile(
+      openclawStubPath,
+      `#!/usr/bin/env node
+if (process.argv[2] === "agent") {
+  process.stdout.write(JSON.stringify({
+    runId: "run-1",
+    status: "ok",
+    content: " [[reply_to_current]] "
+  }));
+  process.exit(0);
+}
+
+process.stderr.write("Unexpected command");
+process.exit(1);
+`,
+      "utf8"
+    );
+    await chmod(openclawStubPath, 0o755);
+
+    const runtime = createRuntime(sessionsPath, dir, {
+      openclawCommand: openclawStubPath
+    });
     runtime.readLatestAssistantText = async () => "History assistant text.";
 
     const result = await runtime.runOpenClawChat({
@@ -353,10 +366,7 @@ test("prefers top-level run response shape over nested wrapper payloads", async 
     await writeFile(
       openclawStubPath,
       `#!/usr/bin/env node
-const method = process.argv[4];
-const paramsIndex = process.argv.indexOf("--params");
-const rawParams = paramsIndex >= 0 ? process.argv[paramsIndex + 1] : "{}";
-const params = JSON.parse(rawParams);
+const method = process.argv[2];
 
 if (method === "agent") {
   process.stdout.write(JSON.stringify({
@@ -364,14 +374,6 @@ if (method === "agent") {
     status: "accepted",
     acceptedAt: "2026-02-26T00:00:00.000Z",
     result: { runId: "run-from-wrapper" }
-  }));
-  process.exit(0);
-}
-
-if (method === "agent.wait") {
-  process.stdout.write(JSON.stringify({
-    status: "ok",
-    content: "waited for " + String(params.runId || "")
   }));
   process.exit(0);
 }
@@ -394,7 +396,8 @@ process.exit(1);
     });
 
     assert.equal(result.runId, "run-top-level");
-    assert.equal(result.content, "waited for run-top-level");
+    assert.equal(result.textSource, "wait");
+    assert.match(result.content, /"runId":"run-top-level"/);
   });
 });
 
