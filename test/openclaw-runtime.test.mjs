@@ -43,52 +43,18 @@ function createSessionState(sessionId = 114) {
     lastSignalId: 0,
     lastNonAgentSignalId: 0,
     connectionState: "connected",
-    lastSignalPollAtMs: 0,
-    nextSignalPollAtMs: 0,
-    lastSignalRateLimitLogAtMs: 0,
     sawConnectedState: true,
     processedInboundKeys: new Map()
   };
 }
 
-test("polling cursor does not skip non-agent signals after agent websocket ids", async () => {
+test("signal cursor does not skip non-agent signals after agent websocket ids", async () => {
   await withFixture(async ({ dir, sessionsPath }) => {
-    const requestedAfterIds = [];
     const notifications = [];
 
     const runtime = createRuntime(sessionsPath, dir, {
       client: {
-        operations: {
-          listAgentRealtimeSignals: async ({ params }) => {
-            requestedAfterIds.push(params?.query?.after_id ?? null);
-
-            return {
-              error: null,
-              status: 200,
-              data: {
-                data: [
-                  {
-                    id: 9,
-                    session_id: 114,
-                    sender: "system",
-                    type: "message",
-                    payload: {
-                      type: "notification.created",
-                      payload: {
-                        notification: {
-                          id: "notif-9",
-                          notification_type: "mention",
-                          is_read: false
-                        }
-                      }
-                    },
-                    created_at: null
-                  }
-                ]
-              }
-            };
-          }
-        }
+        operations: {}
       },
       onNotification: (event) => {
         notifications.push(event);
@@ -115,9 +81,50 @@ test("polling cursor does not skip non-agent signals after agent websocket ids",
       "websocket"
     );
 
-    await runtime.pollSessionSignals(state, "poll");
+    await runtime.handleSignal(
+      state,
+      {
+        id: 9,
+        session_id: 114,
+        sender: "system",
+        type: "message",
+        payload: {
+          type: "notification.created",
+          payload: {
+            notification: {
+              id: "notif-9",
+              notification_type: "mention",
+              is_read: false
+            }
+          }
+        },
+        created_at: null
+      },
+      "websocket"
+    );
 
-    assert.equal(requestedAfterIds[0], null);
+    await runtime.handleSignal(
+      state,
+      {
+        id: 9,
+        session_id: 114,
+        sender: "system",
+        type: "message",
+        payload: {
+          type: "notification.created",
+          payload: {
+            notification: {
+              id: "notif-9",
+              notification_type: "mention",
+              is_read: false
+            }
+          }
+        },
+        created_at: null
+      },
+      "websocket"
+    );
+
     assert.equal(notifications.length, 1);
     assert.equal(notifications[0]?.signal?.id, 9);
     assert.equal(state.lastSignalId, 10);
@@ -917,10 +924,17 @@ test("chat bridge errors do not leak raw exception details to chat output", asyn
 test("runtime operation errors redact backend error payload details", async () => {
   await withFixture(async ({ dir, sessionsPath }) => {
     const secret = "runtime-sensitive-auth-token";
+    let capturedError = null;
+    let doneResolve;
+    const done = new Promise((resolve) => {
+      doneResolve = resolve;
+    });
+
     const runtime = createRuntime(sessionsPath, dir, {
       client: {
+        prewarmRealtimeTransport: async () => {},
         operations: {
-          listAgentRealtimeSignals: async () => ({
+          listAgentRealtimeRequestedSessions: async () => ({
             error: {
               message: "forbidden",
               token: secret,
@@ -929,21 +943,28 @@ test("runtime operation errors redact backend error payload details", async () =
             status: 403
           })
         }
+      },
+      requestPollMs: 10,
+      onError: (error) => {
+        if (capturedError) {
+          return;
+        }
+        capturedError = error;
+        doneResolve();
       }
     });
 
-    await assert.rejects(
-      () => runtime.pollSessionSignals(createSessionState(), "poll"),
-      (error) => {
-        assert.ok(error instanceof Error);
-        assert.equal(
-          error.message,
-          "listAgentRealtimeSignals failed with status 403."
-        );
-        assert.equal(error.message.includes(secret), false);
-        assert.equal(error.message.includes("authorization"), false);
-        return true;
-      }
-    );
+    const runPromise = runtime.run();
+    await Promise.race([
+      done,
+      new Promise((_, reject) => setTimeout(() => reject(new Error("Timed out waiting for runtime error.")), 500))
+    ]);
+    await runtime.stop();
+    await runPromise;
+
+    assert.ok(capturedError instanceof Error);
+    assert.equal(capturedError.message, "listAgentRealtimeRequestedSessions failed with status 403.");
+    assert.equal(capturedError.message.includes(secret), false);
+    assert.equal(capturedError.message.includes("authorization"), false);
   });
 });

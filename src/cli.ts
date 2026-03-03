@@ -1162,7 +1162,7 @@ async function runMultiAgentRuntimeFromEnv(env: NodeJS.ProcessEnv): Promise<bool
       `[agentmc-runtime] host heartbeat active interval=${hostHeartbeatIntervalSeconds}s host=${hostFingerprint}\n`
     );
     process.stderr.write(
-      "[agentmc-runtime] host realtime requested-session discovery mode=push (worker-managed websocket sessions)\n"
+      "[agentmc-runtime] host realtime mode=persistent-websocket (one session per agent, shared transport)\n"
     );
 
     const runtimeEntries: RuntimeEntry[] = resolved.workers.map((worker) => ({
