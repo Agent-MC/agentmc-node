@@ -269,268 +269,191 @@ export async function subscribeToRealtimeNotifications(
 ): Promise<AgentRealtimeNotificationsSubscription> {
   assertPositiveInteger(options.agent, "options.agent");
 
-  const session = await resolveAndClaimSession(client, options);
-  const socket = session.socket;
-  const connection = socket?.connection;
+  let session: AgentRealtimeSessionRecord | null = null;
+  let sharedTransportKey: string | null = null;
+  let sharedTransportChannelName: string | null = null;
+  let sharedTransportAcquired = false;
 
-  if (!socket || !connection) {
-    throw new Error(`Realtime session ${session.id} is missing socket connection metadata.`);
-  }
+  try {
+    session = await resolveAndClaimSession(client, options);
+    const claimedSession = session;
+    const socket = claimedSession.socket;
+    const connection = socket?.connection;
 
-  const channelName = valueAsString(socket.channel)?.trim();
-  if (!channelName) {
-    throw new Error(`Realtime session ${session.id} did not include a socket channel name.`);
-  }
+    if (!socket || !connection) {
+      throw new Error(`Realtime session ${claimedSession.id} is missing socket connection metadata.`);
+    }
 
-  const eventName = valueAsString(socket.event)?.trim() || "agent.realtime.signal";
-  const appKey = valueAsString(connection.key)?.trim();
-  const host = valueAsString(connection.host)?.trim();
-  const scheme = normalizeScheme(valueAsString(connection.scheme));
+    const channelName = valueAsString(socket.channel)?.trim();
+    if (!channelName) {
+      throw new Error(`Realtime session ${claimedSession.id} did not include a socket channel name.`);
+    }
 
-  if (!appKey || !host) {
-    throw new Error(`Realtime session ${session.id} did not include a valid socket key/host.`);
-  }
+    const eventName = valueAsString(socket.event)?.trim() || "agent.realtime.signal";
+    const appKey = valueAsString(connection.key)?.trim();
+    const host = valueAsString(connection.host)?.trim();
+    const scheme = normalizeScheme(valueAsString(connection.scheme));
 
-  const forceTLS = scheme === "https";
-  const resolvedPort =
-    typeof connection.port === "number" && Number.isInteger(connection.port) && connection.port > 0
-      ? connection.port
-      : forceTLS
-        ? 443
-        : 80;
+    if (!appKey || !host) {
+      throw new Error(`Realtime session ${claimedSession.id} did not include a valid socket key/host.`);
+    }
 
-  const wsPath = normalizeWebsocketPath(valueAsString(connection.path));
-  const cluster = valueAsString(connection.cluster)?.trim() || "mt1";
-  const sharedTransportKey = buildSharedTransportKey({
-    appKey,
-    host,
-    resolvedPort,
-    forceTLS,
-    cluster,
-    wsPath
-  });
-  const authChannel = channelName;
-  const authForChannel = async (socketId: string): Promise<unknown> => {
-    const authResult = await client.operations.authenticateAgentRealtimeSocket({
-      params: {
-        path: {
-          session: session.id
-        }
-      },
-      headers: {
-        "X-Agent-Id": String(options.agent)
-      },
-      body: {
-        socket_id: socketId,
-        channel_name: authChannel
-      }
+    const forceTLS = scheme === "https";
+    const resolvedPort =
+      typeof connection.port === "number" && Number.isInteger(connection.port) && connection.port > 0
+        ? connection.port
+        : forceTLS
+          ? 443
+          : 80;
+
+    const wsPath = normalizeWebsocketPath(valueAsString(connection.path));
+    const cluster = valueAsString(connection.cluster)?.trim() || "mt1";
+    sharedTransportKey = buildSharedTransportKey({
+      appKey,
+      host,
+      resolvedPort,
+      forceTLS,
+      cluster,
+      wsPath
     });
-
-    if (authResult.error || !authResult.data) {
-      throw createOperationError(
-        "authenticateAgentRealtimeSocket",
-        authResult.status,
-        authResult.error ?? { message: "Missing auth payload in response." }
-      );
+    const transportKey = sharedTransportKey;
+    if (!transportKey) {
+      throw new Error("Unable to resolve realtime shared transport key.");
     }
-
-    return authResult.data;
-  };
-  const pusher = await acquireSharedPusher({
-    key: sharedTransportKey,
-    appKey,
-    host,
-    resolvedPort,
-    forceTLS,
-    cluster,
-    wsPath,
-    channelName,
-    authorize: authForChannel
-  });
-
-  let disconnected = false;
-  let currentConnectionState: AgentRealtimeConnectionState = "initialized";
-  let boundChannel: PusherChannel | null = null;
-  let resubscribeTimerHandle: ReturnType<typeof setTimeout> | null = null;
-  let readyTimeoutHandle: ReturnType<typeof setTimeout> | null = null;
-  let resubscribeAttempt = 0;
-  let eventQueue: Promise<void> = Promise.resolve();
-
-  const clearResubscribeTimer = (): void => {
-    if (resubscribeTimerHandle !== null) {
-      clearTimeout(resubscribeTimerHandle);
-      resubscribeTimerHandle = null;
-    }
-  };
-
-  const clearReadyTimeout = (): void => {
-    if (readyTimeoutHandle !== null) {
-      clearTimeout(readyTimeoutHandle);
-      readyTimeoutHandle = null;
-    }
-  };
-
-  const readyTimeoutMs = normalizeReadyTimeoutMs(options.readyTimeoutMs);
-
-  const enqueueEvent = (task: () => Promise<void>): void => {
-    eventQueue = eventQueue
-      .catch(() => {})
-      .then(async () => {
-        if (disconnected) {
-          return;
+    sharedTransportChannelName = channelName;
+    const authChannel = channelName;
+    const authForChannel = async (socketId: string): Promise<unknown> => {
+      const authResult = await client.operations.authenticateAgentRealtimeSocket({
+        params: {
+          path: {
+            session: claimedSession.id
+          }
+        },
+        headers: {
+          "X-Agent-Id": String(options.agent)
+        },
+        body: {
+          socket_id: socketId,
+          channel_name: authChannel
         }
-
-        await task();
-      })
-      .catch(async (error) => {
-        await callErrorHandler(options.onError, normalizeError(error));
       });
-  };
 
-  const onConnectionStateEvent = (statePayload: unknown): void => {
-    const state = valueAsObject(statePayload);
-    const current = valueAsString(state?.current)?.toLowerCase();
-    if (!current) {
-      return;
-    }
-
-    if (isConnectionState(current) && options.onConnectionStateChange) {
-      void callOptionalHandler(options.onConnectionStateChange, current, options.onError);
-    }
-
-    if (isConnectionState(current)) {
-      currentConnectionState = current;
-      if (current === "connected") {
-        clearResubscribeTimer();
-        resubscribeAttempt = 0;
-      }
-    }
-  };
-
-  const onConnectionErrorEvent = (payload: unknown): void => {
-    const error = normalizeError(payload, "Realtime websocket connection error.");
-    void callErrorHandler(options.onError, error);
-  };
-
-  const onConnectionDisconnectedEvent = (): void => {
-    currentConnectionState = "disconnected";
-    if (options.onConnectionStateChange) {
-      void callOptionalHandler(options.onConnectionStateChange, "disconnected", options.onError);
-    }
-  };
-
-  const unbindConnectionHandlers = (): void => {
-    if (!pusher.connection.unbind) {
-      return;
-    }
-
-    pusher.connection.unbind("state_change", onConnectionStateEvent);
-    pusher.connection.unbind("error", onConnectionErrorEvent);
-    pusher.connection.unbind("disconnected", onConnectionDisconnectedEvent);
-  };
-
-  const subscription = new RealtimeNotificationsSubscription({
-    client,
-    options,
-    session,
-    channel: channelName,
-    event: eventName,
-    pusher,
-    onBeforeDisconnect: () => {
-      disconnected = true;
-      clearReadyTimeout();
-      clearResubscribeTimer();
-      unbindConnectionHandlers();
-      if (boundChannel) {
-        unbindChannel(
-          boundChannel,
-          eventName,
-          onSubscriptionSucceeded,
-          onSubscriptionError,
-          onSignalEvent
-        );
-        boundChannel = null;
-      }
-    },
-    onTransportDisconnect: () => {
-      releaseSharedPusher(sharedTransportKey, channelName);
-    }
-  });
-
-  const onSignalEvent = (payload: unknown): void => {
-    const signal = normalizeSignal(payload, session.id);
-    if (!signal) {
-      return;
-    }
-
-    enqueueEvent(async () => {
-      await callOptionalHandler(options.onSignal, signal, options.onError);
-
-      const channelType = extractChannelType(signal.payload);
-      const body = extractEventBody(signal.payload);
-      const notification = extractNotification(body, channelType);
-
-      if (notification && options.onNotification) {
-        const notificationType = valueAsString(notification.notification_type)?.toLowerCase() ?? null;
-        await callOptionalHandler(
-          options.onNotification,
-          {
-            signal,
-            notification,
-            notificationType,
-            channelType
-          },
-          options.onError
+      if (authResult.error || !authResult.data) {
+        throw createOperationError(
+          "authenticateAgentRealtimeSocket",
+          authResult.status,
+          authResult.error ?? { message: "Missing auth payload in response." }
         );
       }
+
+      return authResult.data;
+    };
+    const pusher = await acquireSharedPusher({
+      key: transportKey,
+      appKey,
+      host,
+      resolvedPort,
+      forceTLS,
+      cluster,
+      wsPath,
+      channelName,
+      authorize: authForChannel
     });
-  };
+    sharedTransportAcquired = true;
 
-  const onSubscriptionSucceeded = (): void => {
-    clearReadyTimeout();
-    clearResubscribeTimer();
-    resubscribeAttempt = 0;
-    subscription.markReady();
-    void callOptionalHandler(options.onReady, session, options.onError);
-  };
+    let disconnected = false;
+    let currentConnectionState: AgentRealtimeConnectionState = "initialized";
+    let boundChannel: PusherChannel | null = null;
+    let resubscribeTimerHandle: ReturnType<typeof setTimeout> | null = null;
+    let readyTimeoutHandle: ReturnType<typeof setTimeout> | null = null;
+    let resubscribeAttempt = 0;
+    let eventQueue: Promise<void> = Promise.resolve();
 
-  const onSubscriptionError = (payload: unknown): void => {
-    const error = normalizeError(payload, "Realtime channel subscription failed.");
-    void callErrorHandler(options.onError, error);
-
-    if (disconnected) {
-      return;
-    }
-
-    if (!isRetryableSubscriptionError(payload)) {
-      clearReadyTimeout();
-      clearResubscribeTimer();
-      subscription.markReadyError(error);
-      currentConnectionState = "failed";
-      if (options.onConnectionStateChange) {
-        void callOptionalHandler(options.onConnectionStateChange, "failed", options.onError);
+    const clearResubscribeTimer = (): void => {
+      if (resubscribeTimerHandle !== null) {
+        clearTimeout(resubscribeTimerHandle);
+        resubscribeTimerHandle = null;
       }
-      void subscription.disconnect().catch(async (disconnectError) => {
-        await callErrorHandler(options.onError, normalizeError(disconnectError));
-      });
-      return;
-    }
+    };
 
-    const backoffMs = resolveResubscribeBackoffMs(resubscribeAttempt);
-    resubscribeAttempt += 1;
-    clearResubscribeTimer();
-    if (currentConnectionState !== "connecting") {
-      currentConnectionState = "connecting";
-      if (options.onConnectionStateChange) {
-        void callOptionalHandler(options.onConnectionStateChange, "connecting", options.onError);
+    const clearReadyTimeout = (): void => {
+      if (readyTimeoutHandle !== null) {
+        clearTimeout(readyTimeoutHandle);
+        readyTimeoutHandle = null;
       }
-    }
-    resubscribeTimerHandle = setTimeout(() => {
-      if (disconnected) {
+    };
+
+    const readyTimeoutMs = normalizeReadyTimeoutMs(options.readyTimeoutMs);
+
+    const enqueueEvent = (task: () => Promise<void>): void => {
+      eventQueue = eventQueue
+        .catch(() => {})
+        .then(async () => {
+          if (disconnected) {
+            return;
+          }
+
+          await task();
+        })
+        .catch(async (error) => {
+          await callErrorHandler(options.onError, normalizeError(error));
+        });
+    };
+
+    const onConnectionStateEvent = (statePayload: unknown): void => {
+      const state = valueAsObject(statePayload);
+      const current = valueAsString(state?.current)?.toLowerCase();
+      if (!current) {
         return;
       }
 
-      try {
+      if (isConnectionState(current) && options.onConnectionStateChange) {
+        void callOptionalHandler(options.onConnectionStateChange, current, options.onError);
+      }
+
+      if (isConnectionState(current)) {
+        currentConnectionState = current;
+        if (current === "connected") {
+          clearResubscribeTimer();
+          resubscribeAttempt = 0;
+        }
+      }
+    };
+
+    const onConnectionErrorEvent = (payload: unknown): void => {
+      const error = normalizeError(payload, "Realtime websocket connection error.");
+      void callErrorHandler(options.onError, error);
+    };
+
+    const onConnectionDisconnectedEvent = (): void => {
+      currentConnectionState = "disconnected";
+      if (options.onConnectionStateChange) {
+        void callOptionalHandler(options.onConnectionStateChange, "disconnected", options.onError);
+      }
+    };
+
+    const unbindConnectionHandlers = (): void => {
+      if (!pusher.connection.unbind) {
+        return;
+      }
+
+      pusher.connection.unbind("state_change", onConnectionStateEvent);
+      pusher.connection.unbind("error", onConnectionErrorEvent);
+      pusher.connection.unbind("disconnected", onConnectionDisconnectedEvent);
+    };
+
+    const subscription = new RealtimeNotificationsSubscription({
+      client,
+      options,
+      session: claimedSession,
+      channel: channelName,
+      event: eventName,
+      pusher,
+      onBeforeDisconnect: () => {
+        disconnected = true;
+        clearReadyTimeout();
+        clearResubscribeTimer();
+        unbindConnectionHandlers();
         if (boundChannel) {
           unbindChannel(
             boundChannel,
@@ -541,60 +464,163 @@ export async function subscribeToRealtimeNotifications(
           );
           boundChannel = null;
         }
+      },
+      onTransportDisconnect: () => {
+        releaseSharedPusher(transportKey, channelName);
+        sharedTransportAcquired = false;
+      }
+    });
 
-        pusher.unsubscribe(channelName);
-      } catch {
-        // Best-effort local cleanup.
+    const onSignalEvent = (payload: unknown): void => {
+      const signal = normalizeSignal(payload, claimedSession.id);
+      if (!signal) {
+        return;
       }
 
-      boundChannel = subscribeAndBindChannel(
-        pusher,
-        channelName,
-        eventName,
-        onSubscriptionSucceeded,
-        onSubscriptionError,
-        onSignalEvent
-      );
-    }, backoffMs);
-  };
+      enqueueEvent(async () => {
+        await callOptionalHandler(options.onSignal, signal, options.onError);
 
-  boundChannel = subscribeAndBindChannel(
-    pusher,
-    channelName,
-    eventName,
-    onSubscriptionSucceeded,
-    onSubscriptionError,
-    onSignalEvent
-  );
+        const channelType = extractChannelType(signal.payload);
+        const body = extractEventBody(signal.payload);
+        const notification = extractNotification(body, channelType);
 
-  readyTimeoutHandle = setTimeout(() => {
-    if (disconnected) {
-      return;
-    }
+        if (notification && options.onNotification) {
+          const notificationType = valueAsString(notification.notification_type)?.toLowerCase() ?? null;
+          await callOptionalHandler(
+            options.onNotification,
+            {
+              signal,
+              notification,
+              notificationType,
+              channelType
+            },
+            options.onError
+          );
+        }
+      });
+    };
 
-    const error = new Error(
-      `Realtime subscription was not ready after ${readyTimeoutMs}ms for session ${session.id}.`
+    const onSubscriptionSucceeded = (): void => {
+      clearReadyTimeout();
+      clearResubscribeTimer();
+      resubscribeAttempt = 0;
+      subscription.markReady();
+      void callOptionalHandler(options.onReady, claimedSession, options.onError);
+    };
+
+    const onSubscriptionError = (payload: unknown): void => {
+      const error = normalizeError(payload, "Realtime channel subscription failed.");
+      void callErrorHandler(options.onError, error);
+
+      if (disconnected) {
+        return;
+      }
+
+      if (!isRetryableSubscriptionError(payload)) {
+        clearReadyTimeout();
+        clearResubscribeTimer();
+        subscription.markReadyError(error);
+        currentConnectionState = "failed";
+        if (options.onConnectionStateChange) {
+          void callOptionalHandler(options.onConnectionStateChange, "failed", options.onError);
+        }
+        void subscription.disconnect().catch(async (disconnectError) => {
+          await callErrorHandler(options.onError, normalizeError(disconnectError));
+        });
+        return;
+      }
+
+      const backoffMs = resolveResubscribeBackoffMs(resubscribeAttempt);
+      resubscribeAttempt += 1;
+      clearResubscribeTimer();
+      if (currentConnectionState !== "connecting") {
+        currentConnectionState = "connecting";
+        if (options.onConnectionStateChange) {
+          void callOptionalHandler(options.onConnectionStateChange, "connecting", options.onError);
+        }
+      }
+      resubscribeTimerHandle = setTimeout(() => {
+        if (disconnected) {
+          return;
+        }
+
+        try {
+          if (boundChannel) {
+            unbindChannel(
+              boundChannel,
+              eventName,
+              onSubscriptionSucceeded,
+              onSubscriptionError,
+              onSignalEvent
+            );
+            boundChannel = null;
+          }
+
+          pusher.unsubscribe(channelName);
+        } catch {
+          // Best-effort local cleanup.
+        }
+
+        boundChannel = subscribeAndBindChannel(
+          pusher,
+          channelName,
+          eventName,
+          onSubscriptionSucceeded,
+          onSubscriptionError,
+          onSignalEvent
+        );
+      }, backoffMs);
+    };
+
+    boundChannel = subscribeAndBindChannel(
+      pusher,
+      channelName,
+      eventName,
+      onSubscriptionSucceeded,
+      onSubscriptionError,
+      onSignalEvent
     );
 
-    if (currentConnectionState !== "failed") {
-      currentConnectionState = "failed";
-      if (options.onConnectionStateChange) {
-        void callOptionalHandler(options.onConnectionStateChange, "failed", options.onError);
+    readyTimeoutHandle = setTimeout(() => {
+      if (disconnected) {
+        return;
       }
+
+      const error = new Error(
+        `Realtime subscription was not ready after ${readyTimeoutMs}ms for session ${claimedSession.id}.`
+      );
+
+      if (currentConnectionState !== "failed") {
+        currentConnectionState = "failed";
+        if (options.onConnectionStateChange) {
+          void callOptionalHandler(options.onConnectionStateChange, "failed", options.onError);
+        }
+      }
+
+      subscription.markReadyError(error);
+      void callErrorHandler(options.onError, error);
+      void subscription.disconnect().catch(async (disconnectError) => {
+        await callErrorHandler(options.onError, normalizeError(disconnectError));
+      });
+    }, readyTimeoutMs);
+
+    pusher.connection.bind("state_change", onConnectionStateEvent);
+    pusher.connection.bind("error", onConnectionErrorEvent);
+    pusher.connection.bind("disconnected", onConnectionDisconnectedEvent);
+
+    return subscription;
+  } catch (error) {
+    if (sharedTransportAcquired && sharedTransportKey && sharedTransportChannelName) {
+      releaseSharedPusher(sharedTransportKey, sharedTransportChannelName);
+      sharedTransportAcquired = false;
     }
 
-    subscription.markReadyError(error);
-    void callErrorHandler(options.onError, error);
-    void subscription.disconnect().catch(async (disconnectError) => {
-      await callErrorHandler(options.onError, normalizeError(disconnectError));
-    });
-  }, readyTimeoutMs);
+    if (session !== null) {
+      await closeClaimedSessionOnSubscribeFailure(client, options.agent, session.id, options.onError);
+    }
 
-  pusher.connection.bind("state_change", onConnectionStateEvent);
-  pusher.connection.bind("error", onConnectionErrorEvent);
-  pusher.connection.bind("disconnected", onConnectionDisconnectedEvent);
-
-  return subscription;
+    throw normalizeError(error);
+  }
 }
 
 export async function publishRealtimeMessage(
@@ -679,9 +705,11 @@ async function resolveAndClaimSession(
     assertPositiveInteger(options.session, "options.session");
   }
 
-  let sessionId = options.session;
+  let candidateSessionIds: number[] = [];
 
-  if (sessionId === undefined) {
+  if (options.session !== undefined) {
+    candidateSessionIds = [options.session];
+  } else {
     const requestedResult = await client.operations.listAgentRealtimeRequestedSessions({
       params: {
         query: {
@@ -707,39 +735,61 @@ async function resolveAndClaimSession(
     );
     const preferredSessions = orderedSessions.filter((session) => (valueAsPositiveInteger(session?.requested_by_user_id) ?? 0) >= 1);
     const fallbackSessions = orderedSessions.filter((session) => (valueAsPositiveInteger(session?.requested_by_user_id) ?? 0) < 1);
-    const selected = [...preferredSessions, ...fallbackSessions].find(
-      (candidate) => (valueAsPositiveInteger(candidate?.id) ?? 0) > 0
-    );
+    const prioritized = [...preferredSessions, ...fallbackSessions];
+    candidateSessionIds = prioritized
+      .map((candidate) => valueAsPositiveInteger(candidate?.id))
+      .filter((candidate): candidate is number => candidate !== null && candidate > 0);
 
-    if (!selected) {
+    if (candidateSessionIds.length === 0) {
       throw new Error(`No requested realtime sessions are available for agent ${options.agent}.`);
     }
-
-    sessionId = selected.id;
   }
 
-  const claimResult = await client.operations.claimAgentRealtimeSession({
-    params: {
-      path: {
-        session: sessionId
+  let lastClaimError: Error | null = null;
+  const explicitSessionRequested = options.session !== undefined;
+
+  for (const sessionId of candidateSessionIds) {
+    const claimResult = await client.operations.claimAgentRealtimeSession({
+      params: {
+        path: {
+          session: sessionId
+        }
+      },
+      headers: {
+        "X-Agent-Id": String(options.agent)
+      },
+      body: {}
+    });
+
+    if (claimResult.error) {
+      const claimError = createOperationError("claimAgentRealtimeSession", claimResult.status, claimResult.error);
+      if (!explicitSessionRequested && isRetryableClaimFailureStatus(claimResult.status)) {
+        lastClaimError = claimError;
+        continue;
       }
-    },
-    headers: {
-      "X-Agent-Id": String(options.agent)
-    },
-    body: {}
-  });
+      throw claimError;
+    }
 
-  if (claimResult.error) {
-    throw createOperationError("claimAgentRealtimeSession", claimResult.status, claimResult.error);
+    const session = claimResult.data?.data;
+    if (!session) {
+      const missingDataError = new Error(
+        `claimAgentRealtimeSession returned status ${claimResult.status} without session data.`
+      );
+      if (!explicitSessionRequested) {
+        lastClaimError = missingDataError;
+        continue;
+      }
+      throw missingDataError;
+    }
+
+    return session;
   }
 
-  const session = claimResult.data?.data;
-  if (!session) {
-    throw new Error(`claimAgentRealtimeSession returned status ${claimResult.status} without session data.`);
+  if (lastClaimError) {
+    throw lastClaimError;
   }
 
-  return session;
+  throw new Error(`No claimable realtime sessions are available for agent ${options.agent}.`);
 }
 
 function buildSharedTransportKey(input: {
@@ -1116,6 +1166,39 @@ function normalizeReadyTimeoutMs(value: number | undefined): number {
   }
 
   return DEFAULT_REALTIME_READY_TIMEOUT_MS;
+}
+
+async function closeClaimedSessionOnSubscribeFailure(
+  client: AgentMCApi,
+  agentId: number,
+  sessionId: number,
+  onError: ((error: Error) => MaybePromise) | undefined
+): Promise<void> {
+  const closeResult = await client.operations.closeAgentRealtimeSession({
+    params: {
+      path: {
+        session: sessionId
+      }
+    },
+    headers: {
+      "X-Agent-Id": String(agentId)
+    },
+    body: {
+      reason: "sdk_subscribe_failed",
+      status: "failed"
+    }
+  });
+
+  if (closeResult.error) {
+    await callErrorHandler(
+      onError,
+      createOperationError("closeAgentRealtimeSession", closeResult.status, closeResult.error)
+    );
+  }
+}
+
+function isRetryableClaimFailureStatus(status: number): boolean {
+  return status === 404 || status === 409 || status === 410 || status === 422;
 }
 
 function isConnectionState(value: string): value is AgentRealtimeConnectionState {

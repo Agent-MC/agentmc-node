@@ -417,10 +417,6 @@ export class OpenClawAgentRuntime {
       return false;
     }
 
-    if (this.sessions.size > 0) {
-      return false;
-    }
-
     return nowMs >= this.nextSessionAcquireAtMs;
   }
 
@@ -475,17 +471,15 @@ export class OpenClawAgentRuntime {
 
     const preferredSessions = orderedSessions.filter((session) => toPositiveInteger(session?.requested_by_user_id) >= 1);
     const fallbackSessions = orderedSessions.filter((session) => toPositiveInteger(session?.requested_by_user_id) < 1);
-    const nextSession = [...preferredSessions, ...fallbackSessions].find((session) => {
-      const sessionId = toPositiveInteger(session?.id);
-      return sessionId > 0 && !this.sessions.has(sessionId);
-    });
+    const nextSessionId = [...preferredSessions, ...fallbackSessions]
+      .map((session) => toPositiveInteger(session?.id))
+      .find((sessionId) => sessionId > 0 && !this.sessions.has(sessionId));
 
-    const sessionId = toPositiveInteger(nextSession?.id);
-    if (sessionId < 1) {
+    if (typeof nextSessionId !== "number") {
       return;
     }
 
-    this.startSessionLoop(sessionId);
+    this.startSessionLoop(nextSessionId);
   }
 
   private resolveLoopDelayMs(): number {
@@ -584,6 +578,7 @@ export class OpenClawAgentRuntime {
         });
 
         state.subscription = subscription;
+        state.session = subscription.session;
         try {
           await subscription.ready;
         } catch (error) {
@@ -632,7 +627,9 @@ export class OpenClawAgentRuntime {
         state.closeReason = state.closeReason ?? "session_loop_error";
         await this.emitError(normalizeError(error));
       } finally {
-        const shouldCloseRemote = !this.stopRequested && this.options.selfHealCloseRemote;
+        const hasOwnedSessionHandle = state.subscription !== null || state.session !== null;
+        const shouldCloseRemote =
+          !this.stopRequested && this.options.selfHealCloseRemote && hasOwnedSessionHandle;
         await this.closeSession(
           state,
           state.closeReason ?? "session_loop_ended",
