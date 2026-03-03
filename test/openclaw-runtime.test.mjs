@@ -136,6 +136,37 @@ test("signal cursor does not skip non-agent signals after agent websocket ids", 
   });
 });
 
+test("session acquisition prioritizes browser-requested sessions over host/system sessions", async () => {
+  await withFixture(async ({ dir, sessionsPath }) => {
+    let selectedSessionId = null;
+    const runtime = createRuntime(sessionsPath, dir, {
+      client: {
+        operations: {
+          listAgentRealtimeRequestedSessions: async () => ({
+            error: null,
+            status: 200,
+            data: {
+              data: [
+                { id: 44, requested_by_user_id: null },
+                { id: 45, requested_by_user_id: 101 },
+                { id: 46, requested_by_user_id: 202 }
+              ]
+            }
+          })
+        }
+      }
+    });
+
+    runtime.startSessionLoop = (sessionId) => {
+      selectedSessionId = sessionId;
+    };
+
+    await runtime.acquirePersistentSession();
+
+    assert.equal(selectedSessionId, 46);
+  });
+});
+
 test("parses top-level keyed session map", async () => {
   await withFixture(async ({ dir, sessionsPath }) => {
     const sessionKey = "agent:main:agentmc:114";

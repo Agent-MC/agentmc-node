@@ -173,11 +173,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * Read realtime events for a realtime session (host or agent context).
-         * @description Accepts host API key context by session ownership. X-Agent-Id remains optional for explicit single-agent routing.
-         */
-        get: operations["listAgentRealtimeSignals"];
+        get?: never;
         put?: never;
         /**
          * Publish one realtime event to a realtime session (host or agent context).
@@ -5448,87 +5444,6 @@ export interface components {
             data: components["schemas"]["AgentRealtimeSession"];
         };
         /**
-         * @description Agent Realtime Signals Response response schema.
-         * @example {
-         *       "data": [
-         *         {
-         *           "id": 42,
-         *           "team_id": 42,
-         *           "agent_id": 42,
-         *           "session_id": 42,
-         *           "sender": "agent",
-         *           "type": "example",
-         *           "payload": {
-         *             "key": "value"
-         *           },
-         *           "created_at": "2026-02-22T17:21:00Z",
-         *           "updated_at": "2026-02-22T17:21:00Z"
-         *         }
-         *       ],
-         *       "session": {
-         *         "id": 42,
-         *         "team_id": 42,
-         *         "agent_id": 42,
-         *         "requested_by_user_id": 42,
-         *         "status": "requested",
-         *         "claimed_at": "2026-02-22T17:21:00Z",
-         *         "opened_at": "2026-02-22T17:21:00Z",
-         *         "closed_at": "2026-02-22T17:21:00Z",
-         *         "expires_at": "2026-02-22T17:21:00Z",
-         *         "last_browser_heartbeat_at": "2026-02-22T17:21:00Z",
-         *         "last_agent_heartbeat_at": "2026-02-22T17:21:00Z",
-         *         "meta": {
-         *           "key": "value"
-         *         },
-         *         "created_at": "2026-02-22T17:21:00Z",
-         *         "updated_at": "2026-02-22T17:21:00Z"
-         *       }
-         *     }
-         */
-        AgentRealtimeSignalsResponse: {
-            /**
-             * @description Data.
-             * @example [
-             *       {
-             *         "id": 42,
-             *         "team_id": 42,
-             *         "agent_id": 42,
-             *         "session_id": 42,
-             *         "sender": "agent",
-             *         "type": "example",
-             *         "payload": {
-             *           "key": "value"
-             *         },
-             *         "created_at": "2026-02-22T17:21:00Z",
-             *         "updated_at": "2026-02-22T17:21:00Z"
-             *       }
-             *     ]
-             */
-            data: components["schemas"]["AgentRealtimeSignal"][];
-            /**
-             * @description Session.
-             * @example {
-             *       "id": 42,
-             *       "team_id": 42,
-             *       "agent_id": 42,
-             *       "requested_by_user_id": 42,
-             *       "status": "requested",
-             *       "claimed_at": "2026-02-22T17:21:00Z",
-             *       "opened_at": "2026-02-22T17:21:00Z",
-             *       "closed_at": "2026-02-22T17:21:00Z",
-             *       "expires_at": "2026-02-22T17:21:00Z",
-             *       "last_browser_heartbeat_at": "2026-02-22T17:21:00Z",
-             *       "last_agent_heartbeat_at": "2026-02-22T17:21:00Z",
-             *       "meta": {
-             *         "key": "value"
-             *       },
-             *       "created_at": "2026-02-22T17:21:00Z",
-             *       "updated_at": "2026-02-22T17:21:00Z"
-             *     }
-             */
-            session: components["schemas"]["AgentRealtimeSession"];
-        };
-        /**
          * @description Agent Realtime Signal Response response schema.
          * @example {
          *       "data": {
@@ -7256,7 +7171,7 @@ export interface components {
          *           "🦞 OpenClaw 2026.2.26 (bc50708)",
          *           "openai/gpt-5-codex"
          *         ],
-         *         "node_version": "v22.14.0",
+         *         "node_version": "v25.7.0",
          *         "agentmc_node_package_version": "0.14.2",
          *         "runtime_mode": "openclaw",
          *         "tool_availability": {
@@ -7348,7 +7263,7 @@ export interface components {
              *       "usage_window_time_left": "3h 4m",
              *       "usage_day_percent_left": 24,
              *       "usage_day_time_left": "3d 16h",
-             *       "node_version": "v22.14.0",
+             *       "node_version": "v25.7.0",
              *       "agentmc_node_package_version": "0.14.2",
              *       "session": "agent:main:main",
              *       "queue": "collect",
@@ -7531,7 +7446,7 @@ export interface components {
                 usage_day_time_left?: string;
                 /**
                  * @description Node version.
-                 * @example v22.14.0
+                 * @example v25.7.0
                  */
                 node_version?: string;
                 /**
@@ -9245,52 +9160,6 @@ export interface components {
                 "application/json": components["schemas"]["AgentRealtimeSessionResponse"];
             };
         };
-        /** @description Realtime signals returned. */
-        AgentRealtimeSignalsResponse: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                /**
-                 * @example {
-                 *       "data": [
-                 *         {
-                 *           "id": 42,
-                 *           "team_id": 42,
-                 *           "agent_id": 42,
-                 *           "session_id": 42,
-                 *           "sender": "agent",
-                 *           "type": "example",
-                 *           "payload": {
-                 *             "key": "value"
-                 *           },
-                 *           "created_at": "2026-02-22T17:21:00Z",
-                 *           "updated_at": "2026-02-22T17:21:00Z"
-                 *         }
-                 *       ],
-                 *       "session": {
-                 *         "id": 42,
-                 *         "team_id": 42,
-                 *         "agent_id": 42,
-                 *         "requested_by_user_id": 42,
-                 *         "status": "requested",
-                 *         "claimed_at": "2026-02-22T17:21:00Z",
-                 *         "opened_at": "2026-02-22T17:21:00Z",
-                 *         "closed_at": "2026-02-22T17:21:00Z",
-                 *         "expires_at": "2026-02-22T17:21:00Z",
-                 *         "last_browser_heartbeat_at": "2026-02-22T17:21:00Z",
-                 *         "last_agent_heartbeat_at": "2026-02-22T17:21:00Z",
-                 *         "meta": {
-                 *           "key": "value"
-                 *         },
-                 *         "created_at": "2026-02-22T17:21:00Z",
-                 *         "updated_at": "2026-02-22T17:21:00Z"
-                 *       }
-                 *     }
-                 */
-                "application/json": components["schemas"]["AgentRealtimeSignalsResponse"];
-            };
-        };
         /** @description Realtime signal accepted. */
         AgentRealtimeSignalResponse: {
             headers: {
@@ -9828,7 +9697,7 @@ export interface components {
                  *           "🦞 OpenClaw 2026.2.26 (bc50708)",
                  *           "openai/gpt-5-codex"
                  *         ],
-                 *         "node_version": "v22.14.0",
+                 *         "node_version": "v25.7.0",
                  *         "agentmc_node_package_version": "0.14.2",
                  *         "runtime_mode": "openclaw",
                  *         "tool_availability": {
@@ -11026,89 +10895,6 @@ export interface operations {
             403: components["responses"]["ApiError403"];
             404: components["responses"]["ApiError404"];
             409: components["responses"]["ApiError409"];
-        };
-    };
-    listAgentRealtimeSignals: {
-        parameters: {
-            query?: {
-                /**
-                 * @description Return only records with id greater than this value.
-                 * @example 120
-                 */
-                after_id?: number | null;
-                /**
-                 * @description Maximum number of records to return.
-                 * @example 20
-                 */
-                limit?: number | null;
-                /**
-                 * @description Allowed values: agent, browser, system.
-                 * @example agent
-                 */
-                exclude_sender?: "agent" | "browser" | "system" | null;
-            };
-            header?: never;
-            path: {
-                /**
-                 * @description Realtime session identifier.
-                 * @example 1
-                 */
-                session: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Realtime signaling events returned. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    /**
-                     * @example {
-                     *       "data": [
-                     *         {
-                     *           "id": 42,
-                     *           "team_id": 42,
-                     *           "agent_id": 42,
-                     *           "session_id": 42,
-                     *           "sender": "agent",
-                     *           "type": "example",
-                     *           "payload": {
-                     *             "key": "value"
-                     *           },
-                     *           "created_at": "2026-02-22T17:21:00Z",
-                     *           "updated_at": "2026-02-22T17:21:00Z"
-                     *         }
-                     *       ],
-                     *       "session": {
-                     *         "id": 42,
-                     *         "team_id": 42,
-                     *         "agent_id": 42,
-                     *         "requested_by_user_id": 42,
-                     *         "status": "requested",
-                     *         "claimed_at": "2026-02-22T17:21:00Z",
-                     *         "opened_at": "2026-02-22T17:21:00Z",
-                     *         "closed_at": "2026-02-22T17:21:00Z",
-                     *         "expires_at": "2026-02-22T17:21:00Z",
-                     *         "last_browser_heartbeat_at": "2026-02-22T17:21:00Z",
-                     *         "last_agent_heartbeat_at": "2026-02-22T17:21:00Z",
-                     *         "meta": {
-                     *           "key": "value"
-                     *         },
-                     *         "created_at": "2026-02-22T17:21:00Z",
-                     *         "updated_at": "2026-02-22T17:21:00Z"
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["AgentRealtimeSignalsResponse"];
-                };
-            };
-            401: components["responses"]["ApiError401"];
-            403: components["responses"]["ApiError403"];
-            404: components["responses"]["ApiError404"];
-            422: components["responses"]["ApiError422"];
         };
     };
     createAgentRealtimeSignal: {

@@ -34,7 +34,7 @@ Accepts heartbeat payloads with required host telemetry and required runtime age
       "🦞 OpenClaw 2026.2.26 (bc50708)",
       "openai/gpt-5-codex"
     ],
-    "node_version": "v22.14.0",
+    "node_version": "v25.7.0",
     "agentmc_node_package_version": "0.14.2",
     "runtime_mode": "openclaw",
     "tool_availability": {
@@ -231,7 +231,7 @@ const result = await client.operations.agentHeartbeat({
         "🦞 OpenClaw 2026.2.26 (bc50708)",
         "openai/gpt-5-codex"
       ],
-      "node_version": "v22.14.0",
+      "node_version": "v25.7.0",
       "agentmc_node_package_version": "0.14.2",
       "runtime_mode": "openclaw",
       "tool_availability": {

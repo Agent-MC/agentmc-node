@@ -687,7 +687,14 @@ async function resolveAndClaimSession(
     }
 
     const sessions = requestedResult.data?.data ?? [];
-    const selected = sessions[0];
+    const orderedSessions = [...sessions].sort(
+      (left, right) => (valueAsPositiveInteger(right?.id) ?? 0) - (valueAsPositiveInteger(left?.id) ?? 0)
+    );
+    const preferredSessions = orderedSessions.filter((session) => (valueAsPositiveInteger(session?.requested_by_user_id) ?? 0) >= 1);
+    const fallbackSessions = orderedSessions.filter((session) => (valueAsPositiveInteger(session?.requested_by_user_id) ?? 0) < 1);
+    const selected = [...preferredSessions, ...fallbackSessions].find(
+      (candidate) => (valueAsPositiveInteger(candidate?.id) ?? 0) > 0
+    );
 
     if (!selected) {
       throw new Error(`No requested realtime sessions are available for agent ${options.agent}.`);

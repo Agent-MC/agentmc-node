@@ -32,7 +32,6 @@ Generated from `spec/openapi.filtered.json`.
 | [getAgentInstructions](./getAgentInstructions.md) | GET | `/agents/instructions` | Agents |
 | [listAgentBriefs](./listAgentBriefs.md) | GET | `/briefs` | Briefs |
 | [listAgentRealtimeRequestedSessions](./listAgentRealtimeRequestedSessions.md) | GET | `/hosts/realtime/sessions/requested` | Hosts |
-| [listAgentRealtimeSignals](./listAgentRealtimeSignals.md) | GET | `/hosts/realtime/sessions/{session}/signals` | Hosts |
 | [listAgents](./listAgents.md) | GET | `/teams/agents` | Teams |
 | [listBoards](./listBoards.md) | GET | `/boards` | Boards |
 | [listCalendar](./listCalendar.md) | GET | `/calendar` | Calendar |
