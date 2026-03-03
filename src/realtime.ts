@@ -1680,12 +1680,22 @@ function createOperationError(operationId: string, status: number, _errorPayload
 
 function normalizeError(value: unknown, fallbackMessage = "Unexpected realtime error."): Error {
   if (value instanceof Error) {
-    return value;
+    const message = formatErrorMessage(value, fallbackMessage);
+    return new Error(message);
   }
 
   const objectValue = valueAsObject(value);
-  const message = valueAsString(objectValue?.message) ?? fallbackMessage;
-  return new Error(message);
+  const root = valueAsObject(objectValue?.error) ?? objectValue;
+  const data = valueAsObject(root?.data);
+  const message =
+    valueAsString(root?.message) ??
+    valueAsString(data?.message) ??
+    fallbackMessage;
+  const details = extractErrorDetails(root, data);
+
+  return details.length > 0
+    ? new Error(`${message} (${details.join(", ")})`)
+    : new Error(message);
 }
 
 function valueAsObject(value: unknown): JsonObject | null {
@@ -1698,6 +1708,57 @@ function valueAsObject(value: unknown): JsonObject | null {
 
 function valueAsString(value: unknown): string | null {
   return typeof value === "string" ? value : null;
+}
+
+function formatErrorMessage(error: Error, fallback: string): string {
+  const baseMessage = valueAsString(error.message)?.trim() || fallback;
+  const causeObject = valueAsObject((error as Error & { cause?: unknown }).cause);
+  if (!causeObject) {
+    return baseMessage;
+  }
+
+  const details = extractErrorDetails(causeObject, valueAsObject(causeObject.cause));
+  if (details.length === 0) {
+    return baseMessage;
+  }
+
+  return `${baseMessage} (${details.join(", ")})`;
+}
+
+function extractErrorDetails(...sources: Array<JsonObject | null>): string[] {
+  const details = new Set<string>();
+  for (const source of sources) {
+    if (!source) {
+      continue;
+    }
+
+    const code = valueAsString(source.code)?.trim();
+    if (code) {
+      details.add(`code=${code}`);
+    }
+
+    const errno = valueAsString(source.errno)?.trim();
+    if (errno) {
+      details.add(`errno=${errno}`);
+    }
+
+    const syscall = valueAsString(source.syscall)?.trim();
+    if (syscall) {
+      details.add(`syscall=${syscall}`);
+    }
+
+    const address = valueAsString(source.address)?.trim();
+    if (address) {
+      details.add(`address=${address}`);
+    }
+
+    const message = valueAsString(source.message)?.trim();
+    if (message) {
+      details.add(`cause=${message}`);
+    }
+  }
+
+  return Array.from(details);
 }
 
 function valueAsPositiveInteger(value: unknown): number | null {

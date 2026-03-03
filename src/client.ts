@@ -33,6 +33,30 @@ const METHOD_TO_CLIENT_CALL: Record<HttpMethod, OpenApiFetchMethod> = {
   delete: "DELETE"
 };
 
+const NETWORK_RETRYABLE_OPERATION_IDS = new Set<OperationId>([
+  "agentHeartbeat",
+  "listAgentRealtimeRequestedSessions",
+  "claimAgentRealtimeSession",
+  "authenticateAgentRealtimeSocket",
+  "listAgentRealtimeSignals",
+  "closeAgentRealtimeSession"
+]);
+const NETWORK_RETRY_MAX_ATTEMPTS = 3;
+const NETWORK_RETRY_BASE_DELAY_MS = 350;
+const NETWORK_RETRY_MAX_DELAY_MS = 2_000;
+const RETRYABLE_NETWORK_ERROR_CODES = new Set([
+  "EAI_AGAIN",
+  "ENOTFOUND",
+  "ECONNRESET",
+  "ECONNREFUSED",
+  "ETIMEDOUT",
+  "EHOSTUNREACH",
+  "ENETUNREACH",
+  "UND_ERR_CONNECT_TIMEOUT",
+  "UND_ERR_SOCKET",
+  "UND_ERR_HEADERS_TIMEOUT"
+]);
+
 export class AgentMCApi {
   private readonly auth: AgentMCApiAuthConfig;
   private readonly baseUrl: string;
@@ -140,12 +164,46 @@ export class AgentMCApi {
       options: never
     ) => Promise<{ data?: unknown; error?: unknown; response: Response }>;
 
-    const response = await request(operation.path as never, requestOptions as never);
+    const response = await this.requestWithNetworkRetry(
+      operation.operationId,
+      request,
+      operation.path as never,
+      requestOptions as never
+    );
 
     return {
       ...response,
       status: response.response.status
     } as ResultById<Id>;
+  }
+
+  private async requestWithNetworkRetry(
+    operationId: OperationId,
+    request: (path: never, options: never) => Promise<{ data?: unknown; error?: unknown; response: Response }>,
+    path: never,
+    requestOptions: never
+  ): Promise<{ data?: unknown; error?: unknown; response: Response }> {
+    const retriesEnabled = NETWORK_RETRYABLE_OPERATION_IDS.has(operationId);
+    const maxAttempts = retriesEnabled ? NETWORK_RETRY_MAX_ATTEMPTS : 1;
+
+    let attempt = 0;
+    let lastError: unknown = null;
+    while (attempt < maxAttempts) {
+      attempt += 1;
+      try {
+        return await request(path, requestOptions);
+      } catch (error) {
+        lastError = error;
+        const retryableError = isRetryableNetworkError(error);
+        if (!retryableError || attempt >= maxAttempts) {
+          throw normalizeNetworkError(error, operationId, attempt, maxAttempts);
+        }
+
+        await sleep(Math.min(NETWORK_RETRY_MAX_DELAY_MS, NETWORK_RETRY_BASE_DELAY_MS * 2 ** (attempt - 1)));
+      }
+    }
+
+    throw normalizeNetworkError(lastError, operationId, maxAttempts, maxAttempts);
   }
 
   private validateRequiredInputs(
@@ -273,4 +331,100 @@ function deriveOpenApiUrl(baseUrl: string): string {
     }
     return `${normalized}/api/openapi.json`;
   }
+}
+
+async function sleep(ms: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function normalizeNetworkError(error: unknown, operationId: OperationId, attempt: number, maxAttempts: number): Error {
+  const fallback = `Network request failed for ${operationId}.`;
+  const baseError = error instanceof Error ? error : new Error(String(error ?? fallback));
+
+  const details = extractNetworkFailureDetails(baseError);
+  const parts = [baseError.message || fallback];
+  if (details.length > 0) {
+    parts.push(details.join("; "));
+  }
+  if (maxAttempts > 1) {
+    parts.push(`attempt=${attempt}/${maxAttempts}`);
+  }
+
+  return new Error(parts.join(" | "));
+}
+
+function isRetryableNetworkError(error: unknown): boolean {
+  const resolvedError = error instanceof Error ? error : new Error(String(error ?? ""));
+  const message = (resolvedError.message || "").toLowerCase();
+  if (message.includes("fetch failed") || message.includes("network")) {
+    return true;
+  }
+
+  const details = extractNetworkFailureDetails(resolvedError);
+  return details.some((value) => {
+    const normalized = value.toUpperCase();
+    for (const code of RETRYABLE_NETWORK_ERROR_CODES) {
+      if (normalized.includes(code)) {
+        return true;
+      }
+    }
+    return false;
+  });
+}
+
+function extractNetworkFailureDetails(error: Error): string[] {
+  const details = new Set<string>();
+
+  const root = error as Error & {
+    code?: unknown;
+    errno?: unknown;
+    syscall?: unknown;
+    address?: unknown;
+    cause?: unknown;
+  };
+  addErrorShapeDetails(details, root as unknown as Record<string, unknown>);
+
+  const cause = root.cause;
+  if (cause && typeof cause === "object") {
+    addErrorShapeDetails(details, cause as Record<string, unknown>);
+  }
+
+  return Array.from(details);
+}
+
+function addErrorShapeDetails(details: Set<string>, value: Record<string, unknown>): void {
+  const code = valueAsString(value.code);
+  if (code) {
+    details.add(`code=${code}`);
+  }
+
+  const errno = valueAsString(value.errno);
+  if (errno) {
+    details.add(`errno=${errno}`);
+  }
+
+  const syscall = valueAsString(value.syscall);
+  if (syscall) {
+    details.add(`syscall=${syscall}`);
+  }
+
+  const address = valueAsString(value.address);
+  if (address) {
+    details.add(`address=${address}`);
+  }
+
+  const causeMessage = valueAsString(value.message);
+  if (causeMessage && causeMessage.trim() !== "") {
+    details.add(`cause=${causeMessage.trim()}`);
+  }
+}
+
+function valueAsString(value: unknown): string | null {
+  if (typeof value === "string" && value.trim() !== "") {
+    return value.trim();
+  }
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value);
+  }
+  return null;
 }

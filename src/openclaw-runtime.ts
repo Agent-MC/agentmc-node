@@ -3510,12 +3510,72 @@ function toCompactJson(value: unknown): string {
 
 function normalizeError(value: unknown, fallbackMessage = "Unexpected OpenClaw runtime error."): Error {
   if (value instanceof Error) {
-    return value;
+    return new Error(formatErrorMessage(value, fallbackMessage));
   }
 
   const objectValue = valueAsObject(value);
-  const message = valueAsString(objectValue?.message) ?? fallbackMessage;
-  return new Error(message);
+  const root = valueAsObject(objectValue?.error) ?? objectValue;
+  const data = valueAsObject(root?.data);
+  const message =
+    valueAsString(root?.message) ??
+    valueAsString(data?.message) ??
+    fallbackMessage;
+  const details = extractErrorDetails(root, data);
+
+  return details.length > 0
+    ? new Error(`${message} (${details.join(", ")})`)
+    : new Error(message);
+}
+
+function formatErrorMessage(error: Error, fallback: string): string {
+  const baseMessage = valueAsString(error.message)?.trim() || fallback;
+  const causeObject = valueAsObject((error as Error & { cause?: unknown }).cause);
+  if (!causeObject) {
+    return baseMessage;
+  }
+
+  const details = extractErrorDetails(causeObject, valueAsObject(causeObject.cause));
+  if (details.length === 0) {
+    return baseMessage;
+  }
+
+  return `${baseMessage} (${details.join(", ")})`;
+}
+
+function extractErrorDetails(...sources: Array<Record<string, unknown> | null>): string[] {
+  const details = new Set<string>();
+  for (const source of sources) {
+    if (!source) {
+      continue;
+    }
+
+    const code = valueAsString(source.code)?.trim();
+    if (code) {
+      details.add(`code=${code}`);
+    }
+
+    const errno = valueAsString(source.errno)?.trim();
+    if (errno) {
+      details.add(`errno=${errno}`);
+    }
+
+    const syscall = valueAsString(source.syscall)?.trim();
+    if (syscall) {
+      details.add(`syscall=${syscall}`);
+    }
+
+    const address = valueAsString(source.address)?.trim();
+    if (address) {
+      details.add(`address=${address}`);
+    }
+
+    const message = valueAsString(source.message)?.trim();
+    if (message) {
+      details.add(`cause=${message}`);
+    }
+  }
+
+  return Array.from(details);
 }
 
 function normalizeProfileUpdateExecError(

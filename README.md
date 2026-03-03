@@ -212,6 +212,7 @@ Required env:
     -   `AGENTMC_API_KEY=<host-key>`
 -   Runtime workspace: current working directory (`process.cwd()`)
 -   Optional API base URL override: `AGENTMC_BASE_URL` (defaults to `https://agentmc.ai/api/v1`)
+-   Optional DNS resolution order for runtime networking: `AGENTMC_DNS_RESULT_ORDER` (`ipv4first` default, or `verbatim`)
 -   Optional runtime supervisor status file path: `AGENTMC_RUNTIME_STATUS_PATH` (default `.agentmc/runtime-status.json` in current working directory)
 -   Agent routing: runtime auto-detects OpenClaw agents from `~/.openclaw/openclaw.json` and heartbeat auto-provisions AgentMC agents per host.
 -   Runtime provider inputs:

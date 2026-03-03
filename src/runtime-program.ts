@@ -3681,8 +3681,70 @@ function summarizeApiError(error: unknown): string | null {
 
 function normalizeError(error: unknown): Error {
   if (error instanceof Error) {
-    return error;
+    return new Error(formatErrorMessage(error));
   }
 
-  return new Error(String(error));
+  const objectValue = valueAsObject(error);
+  const root = valueAsObject(objectValue?.error) ?? objectValue;
+  const data = valueAsObject(root?.data);
+  const baseMessage =
+    nonEmpty(root?.message) ??
+    nonEmpty(data?.message) ??
+    String(error);
+  const details = extractErrorDetails(root, data);
+
+  return details.length > 0
+    ? new Error(`${baseMessage} (${details.join(", ")})`)
+    : new Error(baseMessage);
+}
+
+function formatErrorMessage(error: Error): string {
+  const baseMessage = nonEmpty(error.message) ?? "Unexpected runtime error.";
+  const causeObject = valueAsObject((error as Error & { cause?: unknown }).cause);
+  if (!causeObject) {
+    return baseMessage;
+  }
+
+  const details = extractErrorDetails(causeObject, valueAsObject(causeObject.cause));
+  if (details.length === 0) {
+    return baseMessage;
+  }
+
+  return `${baseMessage} (${details.join(", ")})`;
+}
+
+function extractErrorDetails(...sources: Array<JsonObject | null>): string[] {
+  const details = new Set<string>();
+  for (const source of sources) {
+    if (!source) {
+      continue;
+    }
+
+    const code = nonEmpty(source.code);
+    if (code) {
+      details.add(`code=${code}`);
+    }
+
+    const errno = nonEmpty(source.errno);
+    if (errno) {
+      details.add(`errno=${errno}`);
+    }
+
+    const syscall = nonEmpty(source.syscall);
+    if (syscall) {
+      details.add(`syscall=${syscall}`);
+    }
+
+    const address = nonEmpty(source.address);
+    if (address) {
+      details.add(`address=${address}`);
+    }
+
+    const message = nonEmpty(source.message);
+    if (message) {
+      details.add(`cause=${message}`);
+    }
+  }
+
+  return Array.from(details);
 }

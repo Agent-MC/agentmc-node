@@ -1,6 +1,7 @@
 import { Command } from "commander";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
+import { setDefaultResultOrder } from "node:dns";
 import { existsSync, readFileSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { arch, cpus, hostname, networkInterfaces, platform, release, totalmem, uptime } from "node:os";
@@ -178,6 +179,7 @@ const DEFAULT_RUNTIME_SERVICE_NAME = "agentmc-host";
 const DEFAULT_RUNTIME_STATUS_STALE_THRESHOLD_SECONDS = 120;
 const DEFAULT_RUNTIME_ERROR_LOOKBACK_MINUTES = 30;
 const DEFAULT_RUNTIME_ERROR_LIMIT = 20;
+const DEFAULT_RUNTIME_DNS_RESULT_ORDER = "ipv4first";
 const OPENCLAW_MODELS_STATUS_COMMAND: readonly string[] = ["models", "--status-json"];
 const OPENCLAW_MODELS_STATUS_FALLBACK_COMMAND: readonly string[] = ["models", "status", "--json"];
 const OPENCLAW_MODEL_PLACEHOLDER_TOKENS = new Set([
@@ -983,6 +985,8 @@ async function runMultiAgentRuntimeFromEnv(env: NodeJS.ProcessEnv): Promise<bool
     return false;
   }
 
+  configureRuntimeDnsResolution(env);
+
   const workerRestartDelayMs = toPositiveInt(env.AGENTMC_WORKER_RESTART_DELAY_MS) ?? DEFAULT_WORKER_RESTART_DELAY_MS;
   const workerRestartMaxDelayMs = Math.max(
     workerRestartDelayMs,
@@ -1266,6 +1270,24 @@ async function runMultiAgentRuntimeFromEnv(env: NodeJS.ProcessEnv): Promise<bool
     });
     process.off("SIGINT", handleSignal);
     process.off("SIGTERM", handleSignal);
+  }
+}
+
+function configureRuntimeDnsResolution(env: NodeJS.ProcessEnv): void {
+  const configured = nonEmpty(env.AGENTMC_DNS_RESULT_ORDER)?.toLowerCase() ?? DEFAULT_RUNTIME_DNS_RESULT_ORDER;
+  if (configured !== "ipv4first" && configured !== "verbatim") {
+    process.stderr.write(
+      `[agentmc-runtime] ignoring unsupported AGENTMC_DNS_RESULT_ORDER=${configured}; expected "ipv4first" or "verbatim".\n`
+    );
+    return;
+  }
+
+  try {
+    setDefaultResultOrder(configured);
+    process.stderr.write(`[agentmc-runtime] dns result order set to ${configured}\n`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    process.stderr.write(`[agentmc-runtime] failed to apply DNS result order ${configured}: ${message}\n`);
   }
 }
 
