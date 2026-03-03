@@ -1297,6 +1297,13 @@ async function runHostRealtimeSessionRoutingLoop(input: {
         const rightId = toPositiveInt(valueAsObject(right)?.id) ?? 0;
         return rightId - leftId;
       });
+      const routedSessionIds = new Set<number>();
+      const workerByAgentId = new Map<number, RuntimeWorkerConfig>();
+      for (const worker of input.workers) {
+        if (worker.agentId !== null) {
+          workerByAgentId.set(worker.agentId, worker);
+        }
+      }
 
       for (const session of orderedSessions) {
         const sessionObject = valueAsObject(session);
@@ -1306,11 +1313,16 @@ async function runHostRealtimeSessionRoutingLoop(input: {
 
         const sessionId = toPositiveInt(sessionObject.id);
         const agentId = toPositiveInt(sessionObject.agent_id);
-        if (sessionId === null || agentId === null) {
+        const status = nonEmpty(sessionObject.status)?.toLowerCase();
+        if (sessionId === null || agentId === null || status !== "requested") {
           continue;
         }
+        if (routedSessionIds.has(sessionId)) {
+          continue;
+        }
+        routedSessionIds.add(sessionId);
 
-        const worker = input.workers.find((candidate) => candidate.agentId === agentId);
+        const worker = workerByAgentId.get(agentId);
         if (!worker) {
           continue;
         }

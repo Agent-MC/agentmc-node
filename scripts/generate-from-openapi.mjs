@@ -883,6 +883,17 @@ function generateExampleSource(operation) {
   return `${buildSdkExample(operation)}\n`;
 }
 
+function stripUnusedSchemaAliases(filePath) {
+  const source = readFileSync(filePath, "utf8");
+  const normalized = source
+    .replace(/^export type webhooks = Record<string, never>;\n/m, "")
+    .replace(/^export type \$defs = Record<string, never>;\n/m, "");
+
+  if (normalized !== source) {
+    writeFileSync(filePath, normalized);
+  }
+}
+
 function main() {
   ensureDirectories();
 
@@ -937,6 +948,7 @@ function main() {
     cwd: projectRoot,
     stdio: "inherit"
   });
+  stripUnusedSchemaAliases(schemaTypesPath);
 
   console.log(`Generated ${operations.length} operations (removed ${removedCount} excluded operations).`);
 }

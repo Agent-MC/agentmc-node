@@ -170,7 +170,6 @@ export class AgentRuntimeProgram {
   private stopRequested = false;
   private loopPromise: Promise<void> | null = null;
   private realtimeRuntime: AgentRuntime | null = null;
-  private readonly pendingExternalRealtimeSessions = new Set<number>();
 
   private state: RuntimeState = {};
   private runtimeProvider: RuntimeProviderDescriptor | null = null;
@@ -306,7 +305,6 @@ export class AgentRuntimeProgram {
 
   async stop(): Promise<void> {
     this.stopRequested = true;
-    this.pendingExternalRealtimeSessions.clear();
 
     if (this.realtimeRuntime) {
       try {
@@ -331,13 +329,10 @@ export class AgentRuntimeProgram {
       attachSession?: (id: number) => boolean;
     };
     if (!runtime || typeof runtime.attachSession !== "function") {
-      this.pendingExternalRealtimeSessions.add(resolvedSessionId);
       return false;
     }
 
-    const attached = runtime.attachSession(resolvedSessionId);
-    this.pendingExternalRealtimeSessions.delete(resolvedSessionId);
-    return attached;
+    return runtime.attachSession(resolvedSessionId);
   }
 
   private async runLoop(): Promise<void> {
@@ -1043,14 +1038,6 @@ export class AgentRuntimeProgram {
 
     this.realtimeRuntime = runtime;
     await runtime.start();
-
-    if (this.pendingExternalRealtimeSessions.size > 0) {
-      const pendingSessionIds = Array.from(this.pendingExternalRealtimeSessions.values());
-      for (const pendingSessionId of pendingSessionIds) {
-        runtime.attachSession(pendingSessionId);
-        this.pendingExternalRealtimeSessions.delete(pendingSessionId);
-      }
-    }
 
     this.emitInfo("Realtime runtime started", {
       provider: provider.kind,

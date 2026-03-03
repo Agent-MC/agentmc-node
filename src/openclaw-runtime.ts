@@ -3177,27 +3177,6 @@ function firstPositiveInteger(...values: unknown[]): number {
   return 0;
 }
 
-function normalizeSignal(rawSignal: unknown, fallbackSessionId: number): AgentRealtimeSignalMessage | null {
-  const parsed = valueAsObject(rawSignal);
-  if (!parsed) {
-    return null;
-  }
-
-  const id = toPositiveInteger(parsed.id);
-  if (id < 1) {
-    return null;
-  }
-
-  return {
-    id,
-    session_id: toPositiveInteger(parsed.session_id) || fallbackSessionId,
-    sender: valueAsString(parsed.sender) ?? "system",
-    type: valueAsString(parsed.type) ?? "message",
-    payload: valueAsObject(parsed.payload) ?? {},
-    created_at: valueAsString(parsed.created_at) ?? null
-  };
-}
-
 function toPositiveInteger(value: unknown): number {
   if (typeof value === "number" && Number.isInteger(value) && value > 0) {
     return value;

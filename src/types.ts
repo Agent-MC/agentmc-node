@@ -1,9 +1,9 @@
 import type { operations, OperationId } from "./generated/operations";
 import type { paths } from "./generated/schema";
 
-export type KnownPath = keyof paths & string;
-export type HttpMethod = "get" | "post" | "put" | "patch" | "delete";
-export type KnownMethod<P extends KnownPath> = Extract<keyof paths[P], HttpMethod>;
+type KnownPath = keyof paths & string;
+type HttpMethod = "get" | "post" | "put" | "patch" | "delete";
+type KnownMethod<P extends KnownPath> = Extract<keyof paths[P], HttpMethod>;
 
 export interface AgentMCApiAuthConfig {
   apiKey?: string;
@@ -79,7 +79,7 @@ export type OperationResult<P extends KnownPath, M extends KnownMethod<P>> = {
 
 type AllOperations = (typeof operations)[number];
 
-export type OperationById<Id extends OperationId> = Extract<AllOperations, { operationId: Id }>;
+type OperationById<Id extends OperationId> = Extract<AllOperations, { operationId: Id }>;
 
 export type OperationPathById<Id extends OperationId> = OperationById<Id>["path"] & KnownPath;
 
