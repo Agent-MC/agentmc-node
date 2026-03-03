@@ -609,7 +609,13 @@ export class OpenClawAgentRuntime {
             )
           );
           state.closeReason = "session_websocket_startup_failed";
-          await this.closeSession(state, state.closeReason, false);
+          await this.closeSession(
+            state,
+            state.closeReason,
+            this.options.selfHealCloseRemote,
+            this.options.selfHealCloseRemote,
+            "failed"
+          );
           return;
         }
 
@@ -623,9 +629,17 @@ export class OpenClawAgentRuntime {
           await sleep(150);
         }
       } catch (error) {
+        state.closeReason = state.closeReason ?? "session_loop_error";
         await this.emitError(normalizeError(error));
       } finally {
-        await this.closeSession(state, state.closeReason ?? "session_loop_ended", false);
+        const shouldCloseRemote = !this.stopRequested && this.options.selfHealCloseRemote;
+        await this.closeSession(
+          state,
+          state.closeReason ?? "session_loop_ended",
+          shouldCloseRemote,
+          shouldCloseRemote,
+          shouldCloseRemote ? "failed" : undefined
+        );
       }
     })();
   }
