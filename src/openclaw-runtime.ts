@@ -1869,13 +1869,22 @@ export class OpenClawAgentRuntime {
       ...payload
     };
 
-    await this.options.client.publishRealtimeMessage({
-      agent: this.options.agent,
-      session: sessionId,
-      channelType,
-      requestId,
-      payload: payloadWithRequestId
-    });
+    try {
+      await this.options.client.publishRealtimeMessage({
+        agent: this.options.agent,
+        session: sessionId,
+        channelType,
+        requestId,
+        payload: payloadWithRequestId
+      });
+    } catch (error) {
+      const normalizedError = normalizeError(error);
+      if (shouldIgnorePublishRealtimeMessageError(normalizedError, this.stopRequested, this.sessions.has(sessionId))) {
+        return;
+      }
+
+      throw normalizedError;
+    }
   }
 
   private async readRuntimeDocs(): Promise<OpenClawRuntimeDocRecord[]> {
@@ -3451,6 +3460,37 @@ function createOperationError(operationId: string, status: number, _errorPayload
   const statusSuffix = resolvedStatus === null ? "unknown status" : `status ${resolvedStatus}`;
 
   return new Error(`${operationId} failed with ${statusSuffix}.`);
+}
+
+function operationErrorStatus(error: Error): number | null {
+  const match = /status\s+(\d{3})/i.exec(error.message);
+  if (!match?.[1]) {
+    return null;
+  }
+
+  const parsed = Number.parseInt(match[1], 10);
+  return Number.isInteger(parsed) ? parsed : null;
+}
+
+function shouldIgnorePublishRealtimeMessageError(
+  error: Error,
+  stopRequested: boolean,
+  sessionStillTracked: boolean
+): boolean {
+  const status = operationErrorStatus(error);
+  if (status !== 404 && status !== 409 && status !== 410 && status !== 422) {
+    return false;
+  }
+
+  const message = error.message.toLowerCase();
+  const isSignalPublishError =
+    message.includes("createagentrealtimesignal") || message.includes("publishrealtimemessage");
+
+  if (!isSignalPublishError) {
+    return false;
+  }
+
+  return stopRequested || !sessionStillTracked;
 }
 
 function toCompactJson(value: unknown): string {
