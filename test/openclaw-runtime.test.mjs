@@ -1255,6 +1255,12 @@ test("emits periodic chat.agent.delta updates while a chat run is still in progr
     assert.equal(deltaMessages.length >= 2, true);
     assert.equal(deltaMessages[0]?.payload?.delta, "Thinking...");
     assert.match(deltaMessages[1]?.payload?.delta ?? "", /Still working\.\.\./);
+    assert.equal(deltaMessages[0]?.payload?.delta_mode, "replace");
+    assert.equal(deltaMessages[1]?.payload?.delta_mode, "replace");
+    assert.equal(deltaMessages[0]?.payload?.delta_kind, "status");
+    assert.equal(deltaMessages[1]?.payload?.delta_kind, "status");
+    assert.equal(deltaMessages[0]?.payload?.delta_id, "agent-status-req-progress-1");
+    assert.equal(deltaMessages[1]?.payload?.delta_id, "agent-status-req-progress-1");
     assert.equal(deltaMessages[0]?.payload?.message_id, 71);
     assert.equal(deltaMessages[1]?.payload?.message_id, 71);
     assert.equal(clearedTimerId, 4242);

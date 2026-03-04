@@ -2218,6 +2218,8 @@ export class OpenClawAgentRuntime {
 
     const startedAtMs = Date.now();
     let stopped = false;
+    let sentInProgressUpdate = false;
+    const statusDeltaId = `agent-status-${requestId}`;
 
     const publishDelta = (delta: string): void => {
       if (stopped || state.closed || this.stopRequested) {
@@ -2226,6 +2228,9 @@ export class OpenClawAgentRuntime {
 
       void this.publishChannelMessage(state.sessionId, "chat.agent.delta", requestId, {
         delta,
+        delta_id: statusDeltaId,
+        delta_kind: "status",
+        delta_mode: "replace",
         ...(messageId > 0 ? { message_id: messageId } : {})
       }).catch(async (error) => {
         await this.emitError(normalizeError(error));
@@ -2240,7 +2245,14 @@ export class OpenClawAgentRuntime {
         return;
       }
 
+      if (sentInProgressUpdate) {
+        clearInterval(timer);
+        return;
+      }
+
+      sentInProgressUpdate = true;
       publishDelta(buildInProgressStatusDelta(Date.now() - startedAtMs));
+      clearInterval(timer);
     }, DEFAULT_CHAT_STATUS_DELTA_INTERVAL_MS);
     timer.unref?.();
 
