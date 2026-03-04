@@ -1183,6 +1183,7 @@ export class OpenClawAgentRuntime {
     });
 
     let runResult: OpenClawRunResult;
+    const stopActivityPulse = this.startSessionActivityPulse(state);
     try {
       runResult = await this.runAgentChat({
         sessionId: state.sessionId,
@@ -1198,6 +1199,9 @@ export class OpenClawAgentRuntime {
         content: fallbackAssistantContentForStatus("error")
       };
       await this.emitError(normalizeError(error));
+    } finally {
+      stopActivityPulse();
+      state.lastHealthActivityAtMs = Date.now();
     }
 
     const content = sanitizeAssistantOutputText(runResult.content);
@@ -2062,6 +2066,23 @@ export class OpenClawAgentRuntime {
     }
 
     return resolve(this.options.runtimeDocsDirectory, safeId);
+  }
+
+  private startSessionActivityPulse(state: Pick<SessionState, "closed" | "lastHealthActivityAtMs">): () => void {
+    state.lastHealthActivityAtMs = Date.now();
+
+    const timer = setInterval(() => {
+      if (state.closed || this.stopRequested) {
+        clearInterval(timer);
+        return;
+      }
+
+      state.lastHealthActivityAtMs = Date.now();
+    }, 5_000);
+
+    return () => {
+      clearInterval(timer);
+    };
   }
 
   private async maybeSelfHealSession(state: SessionState, nowMs: number): Promise<void> {
