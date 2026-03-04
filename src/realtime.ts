@@ -137,6 +137,44 @@ export interface AgentRealtimeNotificationsSubscription {
   disconnect(): Promise<void>;
 }
 
+export interface HostRealtimeSocketPayload {
+  connection?: {
+    key?: string | null;
+    host?: string | null;
+    scheme?: string | null;
+    port?: number | null;
+    path?: string | null;
+    cluster?: string | null;
+    [key: string]: unknown;
+  } | null;
+  channel?: string | null;
+  event?: string | null;
+  auth_endpoint?: string | null;
+  [key: string]: unknown;
+}
+
+export interface HostRealtimeSessionRequestedEvent {
+  sessionId: number | null;
+  agentId: number | null;
+  payload: JsonObject;
+}
+
+export interface HostRealtimeSessionRequestsOptions {
+  socket: HostRealtimeSocketPayload;
+  readyTimeoutMs?: number;
+  onReady?: () => MaybePromise;
+  onSessionRequested?: (event: HostRealtimeSessionRequestedEvent) => MaybePromise;
+  onConnectionStateChange?: (state: AgentRealtimeConnectionState) => MaybePromise;
+  onError?: (error: Error) => MaybePromise;
+}
+
+export interface HostRealtimeSessionRequestsSubscription {
+  readonly channel: string;
+  readonly event: string;
+  readonly ready: Promise<void>;
+  disconnect(): Promise<void>;
+}
+
 export interface AgentRealtimePublishMessageOptions {
   agent: number;
   session: number;
@@ -284,6 +322,85 @@ class RealtimeNotificationsSubscription implements AgentRealtimeNotificationsSub
         this.options.onError,
         createOperationError("closeAgentRealtimeSession", closeResult.status, closeResult.error)
       );
+    }
+  }
+}
+
+class HostRealtimeSessionRequestsSubscriptionImpl implements HostRealtimeSessionRequestsSubscription {
+  readonly channel: string;
+  readonly event: string;
+  readonly ready: Promise<void>;
+
+  private readonly pusher: PusherClient;
+  private readonly onBeforeDisconnect?: () => void;
+  private readonly onTransportDisconnect?: () => void;
+  private readyResolve!: () => void;
+  private readyReject!: (error: Error) => void;
+  private readySettled = false;
+  private disconnected = false;
+
+  constructor(args: {
+    channel: string;
+    event: string;
+    pusher: PusherClient;
+    onBeforeDisconnect?: () => void;
+    onTransportDisconnect?: () => void;
+  }) {
+    this.channel = args.channel;
+    this.event = args.event;
+    this.pusher = args.pusher;
+    this.onBeforeDisconnect = args.onBeforeDisconnect;
+    this.onTransportDisconnect = args.onTransportDisconnect;
+    this.ready = new Promise<void>((resolve, reject) => {
+      this.readyResolve = resolve;
+      this.readyReject = reject;
+    });
+  }
+
+  markReady(): void {
+    if (this.readySettled) {
+      return;
+    }
+
+    this.readySettled = true;
+    this.readyResolve();
+  }
+
+  markReadyError(error: Error): void {
+    if (this.readySettled) {
+      return;
+    }
+
+    this.readySettled = true;
+    this.readyReject(error);
+  }
+
+  async disconnect(): Promise<void> {
+    if (this.disconnected) {
+      return;
+    }
+
+    this.disconnected = true;
+    this.onBeforeDisconnect?.();
+
+    try {
+      this.pusher.unsubscribe(this.channel);
+    } catch {
+      // Best-effort teardown; ignore local socket cleanup failures.
+    }
+
+    try {
+      if (this.onTransportDisconnect) {
+        this.onTransportDisconnect();
+      } else {
+        this.pusher.disconnect();
+      }
+    } catch {
+      // Best-effort teardown; ignore local socket cleanup failures.
+    }
+
+    if (!this.readySettled) {
+      this.markReadyError(new Error("Realtime host subscription disconnected before it was ready."));
     }
   }
 }
@@ -771,6 +888,328 @@ export async function subscribeToRealtimeNotifications(
   }
 }
 
+export async function subscribeToHostRealtimeSessionRequests(
+  client: AgentMCApi,
+  options: HostRealtimeSessionRequestsOptions
+): Promise<HostRealtimeSessionRequestsSubscription> {
+  const socket = normalizeHostRealtimeSocketPayload(options.socket);
+  if (!socket) {
+    throw new Error("options.socket is required.");
+  }
+
+  let sharedTransportKey: string | null = null;
+  let sharedTransportChannelName: string | null = null;
+  let sharedTransportAcquired = false;
+
+  try {
+    const connection = socket.connection;
+    const channelName = valueAsString(socket.channel)?.trim();
+    if (!channelName) {
+      throw new Error("Host realtime socket channel is required.");
+    }
+
+    const eventName = valueAsString(socket.event)?.trim() || "agent.realtime.host.session.requested";
+    const appKey = valueAsString(connection?.key)?.trim();
+    const host = valueAsString(connection?.host)?.trim();
+    const scheme = normalizeScheme(valueAsString(connection?.scheme));
+
+    if (!appKey || !host) {
+      throw new Error("Host realtime socket connection key/host are required.");
+    }
+
+    const forceTLS = scheme === "https";
+    const resolvedPort =
+      typeof connection?.port === "number" && Number.isInteger(connection.port) && connection.port > 0
+        ? connection.port
+        : forceTLS
+          ? 443
+          : 80;
+
+    const wsPath = normalizeWebsocketPath(valueAsString(connection?.path));
+    const cluster = valueAsString(connection?.cluster)?.trim() || "mt1";
+    sharedTransportKey = buildSharedTransportKey({
+      appKey,
+      host,
+      resolvedPort,
+      forceTLS,
+      cluster,
+      wsPath
+    });
+    const transportKey = sharedTransportKey;
+    if (!transportKey) {
+      throw new Error("Unable to resolve host realtime shared transport key.");
+    }
+    sharedTransportChannelName = channelName;
+    const authChannel = channelName;
+    const authForChannel = async (socketId: string): Promise<unknown> => {
+      const authResult = await invokeOperation(client, "authenticateHostRealtimeSocket", {
+        body: {
+          socket_id: socketId,
+          channel_name: authChannel
+        }
+      });
+
+      const authPayload = valueAsObject(authResult.data) ?? (await readJsonResponseObject(authResult.response));
+      if (authResult.error || !authPayload) {
+        throw createOperationError(
+          "authenticateHostRealtimeSocket",
+          authResult.status,
+          authResult.error ?? { message: "Missing auth payload in response." }
+        );
+      }
+
+      return authPayload;
+    };
+    const pusher = await acquireSharedPusher({
+      key: transportKey,
+      appKey,
+      host,
+      resolvedPort,
+      forceTLS,
+      cluster,
+      wsPath,
+      channelName,
+      authorize: authForChannel
+    });
+    sharedTransportAcquired = true;
+
+    let disconnected = false;
+    let currentConnectionState: AgentRealtimeConnectionState = "initialized";
+    let boundChannel: PusherChannel | null = null;
+    let resubscribeTimerHandle: ReturnType<typeof setTimeout> | null = null;
+    let readyTimeoutHandle: ReturnType<typeof setTimeout> | null = null;
+    let resubscribeAttempt = 0;
+    let eventQueue: Promise<void> = Promise.resolve();
+
+    const clearResubscribeTimer = (): void => {
+      if (resubscribeTimerHandle !== null) {
+        clearTimeout(resubscribeTimerHandle);
+        resubscribeTimerHandle = null;
+      }
+    };
+
+    const clearReadyTimeout = (): void => {
+      if (readyTimeoutHandle !== null) {
+        clearTimeout(readyTimeoutHandle);
+        readyTimeoutHandle = null;
+      }
+    };
+
+    const readyTimeoutMs = normalizeReadyTimeoutMs(options.readyTimeoutMs);
+
+    const enqueueEvent = (task: () => Promise<void>): void => {
+      eventQueue = eventQueue
+        .catch(() => {})
+        .then(async () => {
+          if (disconnected) {
+            return;
+          }
+
+          await task();
+        })
+        .catch(async (error) => {
+          await callErrorHandler(options.onError, normalizeError(error));
+        });
+    };
+
+    const subscription = new HostRealtimeSessionRequestsSubscriptionImpl({
+      channel: channelName,
+      event: eventName,
+      pusher,
+      onBeforeDisconnect: () => {
+        disconnected = true;
+        clearReadyTimeout();
+        clearResubscribeTimer();
+        unbindConnectionHandlers();
+        if (boundChannel) {
+          unbindChannel(
+            boundChannel,
+            eventName,
+            onSubscriptionSucceeded,
+            onSubscriptionError,
+            onSessionRequestedEvent
+          );
+          boundChannel = null;
+        }
+      },
+      onTransportDisconnect: () => {
+        releaseSharedPusher(transportKey, channelName);
+        sharedTransportAcquired = false;
+      }
+    });
+
+    const onSessionRequestedEvent = (payload: unknown): void => {
+      const event = normalizeHostRealtimeSessionRequestedEvent(payload);
+      if (!event || !options.onSessionRequested) {
+        return;
+      }
+
+      enqueueEvent(async () => {
+        await callOptionalHandler(options.onSessionRequested, event, options.onError);
+      });
+    };
+
+    const onConnectionStateEvent = (statePayload: unknown): void => {
+      const state = valueAsObject(statePayload);
+      const current = valueAsString(state?.current)?.toLowerCase();
+      if (!current) {
+        return;
+      }
+
+      if (isConnectionState(current) && options.onConnectionStateChange) {
+        void callOptionalHandler(options.onConnectionStateChange, current, options.onError);
+      }
+
+      if (isConnectionState(current)) {
+        currentConnectionState = current;
+        if (current === "connected") {
+          clearResubscribeTimer();
+          resubscribeAttempt = 0;
+        }
+      }
+    };
+
+    const onConnectionErrorEvent = (payload: unknown): void => {
+      const error = normalizeError(payload, "Realtime host websocket connection error.");
+      void callErrorHandler(options.onError, error);
+    };
+
+    const onConnectionDisconnectedEvent = (): void => {
+      currentConnectionState = "disconnected";
+      if (options.onConnectionStateChange) {
+        void callOptionalHandler(options.onConnectionStateChange, "disconnected", options.onError);
+      }
+    };
+
+    const unbindConnectionHandlers = (): void => {
+      if (!pusher.connection.unbind) {
+        return;
+      }
+
+      pusher.connection.unbind("state_change", onConnectionStateEvent);
+      pusher.connection.unbind("error", onConnectionErrorEvent);
+      pusher.connection.unbind("disconnected", onConnectionDisconnectedEvent);
+    };
+
+    const onSubscriptionSucceeded = (): void => {
+      enqueueEvent(async () => {
+        clearReadyTimeout();
+        clearResubscribeTimer();
+        resubscribeAttempt = 0;
+        subscription.markReady();
+        await callOptionalHandler(options.onReady, undefined, options.onError);
+      });
+    };
+
+    const onSubscriptionError = (payload: unknown): void => {
+      const error = normalizeError(payload, "Realtime host channel subscription failed.");
+      void callErrorHandler(options.onError, error);
+
+      if (disconnected) {
+        return;
+      }
+
+      if (!isRetryableSubscriptionError(payload)) {
+        clearReadyTimeout();
+        clearResubscribeTimer();
+        subscription.markReadyError(error);
+        currentConnectionState = "failed";
+        if (options.onConnectionStateChange) {
+          void callOptionalHandler(options.onConnectionStateChange, "failed", options.onError);
+        }
+        void subscription.disconnect().catch(async (disconnectError) => {
+          await callErrorHandler(options.onError, normalizeError(disconnectError));
+        });
+        return;
+      }
+
+      const backoffMs = resolveResubscribeBackoffMs(resubscribeAttempt);
+      resubscribeAttempt += 1;
+      clearResubscribeTimer();
+      if (currentConnectionState !== "connecting") {
+        currentConnectionState = "connecting";
+        if (options.onConnectionStateChange) {
+          void callOptionalHandler(options.onConnectionStateChange, "connecting", options.onError);
+        }
+      }
+      resubscribeTimerHandle = setTimeout(() => {
+        if (disconnected) {
+          return;
+        }
+
+        try {
+          if (boundChannel) {
+            unbindChannel(
+              boundChannel,
+              eventName,
+              onSubscriptionSucceeded,
+              onSubscriptionError,
+              onSessionRequestedEvent
+            );
+            boundChannel = null;
+          }
+
+          pusher.unsubscribe(channelName);
+        } catch {
+          // Best-effort local cleanup.
+        }
+
+        boundChannel = subscribeAndBindChannel(
+          pusher,
+          channelName,
+          eventName,
+          onSubscriptionSucceeded,
+          onSubscriptionError,
+          onSessionRequestedEvent
+        );
+      }, backoffMs);
+    };
+
+    boundChannel = subscribeAndBindChannel(
+      pusher,
+      channelName,
+      eventName,
+      onSubscriptionSucceeded,
+      onSubscriptionError,
+      onSessionRequestedEvent
+    );
+
+    readyTimeoutHandle = setTimeout(() => {
+      if (disconnected) {
+        return;
+      }
+
+      const error = new Error(`Host realtime subscription was not ready after ${readyTimeoutMs}ms.`);
+
+      if (currentConnectionState !== "failed") {
+        currentConnectionState = "failed";
+        if (options.onConnectionStateChange) {
+          void callOptionalHandler(options.onConnectionStateChange, "failed", options.onError);
+        }
+      }
+
+      subscription.markReadyError(error);
+      void callErrorHandler(options.onError, error);
+      void subscription.disconnect().catch(async (disconnectError) => {
+        await callErrorHandler(options.onError, normalizeError(disconnectError));
+      });
+    }, readyTimeoutMs);
+
+    pusher.connection.bind("state_change", onConnectionStateEvent);
+    pusher.connection.bind("error", onConnectionErrorEvent);
+    pusher.connection.bind("disconnected", onConnectionDisconnectedEvent);
+
+    return subscription;
+  } catch (error) {
+    if (sharedTransportAcquired && sharedTransportKey && sharedTransportChannelName) {
+      releaseSharedPusher(sharedTransportKey, sharedTransportChannelName);
+      sharedTransportAcquired = false;
+    }
+
+    throw normalizeError(error);
+  }
+}
+
 export async function publishRealtimeMessage(
   client: AgentMCApi,
   options: AgentRealtimePublishMessageOptions
@@ -1163,6 +1602,48 @@ function normalizeSignal(payload: unknown, fallbackSessionId: number): AgentReal
     type: valueAsString(parsed.type) ?? "message",
     payload: valueAsObject(parsed.payload) ?? {},
     created_at: valueAsString(parsed.created_at) ?? null
+  };
+}
+
+function normalizeHostRealtimeSocketPayload(value: unknown): HostRealtimeSocketPayload | null {
+  const object = valueAsObject(value);
+  if (!object) {
+    return null;
+  }
+
+  return {
+    ...object,
+    connection: valueAsObject(object.connection) as HostRealtimeSocketPayload["connection"]
+  };
+}
+
+function normalizeHostRealtimeSessionRequestedEvent(payload: unknown): HostRealtimeSessionRequestedEvent | null {
+  const parsed = parsePayloadObject(payload);
+  if (!parsed || Object.keys(parsed).length === 0) {
+    return null;
+  }
+
+  const envelopePayload = valueAsObject(parsed.payload) ?? parsed;
+  const session = valueAsObject(envelopePayload.session);
+  const agent = valueAsObject(envelopePayload.agent);
+
+  const sessionId =
+    valueAsPositiveInteger(envelopePayload.session_id) ??
+    valueAsPositiveInteger(parsed.session_id) ??
+    valueAsPositiveInteger(session?.id) ??
+    null;
+
+  const agentId =
+    valueAsPositiveInteger(envelopePayload.agent_id) ??
+    valueAsPositiveInteger(parsed.agent_id) ??
+    valueAsPositiveInteger(session?.agent_id) ??
+    valueAsPositiveInteger(agent?.id) ??
+    null;
+
+  return {
+    sessionId,
+    agentId,
+    payload: parsed
   };
 }
 

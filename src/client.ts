@@ -2,13 +2,16 @@ import createClient from "openapi-fetch";
 
 import { operations, operationsById, type OperationDefinition, type OperationId } from "./generated/operations";
 import {
+  subscribeToHostRealtimeSessionRequests,
   prewarmRealtimeTransport,
   publishRealtimeMessage,
   type AgentRealtimePublishMessageOptions,
   type AgentRealtimePublishMessageResult,
   subscribeToRealtimeNotifications,
   type AgentRealtimeNotificationsOptions,
-  type AgentRealtimeNotificationsSubscription
+  type AgentRealtimeNotificationsSubscription,
+  type HostRealtimeSessionRequestsOptions,
+  type HostRealtimeSessionRequestsSubscription
 } from "./realtime";
 import type { paths } from "./generated/schema";
 import type {
@@ -38,6 +41,7 @@ const NETWORK_RETRYABLE_OPERATION_IDS = new Set<OperationId>([
   "listAgentRealtimeRequestedSessions",
   "claimAgentRealtimeSession",
   "authenticateAgentRealtimeSocket",
+  "authenticateHostRealtimeSocket",
   "listAgentRealtimeSignals",
   "closeAgentRealtimeSession"
 ]);
@@ -123,6 +127,12 @@ export class AgentMCApi {
     options: AgentRealtimeNotificationsOptions
   ): Promise<AgentRealtimeNotificationsSubscription> {
     return subscribeToRealtimeNotifications(this, options);
+  }
+
+  async subscribeToHostRealtimeSessionRequests(
+    options: HostRealtimeSessionRequestsOptions
+  ): Promise<HostRealtimeSessionRequestsSubscription> {
+    return subscribeToHostRealtimeSessionRequests(this, options);
   }
 
   async publishRealtimeMessage(options: AgentRealtimePublishMessageOptions): Promise<AgentRealtimePublishMessageResult> {

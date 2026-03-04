@@ -13,7 +13,7 @@ import { detectRuntimeAgents, type DiscoveredRuntimeAgent } from "./agent-discov
 import { AgentMCApi } from "./client";
 import { operationsById, type OperationId } from "./generated/operations";
 import { AGENTMC_NODE_PACKAGE_VERSION } from "./package-version";
-import { closeSharedRealtimeTransports } from "./realtime";
+import { closeSharedRealtimeTransports, type HostRealtimeSocketPayload } from "./realtime";
 import { AgentRuntimeProgram, type AgentRuntimeProgramOptions } from "./runtime-program";
 
 function parseJson(value: string | undefined, flagName: string): unknown {
@@ -65,6 +65,11 @@ interface HostHeartbeatAgentRow {
   id: number;
   runtimeKey: string | null;
   name: string | null;
+}
+
+interface HostHeartbeatResult {
+  agents: HostHeartbeatAgentRow[];
+  hostRealtime: HostRealtimeSocketPayload | null;
 }
 
 type HostHeartbeatRuntimeProvider = "openclaw" | "external" | "host-runtime";
@@ -1315,7 +1320,8 @@ async function runMultiAgentRuntimeFromEnv(env: NodeJS.ProcessEnv): Promise<bool
     });
 
     const initialHeartbeat = await sendHostHeartbeat(heartbeatClient, resolved.workers, hostFingerprint);
-    applyHeartbeatAgentMapping(resolved.workers, initialHeartbeat);
+    applyHeartbeatAgentMapping(resolved.workers, initialHeartbeat.agents);
+    let latestHostRealtimeSocket: HostRealtimeSocketPayload | null = initialHeartbeat.hostRealtime;
     await persistStatusSafe({
       summary: "initial host heartbeat complete"
     });
@@ -1348,6 +1354,9 @@ async function runMultiAgentRuntimeFromEnv(env: NodeJS.ProcessEnv): Promise<bool
       workers: resolved.workers,
       hostFingerprint,
       intervalSeconds: hostHeartbeatIntervalSeconds,
+      onHostRealtimeSocketChanged: async (socket) => {
+        latestHostRealtimeSocket = socket;
+      },
       onAgentMappingChanged: async (changedWorkerKeys) => {
         if (changedWorkerKeys.length === 0) {
           return;
@@ -1388,6 +1397,7 @@ async function runMultiAgentRuntimeFromEnv(env: NodeJS.ProcessEnv): Promise<bool
       activeRuntimes,
       intervalMs: hostRealtimeRouteIntervalMs,
       queryLimit: hostRealtimeRouteLimit,
+      getHostRealtimeSocket: () => latestHostRealtimeSocket,
       shouldStop: () => stopping
     });
 
@@ -1462,6 +1472,7 @@ async function runHostHeartbeatLoop(input: {
   workers: RuntimeWorkerConfig[];
   hostFingerprint: string;
   intervalSeconds: number;
+  onHostRealtimeSocketChanged?: (socket: HostRealtimeSocketPayload | null) => Promise<void> | void;
   onAgentMappingChanged?: (changedWorkerKeys: string[]) => Promise<void> | void;
   shouldStop: () => boolean;
 }): Promise<void> {
@@ -1473,7 +1484,10 @@ async function runHostHeartbeatLoop(input: {
 
     try {
       const heartbeat = await sendHostHeartbeat(input.client, input.workers, input.hostFingerprint);
-      const changedWorkerKeys = applyHeartbeatAgentMapping(input.workers, heartbeat);
+      const changedWorkerKeys = applyHeartbeatAgentMapping(input.workers, heartbeat.agents);
+      if (input.onHostRealtimeSocketChanged) {
+        await input.onHostRealtimeSocketChanged(heartbeat.hostRealtime);
+      }
       if (input.onAgentMappingChanged && changedWorkerKeys.length > 0) {
         await input.onAgentMappingChanged(changedWorkerKeys);
       }
@@ -1490,10 +1504,19 @@ async function runHostRealtimeSessionRoutingLoop(input: {
   activeRuntimes: Map<string, AgentRuntimeProgram>;
   intervalMs: number;
   queryLimit: number;
+  getHostRealtimeSocket: () => HostRealtimeSocketPayload | null;
   shouldStop: () => boolean;
 }): Promise<void> {
-  while (!input.shouldStop()) {
-    const sessionLimit = Math.max(1, Math.min(100, input.queryLimit));
+  const sessionLimit = Math.max(1, Math.min(100, input.queryLimit));
+  let hostRealtimeSubscription: Awaited<
+    ReturnType<AgentMCApi["subscribeToHostRealtimeSessionRequests"]>
+  > | null = null;
+  let hostRealtimeSocketKey: string | null = null;
+  let subscribeRetryAtMs = 0;
+  let nextPollAtMs = 0;
+  let immediatePollRequested = true;
+
+  const buildRuntimeByAgentId = (): Map<number, AgentRuntimeProgram> => {
     const runtimeByAgentId = new Map<number, AgentRuntimeProgram>();
     for (const worker of input.workers) {
       const agentId = worker.agentId;
@@ -1506,12 +1529,24 @@ async function runHostRealtimeSessionRoutingLoop(input: {
       }
       runtimeByAgentId.set(agentId, runtime);
     }
+    return runtimeByAgentId;
+  };
 
-    if (runtimeByAgentId.size === 0) {
-      await sleepWithStop(input.intervalMs, input.shouldStop);
-      continue;
+  const attachHintedSession = (sessionId: number | null, agentId: number | null): boolean => {
+    if (!sessionId || sessionId < 1 || !agentId || agentId < 1) {
+      return false;
     }
 
+    const runtimeByAgentId = buildRuntimeByAgentId();
+    const runtime = runtimeByAgentId.get(agentId);
+    if (!runtime) {
+      return false;
+    }
+
+    return runtime.attachRealtimeSession(sessionId);
+  };
+
+  const routeRequestedSessions = async (runtimeByAgentId: Map<number, AgentRuntimeProgram>): Promise<number> => {
     try {
       // Query once in host context; server returns sessions across host-assigned agents.
       const response = await input.client.operations.listAgentRealtimeRequestedSessions({
@@ -1534,8 +1569,7 @@ async function runHostRealtimeSessionRoutingLoop(input: {
         process.stderr.write(
           `[agentmc-runtime] host realtime routing failed: listAgentRealtimeRequestedSessions failed with status ${response.status}${summary ? ` (${summary})` : ""}; backing off ${backoffMs}ms\n`
         );
-        await sleepWithStop(backoffMs, input.shouldStop);
-        continue;
+        return backoffMs;
       }
 
       const payload = valueAsObject(response.data) ?? (await readJsonResponseObject(response.response));
@@ -1555,7 +1589,7 @@ async function runHostRealtimeSessionRoutingLoop(input: {
 
         const sessionId = toPositiveInt(sessionObject.id);
         const status = nonEmpty(sessionObject.status)?.toLowerCase();
-        if (sessionId === null || (status !== "requested" && status !== "claimed" && status !== "active")) {
+        if (sessionId === null || (status !== null && status !== "requested")) {
           continue;
         }
 
@@ -1573,16 +1607,118 @@ async function runHostRealtimeSessionRoutingLoop(input: {
         routedSessions += 1;
       }
 
+      if (hostRealtimeSubscription) {
+        return Math.max(10_000, input.intervalMs * 10);
+      }
+
       const idlePollMs = Math.max(input.intervalMs, 5_000);
-      const nextPollMs = routedSessions > 0 ? input.intervalMs : idlePollMs;
-      await sleepWithStop(nextPollMs, input.shouldStop);
-      continue;
+      return routedSessions > 0 ? input.intervalMs : idlePollMs;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       process.stderr.write(`[agentmc-runtime] host realtime routing failed: ${message}\n`);
+      return Math.max(input.intervalMs, 3_000);
+    }
+  };
+
+  const disconnectHostRealtimeSubscription = async (): Promise<void> => {
+    if (!hostRealtimeSubscription) {
+      return;
     }
 
-    await sleepWithStop(input.intervalMs, input.shouldStop);
+    try {
+      await hostRealtimeSubscription.disconnect();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      process.stderr.write(`[agentmc-runtime] host realtime push disconnect failed: ${message}\n`);
+    } finally {
+      hostRealtimeSubscription = null;
+      hostRealtimeSocketKey = null;
+    }
+  };
+
+  const maybeStartHostRealtimeSubscription = async (): Promise<void> => {
+    const nowMs = Date.now();
+    if (nowMs < subscribeRetryAtMs) {
+      return;
+    }
+
+    const socket = input.getHostRealtimeSocket();
+    const socketKey = serializeHostRealtimeSocketKey(socket);
+    if (!socket || !socketKey) {
+      await disconnectHostRealtimeSubscription();
+      return;
+    }
+
+    if (hostRealtimeSubscription && socketKey === hostRealtimeSocketKey) {
+      return;
+    }
+
+    await disconnectHostRealtimeSubscription();
+
+    try {
+      const subscription = await input.client.subscribeToHostRealtimeSessionRequests({
+        socket,
+        onReady: () => {
+          immediatePollRequested = true;
+          nextPollAtMs = Math.min(nextPollAtMs, Date.now());
+          const channel = nonEmpty(valueAsObject(socket)?.channel) ?? "unknown";
+          const event = nonEmpty(valueAsObject(socket)?.event) ?? "agent.realtime.host.session.requested";
+          process.stderr.write(
+            `[agentmc-runtime] host realtime push subscribed channel=${channel} event=${event}\n`
+          );
+        },
+        onSessionRequested: (event) => {
+          if (!attachHintedSession(event.sessionId, event.agentId)) {
+            immediatePollRequested = true;
+            nextPollAtMs = Math.min(nextPollAtMs, Date.now());
+          }
+        },
+        onConnectionStateChange: (state) => {
+          if (state === "connected") {
+            immediatePollRequested = true;
+            nextPollAtMs = Math.min(nextPollAtMs, Date.now());
+          }
+        },
+        onError: (error) => {
+          process.stderr.write(`[agentmc-runtime] host realtime push error: ${error.message}\n`);
+        }
+      });
+
+      await subscription.ready;
+      hostRealtimeSubscription = subscription;
+      hostRealtimeSocketKey = socketKey;
+      subscribeRetryAtMs = 0;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      process.stderr.write(`[agentmc-runtime] host realtime push unavailable: ${message}\n`);
+      await disconnectHostRealtimeSubscription();
+      subscribeRetryAtMs = nowMs + Math.max(5_000, input.intervalMs * 4);
+    }
+  };
+
+  try {
+    while (!input.shouldStop()) {
+      const runtimeByAgentId = buildRuntimeByAgentId();
+      if (runtimeByAgentId.size === 0) {
+        await disconnectHostRealtimeSubscription();
+        await sleepWithStop(input.intervalMs, input.shouldStop);
+        continue;
+      }
+
+      await maybeStartHostRealtimeSubscription();
+
+      const nowMs = Date.now();
+      if (!immediatePollRequested && nowMs < nextPollAtMs) {
+        await sleepWithStop(Math.min(500, Math.max(100, nextPollAtMs - nowMs)), input.shouldStop);
+        continue;
+      }
+
+      immediatePollRequested = false;
+      const nextDelayMs = await routeRequestedSessions(runtimeByAgentId);
+      nextPollAtMs = Date.now() + nextDelayMs;
+    }
+  } finally {
+    await disconnectHostRealtimeSubscription();
   }
 }
 
@@ -1726,7 +1862,7 @@ async function sendHostHeartbeat(
   client: AgentMCApi,
   workers: RuntimeWorkerConfig[],
   hostFingerprint: string
-): Promise<HostHeartbeatAgentRow[]> {
+): Promise<HostHeartbeatResult> {
   const privateIp = resolvePrivateIp();
   const publicIp = privateIp ?? "127.0.0.1";
   const configuredRuntimeProvider = normalizeRuntimeProvider(null);
@@ -1815,6 +1951,7 @@ async function sendHostHeartbeat(
   }
 
   const responseData = valueAsObject(response.data);
+  const hostRealtime = valueAsObject(responseData?.host_realtime) as HostRealtimeSocketPayload | null;
   const responseAgents = Array.isArray(responseData?.agents)
     ? responseData.agents
     : responseData?.agent
@@ -1844,7 +1981,10 @@ async function sendHostHeartbeat(
     `[agentmc-runtime] host heartbeat sent agents=${workers.length} resolved=${rows.length}\n`
   );
 
-  return rows;
+  return {
+    agents: rows,
+    hostRealtime
+  };
 }
 
 function updateWorkerProfileFromHeartbeat(
@@ -2664,6 +2804,24 @@ function resolveRetryAfterSeconds(response: Response | undefined, error: unknown
   const root = valueAsObject(payload?.error) ?? payload;
   const details = valueAsObject(root?.details);
   return toPositiveInt(details?.retry_after);
+}
+
+function serializeHostRealtimeSocketKey(socket: HostRealtimeSocketPayload | null): string | null {
+  const socketObject = valueAsObject(socket);
+  const connection = valueAsObject(socketObject?.connection);
+  const key = nonEmpty(connection?.key);
+  const host = nonEmpty(connection?.host);
+  const channel = nonEmpty(socketObject?.channel);
+  if (!key || !host || !channel) {
+    return null;
+  }
+
+  const scheme = nonEmpty(connection?.scheme) ?? "https";
+  const port = toPositiveInt(connection?.port) ?? (scheme.toLowerCase() === "http" ? 80 : 443);
+  const cluster = nonEmpty(connection?.cluster) ?? "mt1";
+  const path = nonEmpty(connection?.path) ?? "";
+  const event = nonEmpty(socketObject?.event) ?? "agent.realtime.host.session.requested";
+  return [key, host, String(port), scheme.toLowerCase(), cluster, path, channel, event].join("|");
 }
 
 function resolveHostRealtimeRoutingBackoffMs(input: {

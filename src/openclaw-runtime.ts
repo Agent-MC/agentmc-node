@@ -732,13 +732,8 @@ export class OpenClawAgentRuntime {
         }
       } catch (error) {
         const normalizedError = normalizeError(error);
-        if (this.options.selfHealCloseRemote && isSessionClaimFailureError(normalizedError)) {
+        if (isSessionClaimFailureError(normalizedError)) {
           state.closeReason = "session_claim_failed";
-          try {
-            await this.closeRemoteSession(state.sessionId, state.closeReason, "failed");
-          } catch (closeError) {
-            await this.emitError(normalizeError(closeError));
-          }
         } else {
           state.closeReason = state.closeReason ?? "session_loop_error";
         }
@@ -1064,7 +1059,7 @@ export class OpenClawAgentRuntime {
     notification: JsonObject,
     runResult: OpenClawRunResult
   ): Promise<void> {
-    if (runResult.status !== "ok") {
+    if (runResult.status !== "ok" || runResult.textSource !== "wait") {
       return;
     }
 
@@ -1593,44 +1588,60 @@ export class OpenClawAgentRuntime {
     const baseHash = valueAsString(payload.base_hash)?.trim() || "";
     const title = valueAsString(payload.title)?.trim() || fileId;
     const bodyMarkdown = valueAsString(payload.body_markdown) ?? "";
-    const current = await this.readRuntimeDoc(fileId);
 
-    if (current && baseHash !== current.base_hash) {
-      await this.publishChannelMessage(state.sessionId, "file.save.error", requestId, {
-        ...buildFileIdPayload(fileId),
-        code: "conflict",
-        error: "base_hash mismatch",
-        current_hash: current.base_hash
-      });
-      return;
-    }
+    try {
+      const current = await this.readRuntimeDoc(fileId);
 
-    if (!current && baseHash !== "") {
-      await this.publishChannelMessage(state.sessionId, "file.save.error", requestId, {
-        ...buildFileIdPayload(fileId),
-        code: "conflict",
-        error: "base_hash mismatch",
-        current_hash: null
-      });
-      return;
-    }
-
-    await writeFile(this.resolveRuntimeDocPath(fileId), bodyMarkdown, "utf8");
-    const next = await this.readRuntimeDoc(fileId);
-
-    if (!next) {
-      throw new Error(`Failed to read runtime file ${fileId} after save.`);
-    }
-
-    await this.publishChannelMessage(state.sessionId, "file.save.ok", requestId, {
-      ...buildFileIdPayload(fileId),
-      doc: {
-        id: fileId,
-        title: title || next.title,
-        body_markdown: next.body_markdown,
-        base_hash: next.base_hash
+      if (current && baseHash !== current.base_hash) {
+        await this.publishChannelMessage(state.sessionId, "file.save.error", requestId, {
+          ...buildFileIdPayload(fileId),
+          code: "conflict",
+          error: "base_hash mismatch",
+          current_hash: current.base_hash
+        });
+        return;
       }
-    });
+
+      if (!current && baseHash !== "") {
+        await this.publishChannelMessage(state.sessionId, "file.save.error", requestId, {
+          ...buildFileIdPayload(fileId),
+          code: "conflict",
+          error: "base_hash mismatch",
+          current_hash: null
+        });
+        return;
+      }
+
+      await writeFile(this.resolveRuntimeDocPath(fileId), bodyMarkdown, "utf8");
+      const next = await this.readRuntimeDoc(fileId);
+
+      if (!next) {
+        throw new Error(`Failed to read runtime file ${fileId} after save.`);
+      }
+
+      await this.publishChannelMessage(state.sessionId, "file.save.ok", requestId, {
+        ...buildFileIdPayload(fileId),
+        doc: {
+          id: fileId,
+          title: title || next.title,
+          body_markdown: next.body_markdown,
+          base_hash: next.base_hash
+        }
+      });
+    } catch (error) {
+      const normalized = normalizeError(error);
+      await this.emitError(normalized);
+
+      try {
+        await this.publishChannelMessage(state.sessionId, "file.save.error", requestId, {
+          ...buildFileIdPayload(fileId),
+          code: "save_failed",
+          error: "failed to save file"
+        });
+      } catch (publishError) {
+        await this.emitError(normalizeError(publishError));
+      }
+    }
   }
 
   private async handleFileDelete(state: SessionState, envelope: JsonObject, payload: JsonObject): Promise<void> {
@@ -1673,32 +1684,47 @@ export class OpenClawAgentRuntime {
       return;
     }
 
-    const current = await this.readRuntimeDoc(fileId);
-    if (!current) {
-      await this.publishChannelMessage(state.sessionId, "file.delete.error", requestId, {
-        ...buildFileIdPayload(fileId),
-        code: "not_found",
-        error: "file not found"
+    try {
+      const current = await this.readRuntimeDoc(fileId);
+      if (!current) {
+        await this.publishChannelMessage(state.sessionId, "file.delete.error", requestId, {
+          ...buildFileIdPayload(fileId),
+          code: "not_found",
+          error: "file not found"
+        });
+        return;
+      }
+
+      const baseHash = valueAsString(payload.base_hash)?.trim() || "";
+      if (baseHash !== current.base_hash) {
+        await this.publishChannelMessage(state.sessionId, "file.delete.error", requestId, {
+          ...buildFileIdPayload(fileId),
+          code: "conflict",
+          error: "base_hash mismatch",
+          current_hash: current.base_hash
+        });
+        return;
+      }
+
+      await rm(this.resolveRuntimeDocPath(fileId), { force: false });
+
+      await this.publishChannelMessage(state.sessionId, "file.delete.ok", requestId, {
+        ...buildFileIdPayload(fileId)
       });
-      return;
+    } catch (error) {
+      const normalized = normalizeError(error);
+      await this.emitError(normalized);
+
+      try {
+        await this.publishChannelMessage(state.sessionId, "file.delete.error", requestId, {
+          ...buildFileIdPayload(fileId),
+          code: "delete_failed",
+          error: "failed to delete file"
+        });
+      } catch (publishError) {
+        await this.emitError(normalizeError(publishError));
+      }
     }
-
-    const baseHash = valueAsString(payload.base_hash)?.trim() || "";
-    if (baseHash !== current.base_hash) {
-      await this.publishChannelMessage(state.sessionId, "file.delete.error", requestId, {
-        ...buildFileIdPayload(fileId),
-        code: "conflict",
-        error: "base_hash mismatch",
-        current_hash: current.base_hash
-      });
-      return;
-    }
-
-    await rm(this.resolveRuntimeDocPath(fileId), { force: false });
-
-    await this.publishChannelMessage(state.sessionId, "file.delete.ok", requestId, {
-      ...buildFileIdPayload(fileId)
-    });
   }
 
   private async handleAgentProfileUpdate(

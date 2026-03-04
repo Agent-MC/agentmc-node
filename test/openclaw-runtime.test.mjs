@@ -167,7 +167,7 @@ test("session acquisition prioritizes browser-requested sessions over host/syste
   });
 });
 
-test("session claim failures trigger a remote close for faster reconnect recovery", async () => {
+test("session claim failures do not force-close remote sessions", async () => {
   await withFixture(async ({ dir, sessionsPath }) => {
     const closeCalls = [];
     const runtime = createRuntime(sessionsPath, dir, {
@@ -197,10 +197,7 @@ test("session claim failures trigger a remote close for faster reconnect recover
       await new Promise((resolve) => setTimeout(resolve, 10));
     }
 
-    assert.equal(closeCalls.length, 1);
-    assert.equal(closeCalls[0]?.session, 912);
-    assert.equal(closeCalls[0]?.body?.reason, "session_claim_failed");
-    assert.equal(closeCalls[0]?.body?.status, "failed");
+    assert.equal(closeCalls.length, 0);
   });
 });
 
@@ -809,6 +806,54 @@ test("does not mark notification read when bridge run is unsuccessful", async ()
   });
 });
 
+test("does not mark notification read when bridge falls back to session history", async () => {
+  await withFixture(async ({ dir, sessionsPath }) => {
+    const runtime = createRuntime(sessionsPath, dir);
+    let markReadCallCount = 0;
+
+    runtime.runOpenClawChat = async (input) => ({
+      requestId: input.requestId,
+      runId: "run-history",
+      status: "ok",
+      textSource: "session_history",
+      content: "Recovered answer"
+    });
+    runtime.options.client.operations.markNotificationRead = async () => {
+      markReadCallCount += 1;
+      return {
+        error: null,
+        status: 200,
+        data: { data: { is_read: true } }
+      };
+    };
+
+    await runtime.maybeBridgeNotificationToAi(createSessionState(), {
+      source: "websocket",
+      signal: {
+        id: 46,
+        session_id: 114,
+        sender: "system",
+        type: "message",
+        payload: {
+          type: "notification.created",
+          payload: {}
+        },
+        created_at: null
+      },
+      notification: {
+        id: "45c4b4fa-e4e8-4b2b-b91c-8d574782b31c",
+        notification_type: "mention",
+        message: "History fallback should not auto-read this.",
+        is_read: false
+      },
+      notificationType: "mention",
+      channelType: "notification.created"
+    });
+
+    assert.equal(markReadCallCount, 0);
+  });
+});
+
 test("chat handling can be disabled independently from realtime docs/notifications", async () => {
   await withFixture(async ({ dir, sessionsPath }) => {
     let openclawRunCount = 0;
@@ -1143,6 +1188,68 @@ test("chunked chat.user messages are reassembled before runtime execution", asyn
     assert.equal(doneMessages[0]?.requestId, "req-chunk-1");
     assert.equal(doneMessages[0]?.payload?.message_id, 55);
     assert.equal(doneMessages[0]?.payload?.content, "Chunked response");
+  });
+});
+
+test("file.save emits protocol error ack when filesystem writes fail", async () => {
+  await withFixture(async ({ dir, sessionsPath }) => {
+    const runtime = createRuntime(sessionsPath, dir);
+    const published = [];
+
+    runtime.resolveRuntimeDocPath = () => {
+      throw new Error("disk unavailable");
+    };
+    runtime.publishChannelMessage = async (_sessionId, channelType, requestId, payload) => {
+      published.push({ channelType, requestId, payload });
+    };
+
+    await runtime.handleFileSave(
+      createSessionState(),
+      {
+        request_id: "req-file-save-failure"
+      },
+      {
+        request_id: "req-file-save-failure",
+        file_id: "AGENTS.md",
+        body_markdown: "hello"
+      }
+    );
+
+    assert.equal(published.length, 1);
+    assert.equal(published[0]?.channelType, "file.save.error");
+    assert.equal(published[0]?.requestId, "req-file-save-failure");
+    assert.equal(published[0]?.payload?.code, "save_failed");
+  });
+});
+
+test("file.delete emits protocol error ack when filesystem deletes fail", async () => {
+  await withFixture(async ({ dir, sessionsPath }) => {
+    const runtime = createRuntime(sessionsPath, dir);
+    const published = [];
+
+    runtime.resolveRuntimeDocPath = () => {
+      throw new Error("disk unavailable");
+    };
+    runtime.publishChannelMessage = async (_sessionId, channelType, requestId, payload) => {
+      published.push({ channelType, requestId, payload });
+    };
+
+    await runtime.handleFileDelete(
+      createSessionState(),
+      {
+        request_id: "req-file-delete-failure"
+      },
+      {
+        request_id: "req-file-delete-failure",
+        file_id: "AGENTS.md",
+        base_hash: "anything"
+      }
+    );
+
+    assert.equal(published.length, 1);
+    assert.equal(published[0]?.channelType, "file.delete.error");
+    assert.equal(published[0]?.requestId, "req-file-delete-failure");
+    assert.equal(published[0]?.payload?.code, "delete_failed");
   });
 });
 

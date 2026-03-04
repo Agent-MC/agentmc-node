@@ -1,6 +1,7 @@
 export { AgentMCApi } from "./client";
 export { operations, operationsById, type OperationDefinition, type OperationId } from "./generated/operations";
 export {
+  subscribeToHostRealtimeSessionRequests,
   publishRealtimeMessage,
   subscribeToRealtimeNotifications,
   type AgentRealtimeConnectionState,
@@ -9,6 +10,10 @@ export {
   type AgentRealtimeNotificationsSubscription,
   type AgentRealtimePublishMessageOptions,
   type AgentRealtimePublishMessageResult,
+  type HostRealtimeSocketPayload,
+  type HostRealtimeSessionRequestedEvent,
+  type HostRealtimeSessionRequestsOptions,
+  type HostRealtimeSessionRequestsSubscription,
   type AgentRealtimeSessionRecord,
   type AgentRealtimeSignalMessage
 } from "./realtime";
