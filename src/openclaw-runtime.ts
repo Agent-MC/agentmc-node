@@ -635,7 +635,9 @@ export class OpenClawAgentRuntime {
             await callOptionalHandler(this.options.onSessionReady, session, this.options.onError);
           },
           onSignal: async (signal) => {
-            await this.handleSignal(state, signal, "websocket");
+            void this.handleSignal(state, signal, "websocket").catch(async (error) => {
+              await this.emitError(normalizeError(error));
+            });
           },
           onNotification: async (event) => {
             await this.handleSubscriptionNotification(state, event);
@@ -804,7 +806,7 @@ export class OpenClawAgentRuntime {
     const channelPayload = valueAsObject(payload.payload) ?? {};
 
     if (this.options.chatRealtimeEnabled && (channelType === "chat.user" || channelType === "chat.request")) {
-      void this.enqueueChatUserSignal(state, signal, payload, channelPayload);
+      await this.enqueueChatUserSignal(state, signal, payload, channelPayload);
       return;
     }
 
@@ -2016,13 +2018,14 @@ export class OpenClawAgentRuntime {
 
       try {
         await this.publishRealtimeMessageWithTimeout(
-          () =>
+          (signal) =>
             this.options.client.publishRealtimeMessage({
               agent: this.options.agent,
               session: sessionId,
               channelType,
               requestId,
-              payload: payloadWithRequestId
+              payload: payloadWithRequestId,
+              signal,
             }),
           sessionId,
           channelType,
@@ -2055,19 +2058,21 @@ export class OpenClawAgentRuntime {
   }
 
   private async publishRealtimeMessageWithTimeout(
-    send: () => Promise<unknown>,
+    send: (signal: AbortSignal) => Promise<unknown>,
     sessionId: number,
     channelType: string,
     requestId: string,
     attempt: number
   ): Promise<void> {
+    const abortController = new AbortController();
     let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
 
     try {
       await Promise.race([
-        send(),
+        send(abortController.signal),
         new Promise<never>((_resolve, reject) => {
           timeoutHandle = setTimeout(() => {
+            abortController.abort();
             reject(
               new Error(
                 `publishRealtimeMessage timed out after ${DEFAULT_REALTIME_PUBLISH_TIMEOUT_MS}ms ` +
@@ -2113,6 +2118,8 @@ export class OpenClawAgentRuntime {
     return (
       message.includes("timeout") ||
       message.includes("timed out") ||
+      message.includes("aborterror") ||
+      message.includes("aborted") ||
       message.includes("etimedout") ||
       message.includes("econnreset") ||
       message.includes("econnrefused") ||

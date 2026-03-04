@@ -141,6 +141,7 @@ export interface AgentRealtimePublishMessageOptions {
   session: number;
   channelType: string;
   payload: JsonObject;
+  signal?: AbortSignal;
   signalType?: string;
   requestId?: string;
   maxPayloadBytes?: number;
@@ -740,7 +741,8 @@ export async function publishRealtimeMessage(
       agent: options.agent,
       session: options.session,
       signalType,
-      payload: singleSignalPayload
+      payload: singleSignalPayload,
+      signal: options.signal,
     });
 
     return {
@@ -775,7 +777,8 @@ export async function publishRealtimeMessage(
       agent: options.agent,
       session: options.session,
       signalType,
-      payload: chunkPayload
+      payload: chunkPayload,
+      signal: options.signal,
     });
     signalIds.push(signalId);
   }
@@ -1362,6 +1365,7 @@ async function createRealtimeSignal(
     session: number;
     signalType: string;
     payload: JsonObject;
+    signal?: AbortSignal;
   }
 ): Promise<number> {
   const response = await invokeOperation(client, "createAgentRealtimeSignal", {
@@ -1376,7 +1380,8 @@ async function createRealtimeSignal(
     body: {
       type: options.signalType,
       payload: options.payload
-    }
+    },
+    signal: options.signal,
   });
 
   if (response.error) {
