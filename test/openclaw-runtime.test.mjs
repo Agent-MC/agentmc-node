@@ -1198,16 +1198,18 @@ test("emits periodic chat.agent.delta updates while a chat run is still in progr
     const intervalCallbacks = [];
     const originalSetInterval = global.setInterval;
     const originalClearInterval = global.clearInterval;
-    let clearedTimerId = null;
+    let nextTimerId = 4242;
+    const clearedTimerIds = [];
 
     global.setInterval = (callback, _delay, ...args) => {
+      const timerId = ++nextTimerId;
       if (typeof callback === "function") {
         intervalCallbacks.push(() => callback(...args));
       }
-      return 4242;
+      return timerId;
     };
     global.clearInterval = (timer) => {
-      clearedTimerId = timer;
+      clearedTimerIds.push(Number(timer));
     };
 
     runtime.publishChannelMessage = async (_sessionId, channelType, requestId, payload) => {
@@ -1252,18 +1254,15 @@ test("emits periodic chat.agent.delta updates while a chat run is still in progr
     }
 
     const deltaMessages = published.filter((entry) => entry.channelType === "chat.agent.delta");
-    assert.equal(deltaMessages.length >= 2, true);
-    assert.equal(deltaMessages[0]?.payload?.delta, "Thinking...");
-    assert.match(deltaMessages[1]?.payload?.delta ?? "", /Still working\.\.\./);
-    assert.equal(deltaMessages[0]?.payload?.delta_mode, "replace");
-    assert.equal(deltaMessages[1]?.payload?.delta_mode, "replace");
-    assert.equal(deltaMessages[0]?.payload?.delta_kind, "status");
-    assert.equal(deltaMessages[1]?.payload?.delta_kind, "status");
-    assert.equal(deltaMessages[0]?.payload?.delta_id, "agent-status-req-progress-1");
-    assert.equal(deltaMessages[1]?.payload?.delta_id, "agent-status-req-progress-1");
-    assert.equal(deltaMessages[0]?.payload?.message_id, 71);
-    assert.equal(deltaMessages[1]?.payload?.message_id, 71);
-    assert.equal(clearedTimerId, 4242);
+    assert.equal(deltaMessages.length >= 3, true);
+    assert.equal(deltaMessages[0]?.payload?.delta, "Thinking.");
+    assert.equal(deltaMessages.some((entry) => /^Thinking\.{1,4}$/.test(entry?.payload?.delta ?? "")), true);
+    assert.equal(deltaMessages.some((entry) => /\(.*elapsed\)$/.test(entry?.payload?.delta ?? "")), true);
+    assert.equal(deltaMessages.every((entry) => entry?.payload?.delta_mode === "replace"), true);
+    assert.equal(deltaMessages.every((entry) => entry?.payload?.delta_kind === "status"), true);
+    assert.equal(deltaMessages.every((entry) => entry?.payload?.delta_id === "agent-status-req-progress-1"), true);
+    assert.equal(deltaMessages.every((entry) => entry?.payload?.message_id === 71), true);
+    assert.equal(clearedTimerIds.length >= 2, true);
 
     const doneMessages = published.filter((entry) => entry.channelType === "chat.agent.done");
     assert.equal(doneMessages.length, 1);
