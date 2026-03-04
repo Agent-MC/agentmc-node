@@ -291,14 +291,6 @@ interface InboundChunkBuffer {
   updatedAtMs: number;
 }
 
-interface BridgedAgentMcContext {
-  source: string;
-  intentScope: string;
-  timezone: string | null;
-  actorUserId: number;
-  defaultAssigneeUserId: number;
-}
-
 interface BridgedAgentMcRuntimeContext {
   apiKey: string | null;
   apiBaseUrl: string;
@@ -996,11 +988,6 @@ export class OpenClawAgentRuntime {
     }
 
     const requestId = notificationRequestId(input.notification, input.signal.id, state.sessionId);
-    const bridgePayload = buildNotificationBridgePayload({
-      signal: input.signal,
-      notification: input.notification,
-      notificationType: effectiveNotificationType
-    });
     const userText = buildNotificationBridgeUserText({
       notification: input.notification,
       notificationType: effectiveNotificationType,
@@ -1009,14 +996,7 @@ export class OpenClawAgentRuntime {
     });
 
     const bridgedUserText = buildAgentMcBridgeMessage({
-      userText,
-      payload: bridgePayload,
-      session: state.session,
-      runtimeContext: {
-        apiKey: this.options.agentmcApiKey,
-        apiBaseUrl: this.options.agentmcBaseUrl,
-        openApiUrl: this.options.agentmcOpenApiUrl
-      }
+      userText
     });
 
     let runResult: OpenClawRunResult;
@@ -1187,14 +1167,7 @@ export class OpenClawAgentRuntime {
     }
 
     const bridgedUserText = buildAgentMcBridgeMessage({
-      userText,
-      payload: resolvedPayload,
-      session: state.session,
-      runtimeContext: {
-        apiKey: this.options.agentmcApiKey,
-        apiBaseUrl: this.options.agentmcBaseUrl,
-        openApiUrl: this.options.agentmcOpenApiUrl
-      }
+      userText
     });
 
     let runResult: OpenClawRunResult;
@@ -3686,81 +3659,8 @@ function decodeChunkedPayloadObject(payloadBase64: string): JsonObject | null {
   }
 }
 
-function buildAgentMcBridgeMessage(input: {
-  userText: string;
-  payload: JsonObject;
-  session: AgentRealtimeSessionRecord | null;
-  runtimeContext: BridgedAgentMcRuntimeContext;
-}): string {
-  const context = deriveBridgedAgentMcContext(input.payload, input.session);
-  const lines = [
-    "[AgentMC Context]",
-    "app=AgentMC",
-    `source=${context.source}`,
-    `intent_scope=${context.intentScope}`,
-    ...(context.timezone ? [`timezone=${context.timezone}`] : []),
-    ...(context.actorUserId > 0 ? [`actor_user_id=${context.actorUserId}`] : []),
-    ...(context.defaultAssigneeUserId > 0
-      ? [`default_assignee_user_id=${context.defaultAssigneeUserId}`]
-      : []),
-    `api_base_url=${input.runtimeContext.apiBaseUrl}`,
-    `openapi_url=${input.runtimeContext.openApiUrl}`,
-    "api_auth_header=X-Api-Key",
-    "api_key_env=AGENTMC_API_KEY",
-    "openapi_hint=Fetch OpenAPI and resolve all $ref values before API calls.",
-    "routing_hint=Treat actions with no external app specified as AgentMC operations.",
-    "assignment_hint=When the user says 'assign it to me', map 'me' to default_assignee_user_id.",
-    "",
-    input.userText
-  ];
-
-  return lines.join("\n");
-}
-
-function buildNotificationBridgePayload(input: {
-  signal: AgentRealtimeSignalMessage;
-  notification: JsonObject;
-  notificationType: MaybeNotificationType;
-}): JsonObject {
-  const signalEnvelope = valueAsObject(input.signal.payload) ?? {};
-  const signalPayload = valueAsObject(signalEnvelope.payload) ?? {};
-  const notificationType =
-    normalizeLowercase(input.notificationType) ||
-    normalizeLowercase(input.notification.notification_type) ||
-    "notification";
-
-  const actorUserId = firstPositiveInteger(
-    signalPayload.actor_user_id,
-    signalEnvelope.actor_user_id,
-    normalizeLowercase(input.notification.actor_type) === "user" ? input.notification.actor_id : undefined
-  );
-  const assigneeType = normalizeLowercase(input.notification.assignee_type);
-  const defaultAssigneeUserId = firstPositiveInteger(
-    signalPayload.default_assignee_user_id,
-    signalEnvelope.default_assignee_user_id,
-    assigneeType === "user" ? input.notification.assignee_id : undefined,
-    actorUserId
-  );
-
-  return {
-    ...signalEnvelope,
-    ...signalPayload,
-    source: normalizeBridgeToken(
-      valueAsString(signalPayload.source) ?? valueAsString(signalEnvelope.source) ?? "agentmc_notification",
-      "agentmc_notification"
-    ),
-    intent_scope: normalizeBridgeToken(
-      valueAsString(signalPayload.intent_scope) ??
-        valueAsString(signalEnvelope.intent_scope) ??
-        "agentmc_notification",
-      "agentmc_notification"
-    ),
-    timezone: valueAsString(signalPayload.timezone) ?? valueAsString(signalEnvelope.timezone),
-    notification_type: notificationType,
-    notification: input.notification,
-    ...(actorUserId > 0 ? { actor_user_id: actorUserId } : {}),
-    ...(defaultAssigneeUserId > 0 ? { default_assignee_user_id: defaultAssigneeUserId } : {})
-  };
+function buildAgentMcBridgeMessage(input: { userText: string }): string {
+  return input.userText;
 }
 
 function buildNotificationBridgeUserText(input: {
@@ -3813,40 +3713,6 @@ function buildNotificationBridgeUserText(input: {
   lines.push("", "notification JSON:", "```json", toPromptJson(input.notification), "```");
 
   return lines.join("\n");
-}
-
-function deriveBridgedAgentMcContext(
-  payload: JsonObject,
-  session: AgentRealtimeSessionRecord | null
-): BridgedAgentMcContext {
-  const sessionRequesterUserId = toPositiveInteger(valueAsObject(session)?.requested_by_user_id);
-  const actorUserId = firstPositiveInteger(
-    payload.actor_user_id,
-    payload.user_id,
-    payload.requested_by_user_id,
-    sessionRequesterUserId
-  );
-  const defaultAssigneeUserId = firstPositiveInteger(
-    payload.default_assignee_user_id,
-    payload.assigned_to_user_id,
-    actorUserId
-  );
-
-  return {
-    source: normalizeBridgeToken(valueAsString(payload.source), "agentmc_chat"),
-    intentScope: normalizeBridgeToken(valueAsString(payload.intent_scope), "agentmc"),
-    timezone: normalizeOptionalBridgeToken(valueAsString(payload.timezone)),
-    actorUserId,
-    defaultAssigneeUserId
-  };
-}
-
-function normalizeBridgeToken(value: string | null, fallback: string): string {
-  const normalized = normalizeOptionalBridgeToken(value);
-  if (normalized) {
-    return normalized;
-  }
-  return fallback;
 }
 
 function normalizeOptionalBridgeToken(value: string | null): string | null {
