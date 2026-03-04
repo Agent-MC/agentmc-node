@@ -480,6 +480,40 @@ process.exit(1);
   });
 });
 
+test("runOpenClawChat force-kills stuck agent commands and returns timeout fallback", async () => {
+  await withFixture(async ({ dir, sessionsPath }) => {
+    const openclawStubPath = join(dir, "openclaw-stuck-stub.mjs");
+    await writeFile(
+      openclawStubPath,
+      `#!/usr/bin/env node
+process.on("SIGTERM", () => {});
+setInterval(() => {}, 1000);
+`,
+      "utf8"
+    );
+    await chmod(openclawStubPath, 0o755);
+
+    const runtime = createRuntime(sessionsPath, dir, {
+      openclawCommand: openclawStubPath,
+      openclawSubmitTimeoutMs: 1000,
+      openclawWaitTimeoutMs: 1000,
+      openclawGatewayTimeoutMs: 1000
+    });
+
+    const startedAt = Date.now();
+    const result = await runtime.runOpenClawChat({
+      sessionId: 114,
+      requestId: "req-timeout-stuck",
+      userText: "hello"
+    });
+    const elapsedMs = Date.now() - startedAt;
+
+    assert.equal(result.status, "timeout");
+    assert.equal(result.textSource, "fallback");
+    assert.ok(elapsedMs < 8_000, `expected timeout fallback in under 8s, got ${elapsedMs}ms`);
+  });
+});
+
 test("bridges unread notification events into OpenClaw runs", async () => {
   await withFixture(async ({ dir, sessionsPath }) => {
     const runtime = createRuntime(sessionsPath, dir);

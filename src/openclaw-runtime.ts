@@ -27,6 +27,7 @@ const DEFAULT_OPENCLAW_SUBMIT_TIMEOUT_MS = 30_000;
 const DEFAULT_OPENCLAW_WAIT_TIMEOUT_MS = 90_000;
 const DEFAULT_OPENCLAW_PROFILE_UPDATE_TIMEOUT_MS = 15_000;
 const DEFAULT_OPENCLAW_MAX_BUFFER_BYTES = 10 * 1024 * 1024;
+const DEFAULT_OPENCLAW_FORCE_KILL_GRACE_MS = 2_000;
 const DEFAULT_SELF_HEAL_CONNECTION_STALE_MS = 45_000;
 const DEFAULT_SELF_HEAL_ACTIVITY_STALE_MS = 120_000;
 const DEFAULT_SELF_HEAL_MIN_SESSION_AGE_MS = 20_000;
@@ -1370,7 +1371,6 @@ export class OpenClawAgentRuntime {
 
     const commandOptions = {
       cwd: this.options.runtimeWorkingDirectory,
-      timeout: timeoutMs,
       encoding: "utf8" as const,
       maxBuffer: this.options.openclawMaxBufferBytes,
       env: buildAgentRuntimeCommandEnv({
@@ -1381,10 +1381,14 @@ export class OpenClawAgentRuntime {
     };
 
     try {
-      const output = await execFileAsync(
+      const output = await execFileWithTimeoutAndKill(
         this.options.openclawCommand,
         ["agent", "--agent", this.options.openclawAgent, "--message", input.userText],
-        commandOptions
+        {
+          ...commandOptions,
+          timeoutMs,
+          forceKillGraceMs: DEFAULT_OPENCLAW_FORCE_KILL_GRACE_MS
+        }
       );
       const commandResult =
         parseJsonUnknownOutput(output.stdout) ??
@@ -1425,7 +1429,10 @@ export class OpenClawAgentRuntime {
       }
 
       commandErrorMessage = normalizeError(error).message;
-      commandStatus = looksLikeTimeoutError(commandErrorMessage) ? "timeout" : "error";
+      commandStatus =
+        isCommandTimeoutError(error, commandErrorMessage)
+          ? "timeout"
+          : "error";
     }
 
     const historyText = await this.readLatestAssistantText(sessionKey);
@@ -2821,8 +2828,137 @@ function looksLikeTimeoutError(message: string): boolean {
   return (
     normalized.includes("timed out") ||
     normalized.includes("timeout") ||
-    normalized.includes("etimedout")
+    normalized.includes("etimedout") ||
+    normalized.includes("sigterm") ||
+    normalized.includes("sigkill") ||
+    normalized.includes("aborterror") ||
+    normalized.includes("aborted")
   );
+}
+
+function isAbortLikeError(value: unknown): boolean {
+  const objectValue = valueAsObject(value);
+  const code = normalizeLowercase(objectValue?.code);
+  const name = normalizeLowercase(objectValue?.name);
+  const errorMessage =
+    valueAsString(objectValue?.message) ??
+    (value instanceof Error ? value.message : null) ??
+    "";
+  const normalizedMessage = errorMessage.trim().toLowerCase();
+
+  return (
+    code === "abort_err" ||
+    code === "aborted" ||
+    name === "aborterror" ||
+    normalizedMessage.includes("aborterror") ||
+    normalizedMessage.includes("aborted")
+  );
+}
+
+function isCommandTimeoutError(error: unknown, normalizedErrorMessage: string): boolean {
+  const objectValue = valueAsObject(error);
+  if (valueAsBoolean(objectValue?.timedOut) === true) {
+    return true;
+  }
+
+  const code = normalizeLowercase(objectValue?.code);
+  if (code === "etimedout" || code === "timeout") {
+    return true;
+  }
+
+  return isAbortLikeError(error) || looksLikeTimeoutError(normalizedErrorMessage);
+}
+
+async function execFileWithTimeoutAndKill(
+  command: string,
+  args: readonly string[],
+  options: {
+    cwd: string;
+    encoding: "utf8";
+    maxBuffer: number;
+    env: NodeJS.ProcessEnv;
+    timeoutMs: number;
+    forceKillGraceMs: number;
+  }
+): Promise<{ stdout: string; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    let timedOut = false;
+    let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+    let forceKillHandle: ReturnType<typeof setTimeout> | null = null;
+
+    const cleanup = (): void => {
+      if (timeoutHandle !== null) {
+        clearTimeout(timeoutHandle);
+        timeoutHandle = null;
+      }
+      if (forceKillHandle !== null) {
+        clearTimeout(forceKillHandle);
+        forceKillHandle = null;
+      }
+    };
+
+    const child = execFile(
+      command,
+      [...args],
+      {
+        cwd: options.cwd,
+        encoding: options.encoding,
+        maxBuffer: options.maxBuffer,
+        env: options.env
+      },
+      (error, stdout, stderr) => {
+        cleanup();
+        const normalizedStdout = execOutputToString(stdout);
+        const normalizedStderr = execOutputToString(stderr);
+
+        if (!error) {
+          resolve({
+            stdout: normalizedStdout,
+            stderr: normalizedStderr
+          });
+          return;
+        }
+
+        const enrichedError = error as NodeJS.ErrnoException & { stdout?: unknown; stderr?: unknown };
+        if (typeof enrichedError.stdout === "undefined") {
+          enrichedError.stdout = normalizedStdout;
+        }
+        if (typeof enrichedError.stderr === "undefined") {
+          enrichedError.stderr = normalizedStderr;
+        }
+        if (timedOut) {
+          enrichedError.code = "ETIMEDOUT";
+          (
+            enrichedError as NodeJS.ErrnoException & {
+              timedOut?: boolean;
+            }
+          ).timedOut = true;
+        }
+        reject(enrichedError);
+      }
+    );
+
+    const timeoutMs = Math.max(1_000, Math.floor(options.timeoutMs));
+    timeoutHandle = setTimeout(() => {
+      timedOut = true;
+      try {
+        child.kill("SIGTERM");
+      } catch {
+        // Ignore local process kill failures; callback/rejection handles lifecycle.
+      }
+
+      const graceMs = Math.max(250, Math.floor(options.forceKillGraceMs));
+      forceKillHandle = setTimeout(() => {
+        try {
+          child.kill("SIGKILL");
+        } catch {
+          // Ignore local process kill failures; callback/rejection handles lifecycle.
+        }
+      }, graceMs);
+      forceKillHandle.unref?.();
+    }, timeoutMs);
+    timeoutHandle.unref?.();
+  });
 }
 
 function parseJsonUnknownOutput(value: unknown): unknown | null {

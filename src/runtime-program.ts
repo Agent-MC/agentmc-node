@@ -1010,6 +1010,7 @@ export class AgentRuntimeProgram {
       openclawSessionsPath: this.options.openclawSessionsPath,
       runAgent: provider.runAgent,
       runtimeSource: "agent-runtime",
+      closeSessionOnStop: true,
       onError: (error) => {
         this.emitError(error, { source: "realtime.runtime" });
       },
