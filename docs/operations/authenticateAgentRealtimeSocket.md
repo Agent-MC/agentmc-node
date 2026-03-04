@@ -17,25 +17,121 @@ Accepts host API key context by session ownership. X-Agent-Id remains optional f
 
 ## Request Example
 
-None.
+### application/json
+```json
+{
+  "socket_id": "1234.567890",
+  "channel_name": "private-agent-realtime.7.42"
+}
+```
 
 ## Success Responses
 
-### 200 (none)
+### 200 (application/json)
 Socket subscription authorized.
 
-```text
-No response body.
+```json
+{
+  "auth": "example"
+}
 ```
 
 
 ## Error Responses
 
-### default (none)
-Error response.
+### 401 (application/json)
+Missing or invalid credentials.
 
-```text
-No response body.
+```json
+{
+  "error": {
+    "code": "validation.failed",
+    "message": "Validation failed.",
+    "details": {
+      "fields": {
+        "title": [
+          "The title field is required."
+        ]
+      }
+    }
+  }
+}
+```
+
+### 403 (application/json)
+Forbidden.
+
+```json
+{
+  "error": {
+    "code": "validation.failed",
+    "message": "Validation failed.",
+    "details": {
+      "fields": {
+        "title": [
+          "The title field is required."
+        ]
+      }
+    }
+  }
+}
+```
+
+### 404 (application/json)
+Resource not found.
+
+```json
+{
+  "error": {
+    "code": "validation.failed",
+    "message": "Validation failed.",
+    "details": {
+      "fields": {
+        "title": [
+          "The title field is required."
+        ]
+      }
+    }
+  }
+}
+```
+
+### 409 (application/json)
+Conflict.
+
+```json
+{
+  "error": {
+    "code": "validation.failed",
+    "message": "Validation failed.",
+    "details": {
+      "fields": {
+        "title": [
+          "The title field is required."
+        ]
+      }
+    }
+  }
+}
+```
+
+### 422 (application/json)
+Validation failed.
+
+```json
+{
+  "error": {
+    "code": "validation.failed",
+    "message": "Validation failed.",
+    "details": {
+      "fields": {
+        "title": [
+          "The title field is required."
+        ]
+      }
+    }
+  }
+}
 ```
 
 
@@ -53,6 +149,10 @@ const result = await client.operations.authenticateAgentRealtimeSocket({
     "path": {
       "session": 1
     }
+  },
+  "body": {
+    "socket_id": "1234.567890",
+    "channel_name": "private-agent-realtime.7.42"
   }
 });
 

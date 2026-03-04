@@ -9,6 +9,10 @@ const result = await client.operations.authenticateAgentRealtimeSocket({
     "path": {
       "session": 1
     }
+  },
+  "body": {
+    "socket_id": "1234.567890",
+    "channel_name": "private-agent-realtime.7.42"
   }
 });
 

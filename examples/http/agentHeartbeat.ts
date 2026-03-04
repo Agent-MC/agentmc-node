@@ -9,6 +9,65 @@ const result = await client.operations.agentHeartbeat({
     "header": {
       "X-Host-Fingerprint": "a3f56f330f311a2159f8c101eaf1439a29f1d57f007375d56aa79f304bc4f112"
     }
+  },
+  "body": {
+    "meta": {
+      "runtime": {
+        "name": "openclaw",
+        "version": "2026.2.26",
+        "build": "bc50708",
+        "mode": "openclaw"
+      },
+      "openclaw_version": "2026.2.26",
+      "openclaw_build": "bc50708",
+      "models": [
+        "openai/gpt-5-codex"
+      ],
+      "node_version": "v25.7.0",
+      "agentmc_node_package_version": "0.14.2",
+      "runtime_mode": "openclaw",
+      "tool_availability": {
+        "chat_realtime": true,
+        "files_realtime": true,
+        "notifications_realtime": true
+      }
+    },
+    "host": {
+      "fingerprint": "a3f56f330f311a2159f8c101eaf1439a29f1d57f007375d56aa79f304bc4f112",
+      "name": "worker-01",
+      "meta": {
+        "hostname": "worker-01",
+        "ip": "10.0.2.15",
+        "network": {
+          "private_ip": "10.0.2.15",
+          "public_ip": "34.222.10.10"
+        },
+        "os": "Ubuntu",
+        "os_version": "24.04",
+        "arch": "x86_64",
+        "cpu": "Intel Xeon",
+        "cpu_cores": 8,
+        "ram_gb": 32,
+        "disk": {
+          "total_bytes": 536870912000,
+          "free_bytes": 322122547200
+        },
+        "uptime_seconds": 86400,
+        "runtime": {
+          "name": "codex",
+          "version": "2026.02.1"
+        }
+      }
+    },
+    "agent": {
+      "name": "Jarvis",
+      "identity": {
+        "name": "Jarvis",
+        "agent_key": "solomon",
+        "creature": "robot",
+        "vibe": "calm"
+      }
+    }
   }
 });
 

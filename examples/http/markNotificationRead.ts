@@ -7,9 +7,10 @@ const client = new AgentMCApi({
 const result = await client.operations.markNotificationRead({
   "params": {
     "path": {
-      "notification": "11111111-1111-1111-1111-111111111111"
+      "notification": "11111111-1111-4111-8111-111111111111"
     }
-  }
+  },
+  "body": {}
 });
 
 if (result.error) {

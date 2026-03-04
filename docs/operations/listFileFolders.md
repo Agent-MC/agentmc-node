@@ -19,21 +19,69 @@ None.
 
 ## Success Responses
 
-### 200 (none)
+### 200 (application/json)
 Folder list returned.
 
-```text
-No response body.
+```json
+{
+  "data": [
+    {
+      "id": 12,
+      "team_id": 7,
+      "parent_id": null,
+      "name": "Runbooks",
+      "path_cache": "Runbooks",
+      "created_at": "2026-02-27T17:10:00Z",
+      "updated_at": "2026-02-27T17:10:00Z"
+    }
+  ],
+  "tree": [
+    {
+      "key": "value"
+    }
+  ]
+}
 ```
 
 
 ## Error Responses
 
-### default (none)
-Error response.
+### 401 (application/json)
+Missing or invalid credentials.
 
-```text
-No response body.
+```json
+{
+  "error": {
+    "code": "validation.failed",
+    "message": "Validation failed.",
+    "details": {
+      "fields": {
+        "title": [
+          "The title field is required."
+        ]
+      }
+    }
+  }
+}
+```
+
+### 403 (application/json)
+Forbidden.
+
+```json
+{
+  "error": {
+    "code": "validation.failed",
+    "message": "Validation failed.",
+    "details": {
+      "fields": {
+        "title": [
+          "The title field is required."
+        ]
+      }
+    }
+  }
+}
 ```
 
 

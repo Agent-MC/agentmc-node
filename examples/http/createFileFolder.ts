@@ -4,7 +4,12 @@ const client = new AgentMCApi({
   apiKey: process.env.AGENTMC_API_KEY
 });
 
-const result = await client.operations.createFileFolder();
+const result = await client.operations.createFileFolder({
+  "body": {
+    "name": "Runbooks",
+    "parent_id": null
+  }
+});
 
 if (result.error) {
   console.error(result.status, result.error);

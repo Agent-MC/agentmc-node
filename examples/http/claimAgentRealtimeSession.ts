@@ -9,7 +9,8 @@ const result = await client.operations.claimAgentRealtimeSession({
     "path": {
       "session": 1
     }
-  }
+  },
+  "body": {}
 });
 
 if (result.error) {

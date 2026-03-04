@@ -9,6 +9,11 @@ const result = await client.operations.commentCalendarItem({
     "path": {
       "item": 1
     }
+  },
+  "body": {
+    "body": "Added links to logs and timeline document.\n\n![handoff](/api/v1/files/101/preview)",
+    "actor_type": "agent",
+    "actor_id": 42
   }
 });
 

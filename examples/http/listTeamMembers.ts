@@ -4,7 +4,14 @@ const client = new AgentMCApi({
   apiKey: process.env.AGENTMC_API_KEY
 });
 
-const result = await client.operations.listTeamMembers();
+const result = await client.operations.listTeamMembers({
+  "params": {
+    "query": {
+      "per_page": 25,
+      "search": "operations"
+    }
+  }
+});
 
 if (result.error) {
   console.error(result.status, result.error);

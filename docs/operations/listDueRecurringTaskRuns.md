@@ -1,19 +1,19 @@
-# getAgentInstructions
+# listDueRecurringTaskRuns
 
 - Method: `GET`
-- Path: `/agents/instructions`
-- Summary: Fetch the AgentMC instruction bundle for the authenticated agent.
-- Auth: ApiKeyAuth OR SessionCookieAuth
+- Path: `/agents/recurring-task-runs/due`
+- Summary: -
+- Auth: ApiKeyAuth
 
 ## Description
 
-Returns managed runtime files and bundle metadata. Send current_bundle_version to fetch files only when the bundle has changed.
+No additional description.
 
 ## Parameters
 
 | Name | In | Required | Description | Example |
 | --- | --- | --- | --- | --- |
-| current_bundle_version | query | no | Current bundle version. | "example" |
+| limit | query | no | Maximum number of records to return. | 20 |
 
 ## Request Example
 
@@ -22,26 +22,18 @@ None.
 ## Success Responses
 
 ### 200 (application/json)
-Instruction bundle returned.
+Successful response.
 
 ```json
 {
-  "ok": true,
-  "changed": true,
-  "bundle_version": "bundle_2fa07fcadd6575cc",
-  "generated_at": "2026-02-25T14:10:00Z",
-  "defaults": {
-    "heartbeat_interval_seconds": 60
-  },
-  "agent": {
-    "id": 42
-  },
-  "files": [
+  "data": [
     {
-      "id": "skill.md",
-      "path": ".agentmc/skills/skill.md",
-      "content": "# AgentMC Skill\n",
-      "sha256": "f96c95bd27dc9f3415cc0f4d817b5ec6f14185b6fcb5db9f6b6f14f648f8e9e4"
+      "run_id": 42,
+      "task_id": 42,
+      "prompt": "example",
+      "scheduled_for": "2026-02-22T17:21:00Z",
+      "claim_token": "example",
+      "agent_id": 42
     }
   ]
 }
@@ -88,6 +80,25 @@ Forbidden.
 }
 ```
 
+### 404 (application/json)
+Resource not found.
+
+```json
+{
+  "error": {
+    "code": "validation.failed",
+    "message": "Validation failed.",
+    "details": {
+      "fields": {
+        "title": [
+          "The title field is required."
+        ]
+      }
+    }
+  }
+}
+```
+
 ### 422 (application/json)
 Validation failed.
 
@@ -117,10 +128,10 @@ const client = new AgentMCApi({
   apiKey: process.env.AGENTMC_API_KEY
 });
 
-const result = await client.operations.getAgentInstructions({
+const result = await client.operations.listDueRecurringTaskRuns({
   "params": {
     "query": {
-      "current_bundle_version": "example"
+      "limit": 20
     }
   }
 });

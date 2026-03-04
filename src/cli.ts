@@ -1363,7 +1363,11 @@ async function runHostRealtimeSessionRoutingLoop(input: {
         const sessionId = toPositiveInt(sessionObject.id);
         const agentId = toPositiveInt(sessionObject.agent_id);
         const status = nonEmpty(sessionObject.status)?.toLowerCase();
-        if (sessionId === null || agentId === null || status !== "requested") {
+        if (
+          sessionId === null ||
+          agentId === null ||
+          (status !== "requested" && status !== "claimed" && status !== "active")
+        ) {
           continue;
         }
         if (routedSessionIds.has(sessionId)) {
