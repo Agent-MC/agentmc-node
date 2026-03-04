@@ -167,6 +167,43 @@ test("session acquisition prioritizes browser-requested sessions over host/syste
   });
 });
 
+test("session claim failures trigger a remote close for faster reconnect recovery", async () => {
+  await withFixture(async ({ dir, sessionsPath }) => {
+    const closeCalls = [];
+    const runtime = createRuntime(sessionsPath, dir, {
+      client: {
+        subscribeToRealtimeNotifications: async () => {
+          throw new Error("claimAgentRealtimeSession failed with status 409.");
+        },
+        operations: {
+          closeAgentRealtimeSession: async (input = {}) => {
+            closeCalls.push({
+              session: input?.params?.path?.session ?? null,
+              body: input?.body ?? {}
+            });
+            return {
+              error: null,
+              status: 200,
+              data: {}
+            };
+          }
+        }
+      }
+    });
+
+    runtime.startSessionLoop(912);
+
+    for (let attempt = 0; attempt < 20 && closeCalls.length === 0; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+
+    assert.equal(closeCalls.length, 1);
+    assert.equal(closeCalls[0]?.session, 912);
+    assert.equal(closeCalls[0]?.body?.reason, "session_claim_failed");
+    assert.equal(closeCalls[0]?.body?.status, "failed");
+  });
+});
+
 test("parses top-level keyed session map", async () => {
   await withFixture(async ({ dir, sessionsPath }) => {
     const sessionKey = "agent:main:agentmc:114";

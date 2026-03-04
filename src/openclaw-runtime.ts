@@ -730,8 +730,19 @@ export class OpenClawAgentRuntime {
           await sleep(150);
         }
       } catch (error) {
-        state.closeReason = state.closeReason ?? "session_loop_error";
-        await this.emitError(normalizeError(error));
+        const normalizedError = normalizeError(error);
+        if (this.options.selfHealCloseRemote && isSessionClaimFailureError(normalizedError)) {
+          state.closeReason = "session_claim_failed";
+          try {
+            await this.closeRemoteSession(state.sessionId, state.closeReason, "failed");
+          } catch (closeError) {
+            await this.emitError(normalizeError(closeError));
+          }
+        } else {
+          state.closeReason = state.closeReason ?? "session_loop_error";
+        }
+
+        await this.emitError(normalizedError);
       } finally {
         const hasOwnedSessionHandle = state.subscription !== null || state.session !== null;
         const shouldCloseRemote =
@@ -2260,19 +2271,11 @@ export class OpenClawAgentRuntime {
     }
 
     if (closeRemote && (this.options.closeSessionOnStop || forceRemoteClose)) {
-      const response = await this.options.client.operations.closeAgentRealtimeSession({
-        params: {
-          path: {
-            session: state.sessionId
-          }
-        },
-        headers: {
-          "X-Agent-Id": String(this.options.agent)
-        }
-      });
-
-      if (response.error) {
-        await this.emitError(createOperationError("closeAgentRealtimeSession", response.status, response.error));
+      const resolvedStatus = closeStatusOverride ?? this.options.closeStatus;
+      try {
+        await this.closeRemoteSession(state.sessionId, reason, resolvedStatus);
+      } catch (closeError) {
+        await this.emitError(normalizeError(closeError));
       }
     }
 
@@ -2281,6 +2284,31 @@ export class OpenClawAgentRuntime {
       this.nextSessionAcquireAtMs = Math.min(this.nextSessionAcquireAtMs, Date.now() + 250);
     }
     await callOptionalHandler(this.options.onSessionClosed, state.sessionId, this.options.onError, reason);
+  }
+
+  private async closeRemoteSession(
+    sessionId: number,
+    reason: string,
+    status: "closed" | "failed"
+  ): Promise<void> {
+    const response = await this.options.client.operations.closeAgentRealtimeSession({
+      params: {
+        path: {
+          session: sessionId
+        }
+      },
+      headers: {
+        "X-Agent-Id": String(this.options.agent)
+      },
+      body: {
+        reason,
+        status
+      }
+    });
+
+    if (response.error) {
+      await this.emitError(createOperationError("closeAgentRealtimeSession", response.status, response.error));
+    }
   }
 
   private async emitError(error: Error): Promise<void> {
@@ -3800,6 +3828,15 @@ function operationErrorStatus(error: Error): number | null {
 
   const parsed = Number.parseInt(match[1], 10);
   return Number.isInteger(parsed) ? parsed : null;
+}
+
+function isSessionClaimFailureError(error: Error): boolean {
+  const status = operationErrorStatus(error);
+  if (status !== 404 && status !== 409 && status !== 410 && status !== 422) {
+    return false;
+  }
+
+  return error.message.toLowerCase().includes("claimagentrealtimesession");
 }
 
 function shouldIgnorePublishRealtimeMessageError(
