@@ -8,7 +8,12 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { promisify } from "node:util";
 
 import { AgentMCApi } from "./client";
-import { AgentRuntime, type AgentRuntimeRunInput, type AgentRuntimeRunResult } from "./openclaw-runtime";
+import {
+  AgentRuntime,
+  type AgentRuntimeRunInput,
+  type AgentRuntimeRunResult,
+  type OpenClawRuntimeApiNotificationIngestResult
+} from "./openclaw-runtime";
 import { AGENTMC_NODE_PACKAGE_VERSION } from "./package-version";
 
 const execFileAsync = promisify(execFile);
@@ -22,6 +27,7 @@ const OPENCLAW_TELEMETRY_TIMEOUT_MS = 4_000;
 const OPENCLAW_AGENT_DISCOVERY_TIMEOUT_MS = 10_000;
 const DEFAULT_AGENTMC_API_BASE_URL = "https://agentmc.ai/api/v1";
 const DEFAULT_HEARTBEAT_INTERVAL_SECONDS = 60;
+const DEFAULT_HEARTBEAT_NOTIFICATION_CATCHUP_PER_PAGE = 50;
 const DEFAULT_RECURRING_TASK_POLL_INTERVAL_SECONDS = 30;
 const DEFAULT_RECURRING_TASK_POLL_LIMIT = 5;
 const DEFAULT_RECURRING_TASK_WAIT_TIMEOUT_MS = 600_000;
@@ -415,6 +421,9 @@ export class AgentRuntimeProgram {
     if (agentId !== null && this.runtimeProvider && this.realtimeRuntime === null) {
       await this.startRealtimeRuntime(agentId, this.runtimeProvider);
     }
+    if (agentId !== null) {
+      await this.catchUpNotificationsDuringHeartbeat(agentId);
+    }
 
     let nextHeartbeatAtMs = this.heartbeatEnabled
       ? Date.now() + (this.heartbeatIntervalSeconds ?? 1) * 1000
@@ -463,6 +472,9 @@ export class AgentRuntimeProgram {
           }
           if (agentId !== null && this.runtimeProvider && this.realtimeRuntime === null) {
             await this.startRealtimeRuntime(agentId, this.runtimeProvider);
+          }
+          if (agentId !== null) {
+            await this.catchUpNotificationsDuringHeartbeat(agentId);
           }
 
           if (immediateReason) {
@@ -1416,6 +1428,67 @@ export class AgentRuntimeProgram {
   private getOptionalOperation(operationId: string): ApiOperationHandler | null {
     const operation = valueAsObject(this.client.operations)?.[operationId];
     return typeof operation === "function" ? (operation as ApiOperationHandler) : null;
+  }
+
+  private async catchUpNotificationsDuringHeartbeat(agentId: number): Promise<void> {
+    if (!this.heartbeatEnabled || this.stopRequested) {
+      return;
+    }
+
+    const runtime = this.realtimeRuntime as AgentRuntime & {
+      ingestNotificationsFromApi?: (
+        notifications: readonly unknown[],
+        options?: { source?: "api_poll" }
+      ) => Promise<OpenClawRuntimeApiNotificationIngestResult>;
+    };
+    if (!runtime || typeof runtime.ingestNotificationsFromApi !== "function") {
+      return;
+    }
+
+    const listNotifications = this.getOptionalOperation("listNotifications");
+    if (!listNotifications) {
+      return;
+    }
+
+    try {
+      const response = await listNotifications({
+        params: {
+          query: {
+            unread: true,
+            per_page: DEFAULT_HEARTBEAT_NOTIFICATION_CATCHUP_PER_PAGE
+          }
+        },
+        headers: {
+          "X-Agent-Id": String(agentId)
+        }
+      });
+
+      if (response.error) {
+        throw createOperationFailureError("listNotifications", response);
+      }
+
+      const payload = valueAsObject(response.data) ?? (await readJsonResponseObject(response.response)) ?? {};
+      const rows = Array.isArray(payload.data) ? payload.data : [];
+      if (rows.length === 0) {
+        return;
+      }
+
+      const ingestResult = await runtime.ingestNotificationsFromApi(rows, { source: "api_poll" });
+      if (ingestResult.processed > 0) {
+        this.emitInfo("Heartbeat notification catch-up processed notifications", {
+          source: ingestResult.source,
+          session_id: ingestResult.sessionId,
+          total_received: ingestResult.totalReceived,
+          processed: ingestResult.processed,
+          skipped: ingestResult.skipped
+        });
+      }
+    } catch (error) {
+      this.emitError(normalizeError(error), {
+        source: "heartbeat.notifications.catchup",
+        agent_id: agentId
+      });
+    }
   }
 
   private async pollRecurringTaskRuns(agentId: number, provider: RuntimeProviderDescriptor): Promise<void> {

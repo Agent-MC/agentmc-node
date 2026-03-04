@@ -31,6 +31,8 @@ export {
   type OpenClawRuntimeConnectionStateEvent,
   type OpenClawRuntimeDebugEvent,
   type OpenClawRuntimeDocRecord,
+  type OpenClawRuntimeApiNotificationIngestOptions,
+  type OpenClawRuntimeApiNotificationIngestResult,
   type OpenClawRuntimeNotificationEvent,
   type OpenClawRuntimeNotificationBridgeEvent,
   type OpenClawRuntimeNotificationBridgeRunResult,

@@ -19,7 +19,7 @@ const execFileAsync = promisify(execFile);
 
 const DEFAULT_REQUESTED_SESSION_LIMIT = 20;
 const DEFAULT_REQUEST_POLL_MS = 5_000;
-const DEFAULT_DUPLICATE_TTL_MS = 45_000;
+const DEFAULT_DUPLICATE_TTL_MS = 300_000;
 const DEFAULT_PUSH_LOOP_DELAY_MS = 1_000;
 const MAX_RATE_LIMIT_BACKOFF_MS = 120_000;
 const DEFAULT_GATEWAY_TIMEOUT_MS = 120_000;
@@ -44,7 +44,7 @@ const DEFAULT_OPENCLAW_DOC_IDS = [
 
 type JsonObject = Record<string, unknown>;
 type MaybePromise = void | Promise<void>;
-type SessionSignalSource = "websocket";
+type SessionSignalSource = "websocket" | "api_poll";
 type MaybeNotificationType = string | null;
 
 export interface OpenClawRuntimeDocRecord {
@@ -178,6 +178,20 @@ export interface OpenClawAgentRuntimeStatus {
   filesRealtimeEnabled: boolean;
   docsRealtimeEnabled: boolean;
   notificationsRealtimeEnabled: boolean;
+}
+
+export interface OpenClawRuntimeApiNotificationIngestOptions {
+  sessionId?: number;
+  includeRead?: boolean;
+  source?: SessionSignalSource;
+}
+
+export interface OpenClawRuntimeApiNotificationIngestResult {
+  source: SessionSignalSource;
+  sessionId: number | null;
+  totalReceived: number;
+  processed: number;
+  skipped: number;
 }
 
 interface ResolvedOptions {
@@ -328,6 +342,90 @@ export class OpenClawAgentRuntime {
 
     this.startSessionLoop(resolvedSessionId);
     return true;
+  }
+
+  async ingestNotificationsFromApi(
+    notifications: readonly unknown[],
+    options: OpenClawRuntimeApiNotificationIngestOptions = {}
+  ): Promise<OpenClawRuntimeApiNotificationIngestResult> {
+    const source = options.source ?? "api_poll";
+    const totalReceived = Array.isArray(notifications) ? notifications.length : 0;
+    if (!Array.isArray(notifications) || notifications.length === 0) {
+      return {
+        source,
+        sessionId: null,
+        totalReceived: 0,
+        processed: 0,
+        skipped: 0
+      };
+    }
+
+    if (!this.options.notificationsRealtimeEnabled || this.stopRequested) {
+      return {
+        source,
+        sessionId: null,
+        totalReceived,
+        processed: 0,
+        skipped: totalReceived
+      };
+    }
+
+    const sessionState = this.resolveNotificationSessionState(options.sessionId);
+    if (!sessionState) {
+      return {
+        source,
+        sessionId: null,
+        totalReceived,
+        processed: 0,
+        skipped: totalReceived
+      };
+    }
+
+    const includeRead = options.includeRead === true;
+    let processed = 0;
+    let skipped = 0;
+
+    for (let index = 0; index < notifications.length; index += 1) {
+      if (this.stopRequested || sessionState.closed) {
+        skipped += notifications.length - index;
+        break;
+      }
+
+      const notification = valueAsObject(notifications[index]);
+      if (!notification) {
+        skipped += 1;
+        continue;
+      }
+
+      if (!includeRead && valueAsBoolean(notification.is_read) === true) {
+        skipped += 1;
+        continue;
+      }
+
+      const signal = this.buildSyntheticNotificationSignal(sessionState.sessionId, notification, index);
+      const notificationType = valueAsString(notification.notification_type)?.toLowerCase() ?? null;
+      const processedEvent = await this.dispatchNotificationEvent(sessionState, {
+        source,
+        signal,
+        notification,
+        notificationType,
+        channelType: "notification.api_fallback"
+      });
+
+      if (processedEvent) {
+        processed += 1;
+      } else {
+        skipped += 1;
+      }
+    }
+
+    return {
+      source,
+      sessionId: sessionState.sessionId,
+      totalReceived,
+      processed,
+      skipped
+    };
   }
 
   async run(): Promise<void> {
@@ -823,16 +921,16 @@ export class OpenClawAgentRuntime {
       notificationType: MaybeNotificationType;
       channelType: string | null;
     }
-  ): Promise<void> {
+  ): Promise<boolean> {
     const eventDedupeKey = notificationEventDedupeKey(input.notification, input.signal.id);
     if (!this.shouldProcessNotificationKey(eventDedupeKey)) {
-      return;
+      return false;
     }
 
     await this.maybeBridgeNotificationToAi(state, input);
 
     if (!this.options.onNotification) {
-      return;
+      return true;
     }
 
     await callOptionalHandler(
@@ -847,6 +945,7 @@ export class OpenClawAgentRuntime {
       },
       this.options.onError
     );
+    return true;
   }
 
   private async maybeBridgeNotificationToAi(
@@ -2067,6 +2166,76 @@ export class OpenClawAgentRuntime {
 
   private shouldProcessNotificationKey(key: string): boolean {
     return shouldProcessCacheKey(this.processedNotificationKeys, key, this.options.duplicateTtlMs);
+  }
+
+  private resolveNotificationSessionState(
+    sessionId: number | undefined
+  ): Pick<SessionState, "sessionId" | "session" | "closed"> | null {
+    const preferredSessionId = toPositiveInteger(sessionId);
+    if (preferredSessionId > 0) {
+      const preferred = this.sessions.get(preferredSessionId);
+      if (preferred && !preferred.closed) {
+        return preferred;
+      }
+    }
+
+    let best: SessionState | null = null;
+    for (const state of this.sessions.values()) {
+      if (state.closed) {
+        continue;
+      }
+
+      if (!best) {
+        best = state;
+        continue;
+      }
+
+      const bestConnected = best.connectionState === "connected";
+      const stateConnected = state.connectionState === "connected";
+      if (stateConnected && !bestConnected) {
+        best = state;
+        continue;
+      }
+
+      if (stateConnected === bestConnected) {
+        if (state.lastHealthActivityAtMs > best.lastHealthActivityAtMs) {
+          best = state;
+          continue;
+        }
+
+        if (
+          state.lastHealthActivityAtMs === best.lastHealthActivityAtMs &&
+          state.sessionId > best.sessionId
+        ) {
+          best = state;
+        }
+      }
+    }
+
+    return best;
+  }
+
+  private buildSyntheticNotificationSignal(
+    sessionId: number,
+    notification: JsonObject,
+    index: number
+  ): AgentRealtimeSignalMessage {
+    const timestampId = Math.max(1, Date.now() + Math.max(0, index));
+    const createdAt = valueAsString(notification.created_at) ?? new Date().toISOString();
+
+    return {
+      id: timestampId,
+      session_id: sessionId,
+      sender: "agent",
+      type: "message",
+      payload: {
+        type: "notification.api_fallback",
+        payload: {
+          notification
+        }
+      },
+      created_at: createdAt
+    };
   }
 }
 
