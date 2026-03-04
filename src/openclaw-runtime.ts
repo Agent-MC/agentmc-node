@@ -18,7 +18,7 @@ import type {
 const execFileAsync = promisify(execFile);
 
 const DEFAULT_REQUESTED_SESSION_LIMIT = 20;
-const DEFAULT_REQUEST_POLL_MS = 5_000;
+const DEFAULT_REQUEST_POLL_MS = 2_000;
 const DEFAULT_DUPLICATE_TTL_MS = 300_000;
 const DEFAULT_PUSH_LOOP_DELAY_MS = 1_000;
 const MAX_RATE_LIMIT_BACKOFF_MS = 120_000;
@@ -30,6 +30,7 @@ const DEFAULT_OPENCLAW_MAX_BUFFER_BYTES = 10 * 1024 * 1024;
 const DEFAULT_SELF_HEAL_CONNECTION_STALE_MS = 45_000;
 const DEFAULT_SELF_HEAL_ACTIVITY_STALE_MS = 120_000;
 const DEFAULT_SELF_HEAL_MIN_SESSION_AGE_MS = 20_000;
+const DEFAULT_REALTIME_PUBLISH_TIMEOUT_MS = 10_000;
 const DEFAULT_AGENTMC_API_BASE_URL = "https://agentmc.ai/api/v1";
 
 const DEFAULT_OPENCLAW_DOC_IDS = [
@@ -584,7 +585,7 @@ export class OpenClawAgentRuntime {
       return DEFAULT_PUSH_LOOP_DELAY_MS;
     }
 
-    const fallbackDelayMs = Math.max(this.options.requestPollMs, 3_000);
+    const fallbackDelayMs = Math.max(this.options.requestPollMs, 1_500);
     const requestedDelayMs = Math.max(0, this.nextSessionAcquireAtMs - nowMs);
 
     return Math.max(150, Math.min(fallbackDelayMs, requestedDelayMs));
@@ -803,7 +804,7 @@ export class OpenClawAgentRuntime {
     const channelPayload = valueAsObject(payload.payload) ?? {};
 
     if (this.options.chatRealtimeEnabled && (channelType === "chat.user" || channelType === "chat.request")) {
-      await this.enqueueChatUserSignal(state, signal, payload, channelPayload);
+      void this.enqueueChatUserSignal(state, signal, payload, channelPayload);
       return;
     }
 
@@ -1168,14 +1169,12 @@ export class OpenClawAgentRuntime {
     }
 
     if (this.options.sendThinkingDelta) {
-      try {
-        await this.publishChannelMessage(state.sessionId, "chat.agent.delta", requestId, {
-          delta: this.options.thinkingText,
-          ...(messageId > 0 ? { message_id: messageId } : {})
-        });
-      } catch (error) {
+      void this.publishChannelMessage(state.sessionId, "chat.agent.delta", requestId, {
+        delta: this.options.thinkingText,
+        ...(messageId > 0 ? { message_id: messageId } : {})
+      }).catch(async (error) => {
         await this.emitError(normalizeError(error));
-      }
+      });
     }
 
     const bridgedUserText = buildAgentMcBridgeMessage({
@@ -2016,13 +2015,20 @@ export class OpenClawAgentRuntime {
       attempt += 1;
 
       try {
-        await this.options.client.publishRealtimeMessage({
-          agent: this.options.agent,
-          session: sessionId,
+        await this.publishRealtimeMessageWithTimeout(
+          () =>
+            this.options.client.publishRealtimeMessage({
+              agent: this.options.agent,
+              session: sessionId,
+              channelType,
+              requestId,
+              payload: payloadWithRequestId
+            }),
+          sessionId,
           channelType,
           requestId,
-          payload: payloadWithRequestId
-        });
+          attempt
+        );
         return;
       } catch (error) {
         const normalizedError = normalizeError(error);
@@ -2044,6 +2050,36 @@ export class OpenClawAgentRuntime {
           error: normalizedError.message
         });
         await sleep(backoffMs);
+      }
+    }
+  }
+
+  private async publishRealtimeMessageWithTimeout(
+    send: () => Promise<unknown>,
+    sessionId: number,
+    channelType: string,
+    requestId: string,
+    attempt: number
+  ): Promise<void> {
+    let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+
+    try {
+      await Promise.race([
+        send(),
+        new Promise<never>((_resolve, reject) => {
+          timeoutHandle = setTimeout(() => {
+            reject(
+              new Error(
+                `publishRealtimeMessage timed out after ${DEFAULT_REALTIME_PUBLISH_TIMEOUT_MS}ms ` +
+                  `(session=${sessionId}, channel=${channelType}, request_id=${requestId}, attempt=${attempt}).`
+              )
+            );
+          }, DEFAULT_REALTIME_PUBLISH_TIMEOUT_MS);
+        })
+      ]);
+    } finally {
+      if (timeoutHandle !== null) {
+        clearTimeout(timeoutHandle);
       }
     }
   }
