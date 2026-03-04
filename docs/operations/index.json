@@ -118,6 +118,20 @@
             "created_at": "2026-02-22T17:21:02Z",
             "updated_at": "2026-02-22T17:21:02Z"
           },
+          "host_realtime": {
+            "connection": {
+              "driver": "reverb",
+              "key": "local-app-key",
+              "cluster": "mt1",
+              "host": "agentmc.ai",
+              "port": 443,
+              "scheme": "https",
+              "path": ""
+            },
+            "channel": "private-agent-realtime-host.12",
+            "event": "agent.realtime.host.session.requested",
+            "auth_endpoint": "https://agentmc.ai/api/v1/hosts/realtime/socket-auth"
+          },
           "agent": {
             "id": 42,
             "name": "Solomon",
@@ -260,6 +274,138 @@
         "status": "200",
         "mediaType": "application/json",
         "description": "Socket subscription authorized.",
+        "hasContent": true,
+        "example": {
+          "auth": "example"
+        }
+      },
+      {
+        "status": "401",
+        "mediaType": "application/json",
+        "description": "Missing or invalid credentials.",
+        "hasContent": true,
+        "example": {
+          "error": {
+            "code": "validation.failed",
+            "message": "Validation failed.",
+            "details": {
+              "fields": {
+                "title": [
+                  "The title field is required."
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": "403",
+        "mediaType": "application/json",
+        "description": "Forbidden.",
+        "hasContent": true,
+        "example": {
+          "error": {
+            "code": "validation.failed",
+            "message": "Validation failed.",
+            "details": {
+              "fields": {
+                "title": [
+                  "The title field is required."
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": "404",
+        "mediaType": "application/json",
+        "description": "Resource not found.",
+        "hasContent": true,
+        "example": {
+          "error": {
+            "code": "validation.failed",
+            "message": "Validation failed.",
+            "details": {
+              "fields": {
+                "title": [
+                  "The title field is required."
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": "409",
+        "mediaType": "application/json",
+        "description": "Conflict.",
+        "hasContent": true,
+        "example": {
+          "error": {
+            "code": "validation.failed",
+            "message": "Validation failed.",
+            "details": {
+              "fields": {
+                "title": [
+                  "The title field is required."
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": "422",
+        "mediaType": "application/json",
+        "description": "Validation failed.",
+        "hasContent": true,
+        "example": {
+          "error": {
+            "code": "validation.failed",
+            "message": "Validation failed.",
+            "details": {
+              "fields": {
+                "title": [
+                  "The title field is required."
+                ]
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  {
+    "operationId": "authenticateHostRealtimeSocket",
+    "method": "post",
+    "path": "/hosts/realtime/socket-auth",
+    "summary": "Sign one websocket channel subscription for the host realtime watch channel.",
+    "description": "Used by host runtimes to subscribe to host-scoped realtime availability events (new requested sessions) with host API key context.",
+    "tags": [
+      "Hosts"
+    ],
+    "security": [
+      [
+        "ApiKeyAuth"
+      ]
+    ],
+    "parameters": [],
+    "requestBodyRequired": true,
+    "requestExamples": [
+      {
+        "mediaType": "application/json",
+        "example": {
+          "socket_id": "1234.567890",
+          "channel_name": "private-agent-realtime-host.12"
+        }
+      }
+    ],
+    "responses": [
+      {
+        "status": "200",
+        "mediaType": "application/json",
+        "description": "Host socket subscription authorized.",
         "hasContent": true,
         "example": {
           "auth": "example"

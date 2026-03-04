@@ -6,6 +6,7 @@ Generated from `spec/openapi.filtered.json`.
 | --- | --- | --- | --- |
 | [agentHeartbeat](./agentHeartbeat.md) | POST | `/hosts/heartbeat` | Hosts |
 | [authenticateAgentRealtimeSocket](./authenticateAgentRealtimeSocket.md) | POST | `/hosts/realtime/sessions/{session}/socket-auth` | Hosts |
+| [authenticateHostRealtimeSocket](./authenticateHostRealtimeSocket.md) | POST | `/hosts/realtime/socket-auth` | Hosts |
 | [claimAgentRealtimeSession](./claimAgentRealtimeSession.md) | POST | `/hosts/realtime/sessions/{session}/claim` | Hosts |
 | [closeAgentRealtimeSession](./closeAgentRealtimeSession.md) | POST | `/hosts/realtime/sessions/{session}/close` | Hosts |
 | [commentCalendarItem](./commentCalendarItem.md) | POST | `/calendar/items/{item}/comments` | Calendar |

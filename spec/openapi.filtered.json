@@ -68,6 +68,20 @@
                     "created_at": "2026-02-22T17:21:02Z",
                     "updated_at": "2026-02-22T17:21:02Z"
                   },
+                  "host_realtime": {
+                    "connection": {
+                      "driver": "reverb",
+                      "key": "local-app-key",
+                      "cluster": "mt1",
+                      "host": "agentmc.ai",
+                      "port": 443,
+                      "scheme": "https",
+                      "path": ""
+                    },
+                    "channel": "private-agent-realtime-host.12",
+                    "event": "agent.realtime.host.session.requested",
+                    "auth_endpoint": "https://agentmc.ai/api/v1/hosts/realtime/socket-auth"
+                  },
                   "agent": {
                     "id": 42,
                     "name": "Solomon",
@@ -1488,6 +1502,54 @@
         ],
         "requestBody": {
           "$ref": "#/components/requestBodies/AuthenticateAgentRealtimeSocketApiRequest"
+        }
+      }
+    },
+    "/hosts/realtime/socket-auth": {
+      "post": {
+        "tags": [
+          "Hosts"
+        ],
+        "summary": "Sign one websocket channel subscription for the host realtime watch channel.",
+        "description": "Used by host runtimes to subscribe to host-scoped realtime availability events (new requested sessions) with host API key context.",
+        "operationId": "authenticateHostRealtimeSocket",
+        "responses": {
+          "200": {
+            "description": "Host socket subscription authorized.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentRealtimeSocketAuthResponse"
+                },
+                "example": {
+                  "auth": "example"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/ApiError401"
+          },
+          "403": {
+            "$ref": "#/components/responses/ApiError403"
+          },
+          "404": {
+            "$ref": "#/components/responses/ApiError404"
+          },
+          "409": {
+            "$ref": "#/components/responses/ApiError409"
+          },
+          "422": {
+            "$ref": "#/components/responses/ApiError422"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "requestBody": {
+          "$ref": "#/components/requestBodies/AuthenticateHostRealtimeSocketApiRequest"
         }
       }
     },
@@ -6975,6 +7037,29 @@
               "updated_at": "2026-02-22T17:21:00Z"
             }
           },
+          "host_realtime": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/HostRealtimeSocketPayload"
+              }
+            ],
+            "nullable": true,
+            "description": "Host websocket watch channel metadata for push-first session availability routing.",
+            "example": {
+              "connection": {
+                "driver": "example",
+                "key": "example",
+                "cluster": "example",
+                "host": "ip-10-0-3-42",
+                "port": 1,
+                "scheme": "example",
+                "path": "notes/daily-ops.md"
+              },
+              "channel": "example",
+              "event": "example",
+              "auth_endpoint": "example"
+            }
+          },
           "agent": {
             "type": "object",
             "nullable": true,
@@ -7037,6 +7122,20 @@
             "agents_online": 1,
             "created_at": "2026-02-22T17:21:02Z",
             "updated_at": "2026-02-22T17:21:02Z"
+          },
+          "host_realtime": {
+            "connection": {
+              "driver": "reverb",
+              "key": "local-app-key",
+              "cluster": "mt1",
+              "host": "agentmc.ai",
+              "port": 443,
+              "scheme": "https",
+              "path": ""
+            },
+            "channel": "private-agent-realtime-host.12",
+            "event": "agent.realtime.host.session.requested",
+            "auth_endpoint": "https://agentmc.ai/api/v1/hosts/realtime/socket-auth"
           },
           "agent": {
             "id": 42,
@@ -8901,89 +9000,7 @@
             }
           },
           "socket": {
-            "type": "object",
-            "required": [
-              "connection",
-              "channel",
-              "event",
-              "auth_endpoint"
-            ],
-            "properties": {
-              "connection": {
-                "type": "object",
-                "required": [
-                  "driver",
-                  "key",
-                  "cluster",
-                  "host",
-                  "port",
-                  "scheme",
-                  "path"
-                ],
-                "properties": {
-                  "driver": {
-                    "type": "string",
-                    "description": "Driver.",
-                    "example": "example"
-                  },
-                  "key": {
-                    "type": "string",
-                    "description": "Stable mention key composed from mention type and identifier.",
-                    "example": "example"
-                  },
-                  "cluster": {
-                    "type": "string",
-                    "description": "Cluster.",
-                    "example": "example"
-                  },
-                  "host": {
-                    "type": "string",
-                    "description": "Host.",
-                    "example": "ip-10-0-3-42"
-                  },
-                  "port": {
-                    "type": "integer",
-                    "description": "Port.",
-                    "example": 1
-                  },
-                  "scheme": {
-                    "type": "string",
-                    "description": "Scheme.",
-                    "example": "example"
-                  },
-                  "path": {
-                    "type": "string",
-                    "description": "Local filesystem path where this file should be written.",
-                    "example": "notes/daily-ops.md"
-                  }
-                },
-                "description": "Connection.",
-                "example": {
-                  "driver": "example",
-                  "key": "example",
-                  "cluster": "example",
-                  "host": "ip-10-0-3-42",
-                  "port": 1,
-                  "scheme": "example",
-                  "path": "notes/daily-ops.md"
-                }
-              },
-              "channel": {
-                "type": "string",
-                "description": "Channel.",
-                "example": "example"
-              },
-              "event": {
-                "type": "string",
-                "description": "Event.",
-                "example": "example"
-              },
-              "auth_endpoint": {
-                "type": "string",
-                "description": "Auth endpoint.",
-                "example": "example"
-              }
-            },
+            "$ref": "#/components/schemas/HostRealtimeSocketPayload",
             "description": "Socket.",
             "example": {
               "connection": {
@@ -9033,6 +9050,106 @@
           },
           "created_at": "2026-02-22T17:21:00Z",
           "updated_at": "2026-02-22T17:21:00Z"
+        }
+      },
+      "HostRealtimeSocketPayload": {
+        "type": "object",
+        "required": [
+          "connection",
+          "channel",
+          "event",
+          "auth_endpoint"
+        ],
+        "properties": {
+          "connection": {
+            "type": "object",
+            "required": [
+              "driver",
+              "key",
+              "cluster",
+              "host",
+              "port",
+              "scheme",
+              "path"
+            ],
+            "properties": {
+              "driver": {
+                "type": "string",
+                "description": "Driver.",
+                "example": "example"
+              },
+              "key": {
+                "type": "string",
+                "description": "Stable mention key composed from mention type and identifier.",
+                "example": "example"
+              },
+              "cluster": {
+                "type": "string",
+                "description": "Cluster.",
+                "example": "example"
+              },
+              "host": {
+                "type": "string",
+                "description": "Host.",
+                "example": "ip-10-0-3-42"
+              },
+              "port": {
+                "type": "integer",
+                "description": "Port.",
+                "example": 1
+              },
+              "scheme": {
+                "type": "string",
+                "description": "Scheme.",
+                "example": "example"
+              },
+              "path": {
+                "type": "string",
+                "description": "Local filesystem path where this file should be written.",
+                "example": "notes/daily-ops.md"
+              }
+            },
+            "description": "Connection.",
+            "example": {
+              "driver": "example",
+              "key": "example",
+              "cluster": "example",
+              "host": "ip-10-0-3-42",
+              "port": 1,
+              "scheme": "example",
+              "path": "notes/daily-ops.md"
+            }
+          },
+          "channel": {
+            "type": "string",
+            "description": "Channel.",
+            "example": "example"
+          },
+          "event": {
+            "type": "string",
+            "description": "Event.",
+            "example": "example"
+          },
+          "auth_endpoint": {
+            "type": "string",
+            "description": "Auth endpoint.",
+            "example": "example"
+          }
+        },
+        "description": "Host Realtime Socket Payload schema.",
+        "example": {
+          "connection": {
+            "driver": "example",
+            "key": "example",
+            "cluster": "example",
+            "host": "ip-10-0-3-42",
+            "port": 1,
+            "scheme": "example",
+            "path": "notes/daily-ops.md"
+          },
+          "channel": "example",
+          "event": "example",
+          "auth_endpoint": "example"
         }
       },
       "AgentRealtimeSignal": {
@@ -12716,6 +12833,33 @@
           "channel_name": "private-agent-realtime.7.42"
         }
       },
+      "AuthenticateHostRealtimeSocketApiRequest": {
+        "type": "object",
+        "properties": {
+          "socket_id": {
+            "type": "string",
+            "maxLength": 100,
+            "pattern": "^\\d+\\.\\d+$",
+            "description": "Realtime socket id from websocket connection metadata.",
+            "example": "1234.567890"
+          },
+          "channel_name": {
+            "type": "string",
+            "maxLength": 190,
+            "description": "Private realtime channel name to authorize.",
+            "example": "private-agent-realtime.7.42"
+          }
+        },
+        "required": [
+          "socket_id",
+          "channel_name"
+        ],
+        "description": "Authenticate Host Realtime Socket Api Request request schema.",
+        "example": {
+          "socket_id": "1234.567890",
+          "channel_name": "private-agent-realtime.7.42"
+        }
+      },
       "CloseAgentRealtimeSessionApiRequest": {
         "type": "object",
         "properties": {
@@ -14932,6 +15076,20 @@
           }
         }
       },
+      "AuthenticateHostRealtimeSocketApiRequest": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/AuthenticateHostRealtimeSocketApiRequest"
+            },
+            "example": {
+              "socket_id": "1234.567890",
+              "channel_name": "private-agent-realtime-host.12"
+            }
+          }
+        }
+      },
       "CloseAgentRealtimeSessionApiRequest": {
         "required": true,
         "content": {
@@ -15445,6 +15603,20 @@
                 "agents_online": 1,
                 "created_at": "2026-02-22T17:21:02Z",
                 "updated_at": "2026-02-22T17:21:02Z"
+              },
+              "host_realtime": {
+                "connection": {
+                  "driver": "reverb",
+                  "key": "local-app-key",
+                  "cluster": "mt1",
+                  "host": "agentmc.ai",
+                  "port": 443,
+                  "scheme": "https",
+                  "path": ""
+                },
+                "channel": "private-agent-realtime-host.12",
+                "event": "agent.realtime.host.session.requested",
+                "auth_endpoint": "https://agentmc.ai/api/v1/hosts/realtime/socket-auth"
               },
               "agent": {
                 "id": 42,

@@ -1494,68 +1494,92 @@ async function runHostRealtimeSessionRoutingLoop(input: {
 }): Promise<void> {
   while (!input.shouldStop()) {
     const sessionLimit = Math.max(1, Math.min(100, input.queryLimit));
+    const runtimeByAgentId = new Map<number, AgentRuntimeProgram>();
     for (const worker of input.workers) {
-      if (input.shouldStop()) {
-        break;
-      }
-
       const agentId = worker.agentId;
       if (!agentId || agentId < 1) {
         continue;
       }
-
       const runtime = input.activeRuntimes.get(worker.localKey);
       if (!runtime) {
         continue;
       }
+      runtimeByAgentId.set(agentId, runtime);
+    }
 
-      try {
-        const response = await input.client.operations.listAgentRealtimeRequestedSessions({
-          params: {
-            query: {
-              limit: sessionLimit
-            }
-          },
-          headers: {
-            "X-Agent-Id": String(agentId)
+    if (runtimeByAgentId.size === 0) {
+      await sleepWithStop(input.intervalMs, input.shouldStop);
+      continue;
+    }
+
+    try {
+      // Query once in host context; server returns sessions across host-assigned agents.
+      const response = await input.client.operations.listAgentRealtimeRequestedSessions({
+        params: {
+          query: {
+            limit: sessionLimit
           }
-        });
-
-        if (response.error) {
-          const summary = summarizeApiError(response.error);
-          throw new Error(
-            `listAgentRealtimeRequestedSessions failed with status ${response.status}${summary ? ` (${summary})` : ""}`
-          );
         }
+      });
 
-        const payload = valueAsObject(response.data) ?? (await readJsonResponseObject(response.response));
-        const sessions = Array.isArray(payload?.data) ? payload.data : [];
-        const orderedSessions = [...sessions].sort((left, right) => {
-          const leftId = toPositiveInt(valueAsObject(left)?.id) ?? 0;
-          const rightId = toPositiveInt(valueAsObject(right)?.id) ?? 0;
-          return rightId - leftId;
+      if (response.error) {
+        const status = Number(response.status || 0);
+        const summary = summarizeApiError(response.error);
+        const retryAfterSeconds = resolveRetryAfterSeconds(response.response, response.error);
+        const backoffMs = resolveHostRealtimeRoutingBackoffMs({
+          intervalMs: input.intervalMs,
+          status,
+          retryAfterSeconds
         });
-
-        for (const session of orderedSessions) {
-          const sessionObject = valueAsObject(session);
-          if (!sessionObject) {
-            continue;
-          }
-
-          const sessionId = toPositiveInt(sessionObject.id);
-          const status = nonEmpty(sessionObject.status)?.toLowerCase();
-          if (sessionId === null || (status !== "requested" && status !== "claimed" && status !== "active")) {
-            continue;
-          }
-
-          runtime.attachRealtimeSession(sessionId);
-        }
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
         process.stderr.write(
-          `[agentmc-runtime] host realtime routing failed for worker ${worker.localKey} (agent=${agentId}): ${message}\n`
+          `[agentmc-runtime] host realtime routing failed: listAgentRealtimeRequestedSessions failed with status ${response.status}${summary ? ` (${summary})` : ""}; backing off ${backoffMs}ms\n`
         );
+        await sleepWithStop(backoffMs, input.shouldStop);
+        continue;
       }
+
+      const payload = valueAsObject(response.data) ?? (await readJsonResponseObject(response.response));
+      const sessions = Array.isArray(payload?.data) ? payload.data : [];
+      const orderedSessions = [...sessions].sort((left, right) => {
+        const leftId = toPositiveInt(valueAsObject(left)?.id) ?? 0;
+        const rightId = toPositiveInt(valueAsObject(right)?.id) ?? 0;
+        return rightId - leftId;
+      });
+      let routedSessions = 0;
+
+      for (const session of orderedSessions) {
+        const sessionObject = valueAsObject(session);
+        if (!sessionObject) {
+          continue;
+        }
+
+        const sessionId = toPositiveInt(sessionObject.id);
+        const status = nonEmpty(sessionObject.status)?.toLowerCase();
+        if (sessionId === null || (status !== "requested" && status !== "claimed" && status !== "active")) {
+          continue;
+        }
+
+        const sessionAgentId = toPositiveInt(sessionObject.agent_id);
+        if (!sessionAgentId) {
+          continue;
+        }
+
+        const runtime = runtimeByAgentId.get(sessionAgentId);
+        if (!runtime) {
+          continue;
+        }
+
+        runtime.attachRealtimeSession(sessionId);
+        routedSessions += 1;
+      }
+
+      const idlePollMs = Math.max(input.intervalMs, 5_000);
+      const nextPollMs = routedSessions > 0 ? input.intervalMs : idlePollMs;
+      await sleepWithStop(nextPollMs, input.shouldStop);
+      continue;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      process.stderr.write(`[agentmc-runtime] host realtime routing failed: ${message}\n`);
     }
 
     await sleepWithStop(input.intervalMs, input.shouldStop);
@@ -2627,6 +2651,38 @@ function summarizeApiError(error: unknown): string | null {
     return message;
   }
   return code;
+}
+
+function resolveRetryAfterSeconds(response: Response | undefined, error: unknown): number | null {
+  const headerValue = response?.headers.get("retry-after");
+  const headerSeconds = toPositiveInt(headerValue);
+  if (headerSeconds !== null) {
+    return headerSeconds;
+  }
+
+  const payload = valueAsObject(error);
+  const root = valueAsObject(payload?.error) ?? payload;
+  const details = valueAsObject(root?.details);
+  return toPositiveInt(details?.retry_after);
+}
+
+function resolveHostRealtimeRoutingBackoffMs(input: {
+  intervalMs: number;
+  status: number;
+  retryAfterSeconds: number | null;
+}): number {
+  const baseIntervalMs = Math.max(1_000, input.intervalMs);
+  const retryAfterMs = (input.retryAfterSeconds ?? 0) * 1_000;
+
+  if (input.status === 429) {
+    return Math.min(60_000, Math.max(retryAfterMs, baseIntervalMs * 4, 5_000));
+  }
+
+  if (input.status >= 500 || input.status === 0) {
+    return Math.min(20_000, Math.max(baseIntervalMs * 2, 3_000));
+  }
+
+  return Math.min(10_000, Math.max(baseIntervalMs, 2_000));
 }
 
 function buildRuntimeOptions(worker: RuntimeWorkerConfig, disableHeartbeat = false): AgentRuntimeProgramOptions {

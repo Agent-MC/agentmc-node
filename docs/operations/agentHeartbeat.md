@@ -111,6 +111,20 @@ Heartbeat accepted.
     "created_at": "2026-02-22T17:21:02Z",
     "updated_at": "2026-02-22T17:21:02Z"
   },
+  "host_realtime": {
+    "connection": {
+      "driver": "reverb",
+      "key": "local-app-key",
+      "cluster": "mt1",
+      "host": "agentmc.ai",
+      "port": 443,
+      "scheme": "https",
+      "path": ""
+    },
+    "channel": "private-agent-realtime-host.12",
+    "event": "agent.realtime.host.session.requested",
+    "auth_endpoint": "https://agentmc.ai/api/v1/hosts/realtime/socket-auth"
+  },
   "agent": {
     "id": 42,
     "name": "Solomon",

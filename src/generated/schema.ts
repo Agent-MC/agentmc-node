@@ -230,6 +230,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/hosts/realtime/socket-auth": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sign one websocket channel subscription for the host realtime watch channel.
+         * @description Used by host runtimes to subscribe to host-scoped realtime availability events (new requested sessions) with host API key context.
+         */
+        post: operations["authenticateHostRealtimeSocket"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/boards": {
         parameters: {
             query?: never;
@@ -2145,6 +2165,20 @@ export interface components {
          *         "created_at": "2026-02-22T17:21:02Z",
          *         "updated_at": "2026-02-22T17:21:02Z"
          *       },
+         *       "host_realtime": {
+         *         "connection": {
+         *           "driver": "reverb",
+         *           "key": "local-app-key",
+         *           "cluster": "mt1",
+         *           "host": "agentmc.ai",
+         *           "port": 443,
+         *           "scheme": "https",
+         *           "path": ""
+         *         },
+         *         "channel": "private-agent-realtime-host.12",
+         *         "event": "agent.realtime.host.session.requested",
+         *         "auth_endpoint": "https://agentmc.ai/api/v1/hosts/realtime/socket-auth"
+         *       },
          *       "agent": {
          *         "id": 42,
          *         "name": "Solomon",
@@ -2193,6 +2227,24 @@ export interface components {
              *     }
              */
             host?: components["schemas"]["Host"] | null;
+            /**
+             * @description Host websocket watch channel metadata for push-first session availability routing.
+             * @example {
+             *       "connection": {
+             *         "driver": "example",
+             *         "key": "example",
+             *         "cluster": "example",
+             *         "host": "ip-10-0-3-42",
+             *         "port": 1,
+             *         "scheme": "example",
+             *         "path": "notes/daily-ops.md"
+             *       },
+             *       "channel": "example",
+             *       "event": "example",
+             *       "auth_endpoint": "example"
+             *     }
+             */
+            host_realtime?: components["schemas"]["HostRealtimeSocketPayload"] | null;
             /**
              * @description Resolved agent snapshot after heartbeat processing (auto-created when needed).
              * @example {
@@ -3872,72 +3924,7 @@ export interface components {
              *       "auth_endpoint": "example"
              *     }
              */
-            socket?: {
-                /**
-                 * @description Connection.
-                 * @example {
-                 *       "driver": "example",
-                 *       "key": "example",
-                 *       "cluster": "example",
-                 *       "host": "ip-10-0-3-42",
-                 *       "port": 1,
-                 *       "scheme": "example",
-                 *       "path": "notes/daily-ops.md"
-                 *     }
-                 */
-                connection: {
-                    /**
-                     * @description Driver.
-                     * @example example
-                     */
-                    driver: string;
-                    /**
-                     * @description Stable mention key composed from mention type and identifier.
-                     * @example example
-                     */
-                    key: string;
-                    /**
-                     * @description Cluster.
-                     * @example example
-                     */
-                    cluster: string;
-                    /**
-                     * @description Host.
-                     * @example ip-10-0-3-42
-                     */
-                    host: string;
-                    /**
-                     * @description Port.
-                     * @example 1
-                     */
-                    port: number;
-                    /**
-                     * @description Scheme.
-                     * @example example
-                     */
-                    scheme: string;
-                    /**
-                     * @description Local filesystem path where this file should be written.
-                     * @example notes/daily-ops.md
-                     */
-                    path: string;
-                };
-                /**
-                 * @description Channel.
-                 * @example example
-                 */
-                channel: string;
-                /**
-                 * @description Event.
-                 * @example example
-                 */
-                event: string;
-                /**
-                 * @description Auth endpoint.
-                 * @example example
-                 */
-                auth_endpoint: string;
-            };
+            socket?: components["schemas"]["HostRealtimeSocketPayload"];
             /**
              * Format: date-time
              * @description ISO-8601 timestamp when this record was created.
@@ -3950,6 +3937,89 @@ export interface components {
              * @example 2026-02-22T17:21:00Z
              */
             updated_at: string | null;
+        };
+        /**
+         * @description Host Realtime Socket Payload schema.
+         * @example {
+         *       "connection": {
+         *         "driver": "example",
+         *         "key": "example",
+         *         "cluster": "example",
+         *         "host": "ip-10-0-3-42",
+         *         "port": 1,
+         *         "scheme": "example",
+         *         "path": "notes/daily-ops.md"
+         *       },
+         *       "channel": "example",
+         *       "event": "example",
+         *       "auth_endpoint": "example"
+         *     }
+         */
+        HostRealtimeSocketPayload: {
+            /**
+             * @description Connection.
+             * @example {
+             *       "driver": "example",
+             *       "key": "example",
+             *       "cluster": "example",
+             *       "host": "ip-10-0-3-42",
+             *       "port": 1,
+             *       "scheme": "example",
+             *       "path": "notes/daily-ops.md"
+             *     }
+             */
+            connection: {
+                /**
+                 * @description Driver.
+                 * @example example
+                 */
+                driver: string;
+                /**
+                 * @description Stable mention key composed from mention type and identifier.
+                 * @example example
+                 */
+                key: string;
+                /**
+                 * @description Cluster.
+                 * @example example
+                 */
+                cluster: string;
+                /**
+                 * @description Host.
+                 * @example ip-10-0-3-42
+                 */
+                host: string;
+                /**
+                 * @description Port.
+                 * @example 1
+                 */
+                port: number;
+                /**
+                 * @description Scheme.
+                 * @example example
+                 */
+                scheme: string;
+                /**
+                 * @description Local filesystem path where this file should be written.
+                 * @example notes/daily-ops.md
+                 */
+                path: string;
+            };
+            /**
+             * @description Channel.
+             * @example example
+             */
+            channel: string;
+            /**
+             * @description Event.
+             * @example example
+             */
+            event: string;
+            /**
+             * @description Auth endpoint.
+             * @example example
+             */
+            auth_endpoint: string;
         };
         /**
          * @description Agent Realtime Signal schema.
@@ -7127,6 +7197,25 @@ export interface components {
             channel_name: string;
         };
         /**
+         * @description Authenticate Host Realtime Socket Api Request request schema.
+         * @example {
+         *       "socket_id": "1234.567890",
+         *       "channel_name": "private-agent-realtime.7.42"
+         *     }
+         */
+        AuthenticateHostRealtimeSocketApiRequest: {
+            /**
+             * @description Realtime socket id from websocket connection metadata.
+             * @example 1234.567890
+             */
+            socket_id: string;
+            /**
+             * @description Private realtime channel name to authorize.
+             * @example private-agent-realtime.7.42
+             */
+            channel_name: string;
+        };
+        /**
          * @description Close Agent Realtime Session Api Request request schema.
          * @example {
          *       "reason": "example",
@@ -8740,6 +8829,20 @@ export interface components {
                  *         "created_at": "2026-02-22T17:21:02Z",
                  *         "updated_at": "2026-02-22T17:21:02Z"
                  *       },
+                 *       "host_realtime": {
+                 *         "connection": {
+                 *           "driver": "reverb",
+                 *           "key": "local-app-key",
+                 *           "cluster": "mt1",
+                 *           "host": "agentmc.ai",
+                 *           "port": 443,
+                 *           "scheme": "https",
+                 *           "path": ""
+                 *         },
+                 *         "channel": "private-agent-realtime-host.12",
+                 *         "event": "agent.realtime.host.session.requested",
+                 *         "auth_endpoint": "https://agentmc.ai/api/v1/hosts/realtime/socket-auth"
+                 *       },
                  *       "agent": {
                  *         "id": 42,
                  *         "name": "Solomon",
@@ -9765,6 +9868,17 @@ export interface components {
                 "application/json": components["schemas"]["AuthenticateAgentRealtimeSocketApiRequest"];
             };
         };
+        AuthenticateHostRealtimeSocketApiRequest: {
+            content: {
+                /**
+                 * @example {
+                 *       "socket_id": "1234.567890",
+                 *       "channel_name": "private-agent-realtime-host.12"
+                 *     }
+                 */
+                "application/json": components["schemas"]["AuthenticateHostRealtimeSocketApiRequest"];
+            };
+        };
         CloseAgentRealtimeSessionApiRequest: {
             content: {
                 /**
@@ -10222,6 +10336,20 @@ export interface operations {
                      *         "agents_online": 1,
                      *         "created_at": "2026-02-22T17:21:02Z",
                      *         "updated_at": "2026-02-22T17:21:02Z"
+                     *       },
+                     *       "host_realtime": {
+                     *         "connection": {
+                     *           "driver": "reverb",
+                     *           "key": "local-app-key",
+                     *           "cluster": "mt1",
+                     *           "host": "agentmc.ai",
+                     *           "port": 443,
+                     *           "scheme": "https",
+                     *           "path": ""
+                     *         },
+                     *         "channel": "private-agent-realtime-host.12",
+                     *         "event": "agent.realtime.host.session.requested",
+                     *         "auth_endpoint": "https://agentmc.ai/api/v1/hosts/realtime/socket-auth"
                      *       },
                      *       "agent": {
                      *         "id": 42,
@@ -11255,6 +11383,36 @@ export interface operations {
         requestBody: components["requestBodies"]["AuthenticateAgentRealtimeSocketApiRequest"];
         responses: {
             /** @description Socket subscription authorized. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "auth": "example"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["AgentRealtimeSocketAuthResponse"];
+                };
+            };
+            401: components["responses"]["ApiError401"];
+            403: components["responses"]["ApiError403"];
+            404: components["responses"]["ApiError404"];
+            409: components["responses"]["ApiError409"];
+            422: components["responses"]["ApiError422"];
+        };
+    };
+    authenticateHostRealtimeSocket: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: components["requestBodies"]["AuthenticateHostRealtimeSocketApiRequest"];
+        responses: {
+            /** @description Host socket subscription authorized. */
             200: {
                 headers: {
                     [name: string]: unknown;
