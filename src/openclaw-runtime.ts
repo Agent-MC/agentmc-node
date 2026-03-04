@@ -803,7 +803,7 @@ export class OpenClawAgentRuntime {
     const channelPayload = valueAsObject(payload.payload) ?? {};
 
     if (this.options.chatRealtimeEnabled && (channelType === "chat.user" || channelType === "chat.request")) {
-      this.enqueueChatUserSignal(state, signal, payload, channelPayload);
+      await this.enqueueChatUserSignal(state, signal, payload, channelPayload);
       return;
     }
 
@@ -854,8 +854,9 @@ export class OpenClawAgentRuntime {
     signal: AgentRealtimeSignalMessage,
     envelope: JsonObject,
     payload: JsonObject
-  ): void {
-    state.chatSignalQueue = state.chatSignalQueue
+  ): Promise<void> {
+    const existingQueue = state.chatSignalQueue instanceof Promise ? state.chatSignalQueue : Promise.resolve();
+    state.chatSignalQueue = existingQueue
       .catch(() => {})
       .then(async () => {
         if (state.closed || this.stopRequested) {
@@ -870,6 +871,8 @@ export class OpenClawAgentRuntime {
           await this.emitError(normalizeError(error));
         }
       });
+
+    return state.chatSignalQueue;
   }
 
   private async handleSubscriptionNotification(
@@ -1165,10 +1168,14 @@ export class OpenClawAgentRuntime {
     }
 
     if (this.options.sendThinkingDelta) {
-      await this.publishChannelMessage(state.sessionId, "chat.agent.delta", requestId, {
-        delta: this.options.thinkingText,
-        ...(messageId > 0 ? { message_id: messageId } : {})
-      });
+      try {
+        await this.publishChannelMessage(state.sessionId, "chat.agent.delta", requestId, {
+          delta: this.options.thinkingText,
+          ...(messageId > 0 ? { message_id: messageId } : {})
+        });
+      } catch (error) {
+        await this.emitError(normalizeError(error));
+      }
     }
 
     const bridgedUserText = buildAgentMcBridgeMessage({
@@ -2002,22 +2009,83 @@ export class OpenClawAgentRuntime {
       ...payload
     };
 
-    try {
-      await this.options.client.publishRealtimeMessage({
-        agent: this.options.agent,
-        session: sessionId,
-        channelType,
-        requestId,
-        payload: payloadWithRequestId
-      });
-    } catch (error) {
-      const normalizedError = normalizeError(error);
-      if (shouldIgnorePublishRealtimeMessageError(normalizedError, this.stopRequested, this.sessions.has(sessionId))) {
-        return;
-      }
+    const maxAttempts = 3;
+    let attempt = 0;
 
-      throw normalizedError;
+    while (attempt < maxAttempts) {
+      attempt += 1;
+
+      try {
+        await this.options.client.publishRealtimeMessage({
+          agent: this.options.agent,
+          session: sessionId,
+          channelType,
+          requestId,
+          payload: payloadWithRequestId
+        });
+        return;
+      } catch (error) {
+        const normalizedError = normalizeError(error);
+        if (shouldIgnorePublishRealtimeMessageError(normalizedError, this.stopRequested, this.sessions.has(sessionId))) {
+          return;
+        }
+
+        if (!this.shouldRetryPublishRealtimeMessageError(normalizedError, attempt, maxAttempts)) {
+          throw normalizedError;
+        }
+
+        const backoffMs = this.publishRetryBackoffMs(attempt);
+        await this.emitDebug("realtime.publish.retry", {
+          session_id: sessionId,
+          channel_type: channelType,
+          request_id: requestId,
+          attempt,
+          next_retry_in_ms: backoffMs,
+          error: normalizedError.message
+        });
+        await sleep(backoffMs);
+      }
     }
+  }
+
+  private publishRetryBackoffMs(attempt: number): number {
+    if (attempt <= 1) {
+      return 150;
+    }
+
+    if (attempt === 2) {
+      return 500;
+    }
+
+    return 1_200;
+  }
+
+  private shouldRetryPublishRealtimeMessageError(error: Error, attempt: number, maxAttempts: number): boolean {
+    if (attempt >= maxAttempts) {
+      return false;
+    }
+
+    const message = String(error.message || "").toLowerCase();
+    if (message === "") {
+      return false;
+    }
+
+    if (/\b(429|408|500|502|503|504)\b/.test(message)) {
+      return true;
+    }
+
+    return (
+      message.includes("timeout") ||
+      message.includes("timed out") ||
+      message.includes("etimedout") ||
+      message.includes("econnreset") ||
+      message.includes("econnrefused") ||
+      message.includes("enotfound") ||
+      message.includes("network") ||
+      message.includes("socket hang up") ||
+      message.includes("fetch failed") ||
+      message.includes("temporarily unavailable")
+    );
   }
 
   private async readRuntimeDocs(): Promise<OpenClawRuntimeDocRecord[]> {
