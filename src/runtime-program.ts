@@ -130,7 +130,6 @@ interface AgentMcPromptContext {
   apiKey: string | null;
   apiBaseUrl: string;
   openApiUrl: string;
-  agentId: number | null;
 }
 
 export interface AgentRuntimeProgramOptions {
@@ -1602,10 +1601,7 @@ export class AgentRuntimeProgram {
     const runInput: AgentRuntimeRunInput = {
       sessionId: claimed.taskId,
       requestId,
-      userText: buildRecurringTaskAgentMcMessage(
-        prompt,
-        this.resolveAgentMcPromptContext(claimed.agentId)
-      )
+      userText: buildRecurringTaskAgentMcMessage(prompt)
     };
 
     let runResult: AgentRuntimeRunResult;
@@ -1675,7 +1671,7 @@ export class AgentRuntimeProgram {
         {
           cwd: this.resolveRuntimeCommandCwd(),
           timeoutMs,
-          env: this.buildAgentCommandEnv(claimed.agentId)
+          env: this.buildAgentCommandEnv()
         }
       );
       const directTextRaw = parseExternalAgentOutput(output.stdout) || parseExternalAgentOutput(output.stderr);
@@ -1747,20 +1743,16 @@ export class AgentRuntimeProgram {
     }
   }
 
-  private resolveAgentMcPromptContext(agentIdHint?: number | null): AgentMcPromptContext {
-    const agentId =
-      toPositiveInt(agentIdHint) ?? this.agentProfile?.id ?? this.initialAgentId ?? toPositiveInt(this.state.agent_id);
-
+  private resolveAgentMcPromptContext(): AgentMcPromptContext {
     return {
       apiKey: this.agentMcApiKey,
       apiBaseUrl: this.agentMcApiBaseUrl,
-      openApiUrl: this.agentMcOpenApiUrl,
-      agentId: agentId ?? null
+      openApiUrl: this.agentMcOpenApiUrl
     };
   }
 
-  private buildAgentCommandEnv(agentIdHint?: number | null): NodeJS.ProcessEnv {
-    return buildAgentCommandEnv(this.resolveAgentMcPromptContext(agentIdHint));
+  private buildAgentCommandEnv(): NodeJS.ProcessEnv {
+    return buildAgentCommandEnv(this.resolveAgentMcPromptContext());
   }
 
   private emitInfo(message: string, meta?: JsonObject): void {
@@ -1846,38 +1838,9 @@ function normalizeOpenClawAgentName(value: unknown): string | null {
   return resolved;
 }
 
-function buildRecurringTaskAgentMcMessage(userPrompt: string, context: AgentMcPromptContext): string {
+function buildRecurringTaskAgentMcMessage(userPrompt: string): string {
   const normalizedPrompt = String(userPrompt ?? "").trim();
-  if (normalizedPrompt === "") {
-    return "";
-  }
-
-  if (hasAgentMcContextBlock(normalizedPrompt)) {
-    return normalizedPrompt;
-  }
-
-  const lines = [
-    "[AgentMC Context]",
-    "app=AgentMC",
-    "source=agentmc_recurring_task",
-    "intent_scope=agentmc",
-    ...(context.agentId !== null ? [`agent_id=${context.agentId}`] : []),
-    `api_base_url=${context.apiBaseUrl}`,
-    `openapi_url=${context.openApiUrl}`,
-    "api_auth_header=X-Api-Key",
-    "api_key_env=AGENTMC_API_KEY",
-    ...(context.apiKey ? [`api_key=${context.apiKey}`] : []),
-    "openapi_hint=Fetch OpenAPI and resolve all $ref values before API calls.",
-    "routing_hint=Treat actions with no external app specified as AgentMC operations.",
-    "",
-    normalizedPrompt
-  ];
-
-  return lines.join("\n");
-}
-
-function hasAgentMcContextBlock(value: string): boolean {
-  return /^\[AgentMC Context\]\s*$/m.test(value);
+  return normalizedPrompt;
 }
 
 function summarizeRecurringRunText(value: unknown): string | null {

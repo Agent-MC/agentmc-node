@@ -24,7 +24,7 @@ function createProvider(onRun) {
   };
 }
 
-test("recurring task prompt is wrapped with AgentMC context", async () => {
+test("recurring task prompt is passed through without AgentMC context wrapping", async () => {
   let capturedUserText = null;
   const runtime = new AgentRuntimeProgram({
     client: { operations: {} },
@@ -46,19 +46,11 @@ test("recurring task prompt is wrapped with AgentMC context", async () => {
   });
 
   assert.equal(result.status, "success");
-  assert.ok(capturedUserText);
-  assert.match(capturedUserText, /^\[AgentMC Context\]\n/m);
-  assert.match(capturedUserText, /source=agentmc_recurring_task/);
-  assert.match(capturedUserText, /agent_id=77/);
-  assert.match(capturedUserText, /api_key_env=AGENTMC_API_KEY/);
-  assert.match(capturedUserText, /api_key=cc_test_key/);
-  assert.match(
-    capturedUserText,
-    /Create a project update and reconcile task statuses\.\s*$/
-  );
+  assert.equal(capturedUserText, "Create a project update and reconcile task statuses.");
+  assert.doesNotMatch(capturedUserText, /\[AgentMC Context\]/);
 });
 
-test("recurring task prompt does not double-wrap existing AgentMC context", async () => {
+test("recurring task prompt preserves existing AgentMC context block", async () => {
   let capturedUserText = null;
   const runtime = new AgentRuntimeProgram({
     client: { operations: {} }
