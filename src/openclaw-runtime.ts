@@ -2242,7 +2242,6 @@ export class OpenClawAgentRuntime {
       return () => {};
     }
 
-    const startedAtMs = Date.now();
     let stopped = false;
     let thinkingFrameIndex = 0;
     const statusDeltaId = `agent-status-${requestId}`;
@@ -2290,7 +2289,7 @@ export class OpenClawAgentRuntime {
         clearInterval(thinkingTimer);
         thinkingTimer = null;
       }
-      publishDelta(buildInProgressStatusDelta(Date.now() - startedAtMs));
+      publishDelta(buildInProgressStatusDelta());
     }, DEFAULT_CHAT_STATUS_DELTA_INTERVAL_MS);
     inProgressTimer.unref?.();
 
@@ -3649,10 +3648,10 @@ function fallbackAssistantContentForStatus(status: OpenClawRunResult["status"]):
   return "I finished the run, but no assistant text was found.";
 }
 
-function buildInProgressStatusDelta(elapsedMs: number): string {
+function buildInProgressStatusDelta(): string {
   const messageIndex = Math.floor(Math.random() * IN_PROGRESS_STATUS_MESSAGES.length);
   const message = IN_PROGRESS_STATUS_MESSAGES[messageIndex] ?? "Still working...";
-  return `${message} (${formatElapsedDuration(elapsedMs)} elapsed)`;
+  return message;
 }
 
 function shouldAnimateThinkingStatus(thinkingText: string): boolean {
@@ -3666,29 +3665,6 @@ function buildThinkingStatusDelta(frameIndex: number, thinkingText: string): str
   }
   const normalizedIndex = Math.max(0, Math.floor(frameIndex)) % THINKING_STATUS_FRAMES.length;
   return THINKING_STATUS_FRAMES[normalizedIndex] ?? thinkingText;
-}
-
-function formatElapsedDuration(elapsedMs: number): string {
-  const totalSeconds = Math.max(1, Math.floor(Math.max(0, elapsedMs) / 1_000));
-  if (totalSeconds < 60) {
-    return `${totalSeconds}s`;
-  }
-
-  const totalMinutes = Math.floor(totalSeconds / 60);
-  const remainingSeconds = totalSeconds % 60;
-  if (totalMinutes < 60) {
-    if (remainingSeconds <= 0) {
-      return `${totalMinutes}m`;
-    }
-    return `${totalMinutes}m ${remainingSeconds}s`;
-  }
-
-  const totalHours = Math.floor(totalMinutes / 60);
-  const remainingMinutes = totalMinutes % 60;
-  if (remainingMinutes <= 0) {
-    return `${totalHours}h`;
-  }
-  return `${totalHours}h ${remainingMinutes}m`;
 }
 
 function shouldProcessInboundKey(state: SessionState, key: string, ttlMs: number): boolean {
