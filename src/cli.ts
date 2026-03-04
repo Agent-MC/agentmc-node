@@ -1590,7 +1590,7 @@ async function runHostRealtimeSessionRoutingLoop(input: {
 
         const sessionId = toPositiveInt(sessionObject.id);
         const status = nonEmpty(sessionObject.status)?.toLowerCase();
-        if (sessionId === null || (status !== null && status !== "requested")) {
+        if (sessionId === null || !isRecoverableHostRealtimeSessionStatus(status)) {
           continue;
         }
 
@@ -2843,6 +2843,14 @@ function resolveHostRealtimeRoutingBackoffMs(input: {
   }
 
   return Math.min(10_000, Math.max(baseIntervalMs, 2_000));
+}
+
+function isRecoverableHostRealtimeSessionStatus(status: string | null | undefined): boolean {
+  if (status === null || status === undefined) {
+    return true;
+  }
+
+  return status === "requested" || status === "claimed" || status === "active";
 }
 
 function buildRuntimeOptions(worker: RuntimeWorkerConfig, disableHeartbeat = false): AgentRuntimeProgramOptions {
