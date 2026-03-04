@@ -250,6 +250,7 @@ interface SessionState {
   createdAtMs: number;
   lastHealthActivityAtMs: number;
   lastConnectionStateChangeAtMs: number;
+  chatSignalQueue: Promise<void>;
   processedInboundKeys: Map<string, number>;
   inboundChunkBuffers: Map<string, InboundChunkBuffer>;
 }
@@ -506,6 +507,7 @@ export class OpenClawAgentRuntime {
       createdAtMs: nowMs,
       lastHealthActivityAtMs: nowMs,
       lastConnectionStateChangeAtMs: nowMs,
+      chatSignalQueue: Promise.resolve(),
       processedInboundKeys: new Map(),
       inboundChunkBuffers: new Map()
     };
@@ -703,7 +705,7 @@ export class OpenClawAgentRuntime {
     const channelPayload = valueAsObject(payload.payload) ?? {};
 
     if (this.options.chatRealtimeEnabled && (channelType === "chat.user" || channelType === "chat.request")) {
-      await this.handleChatUserSignal(state, signal, payload, channelPayload);
+      this.enqueueChatUserSignal(state, signal, payload, channelPayload);
       return;
     }
 
@@ -747,6 +749,29 @@ export class OpenClawAgentRuntime {
       },
       this.options.onError
     );
+  }
+
+  private enqueueChatUserSignal(
+    state: SessionState,
+    signal: AgentRealtimeSignalMessage,
+    envelope: JsonObject,
+    payload: JsonObject
+  ): void {
+    state.chatSignalQueue = state.chatSignalQueue
+      .catch(() => {})
+      .then(async () => {
+        if (state.closed || this.stopRequested) {
+          return;
+        }
+
+        state.lastHealthActivityAtMs = Date.now();
+        try {
+          await this.handleChatUserSignal(state, signal, envelope, payload);
+          state.lastHealthActivityAtMs = Date.now();
+        } catch (error) {
+          await this.emitError(normalizeError(error));
+        }
+      });
   }
 
   private async handleSubscriptionNotification(

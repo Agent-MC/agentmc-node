@@ -1345,6 +1345,7 @@ async function runHostRealtimeSessionRoutingLoop(input: {
         const rightId = toPositiveInt(valueAsObject(right)?.id) ?? 0;
         return rightId - leftId;
       });
+      const limitedSessions = orderedSessions.slice(0, Math.max(1, input.queryLimit));
       const routedSessionIds = new Set<number>();
       const workerByAgentId = new Map<number, RuntimeWorkerConfig>();
       for (const worker of input.workers) {
@@ -1353,7 +1354,7 @@ async function runHostRealtimeSessionRoutingLoop(input: {
         }
       }
 
-      for (const session of orderedSessions) {
+      for (const session of limitedSessions) {
         const sessionObject = valueAsObject(session);
         if (!sessionObject) {
           continue;
@@ -2254,9 +2255,7 @@ function resolveHostHeartbeatFallbackModels(
   resolvedRuntimeProvider: HostHeartbeatRuntimeProvider
 ): string[] {
   if (resolvedRuntimeProvider === "openclaw") {
-    const version = nonEmpty(runtimeIdentity.openclawVersion) ?? runtimeIdentity.version;
-    const build = nonEmpty(runtimeIdentity.openclawBuild) ?? nonEmpty(runtimeIdentity.build) ?? version;
-    return [`🦞 OpenClaw ${version} (${build})`];
+    return [];
   }
 
   return [`${runtimeIdentity.name}@${runtimeIdentity.version}`];
