@@ -1191,6 +1191,81 @@ test("chunked chat.user messages are reassembled before runtime execution", asyn
   });
 });
 
+test("emits periodic chat.agent.delta updates while a chat run is still in progress", async () => {
+  await withFixture(async ({ dir, sessionsPath }) => {
+    const runtime = createRuntime(sessionsPath, dir);
+    const published = [];
+    const intervalCallbacks = [];
+    const originalSetInterval = global.setInterval;
+    const originalClearInterval = global.clearInterval;
+    let clearedTimerId = null;
+
+    global.setInterval = (callback, _delay, ...args) => {
+      if (typeof callback === "function") {
+        intervalCallbacks.push(() => callback(...args));
+      }
+      return 4242;
+    };
+    global.clearInterval = (timer) => {
+      clearedTimerId = timer;
+    };
+
+    runtime.publishChannelMessage = async (_sessionId, channelType, requestId, payload) => {
+      published.push({ channelType, requestId, payload });
+    };
+    runtime.runOpenClawChat = async (input) => {
+      for (const callback of intervalCallbacks) {
+        await callback?.();
+      }
+      return {
+        requestId: input.requestId,
+        runId: "run-progress-1",
+        status: "ok",
+        textSource: "wait",
+        content: "Done."
+      };
+    };
+
+    try {
+      await runtime.handleChatUserSignal(
+        createSessionState(),
+        {
+          id: 804,
+          session_id: 114,
+          sender: "browser",
+          type: "message",
+          payload: {},
+          created_at: null
+        },
+        {
+          request_id: "req-progress-1"
+        },
+        {
+          request_id: "req-progress-1",
+          message_id: 71,
+          content: "Build the project and report back."
+        }
+      );
+    } finally {
+      global.setInterval = originalSetInterval;
+      global.clearInterval = originalClearInterval;
+    }
+
+    const deltaMessages = published.filter((entry) => entry.channelType === "chat.agent.delta");
+    assert.equal(deltaMessages.length >= 2, true);
+    assert.equal(deltaMessages[0]?.payload?.delta, "Thinking...");
+    assert.match(deltaMessages[1]?.payload?.delta ?? "", /Still working\.\.\./);
+    assert.equal(deltaMessages[0]?.payload?.message_id, 71);
+    assert.equal(deltaMessages[1]?.payload?.message_id, 71);
+    assert.equal(clearedTimerId, 4242);
+
+    const doneMessages = published.filter((entry) => entry.channelType === "chat.agent.done");
+    assert.equal(doneMessages.length, 1);
+    assert.equal(doneMessages[0]?.requestId, "req-progress-1");
+    assert.equal(doneMessages[0]?.payload?.content, "Done.");
+  });
+});
+
 test("file.save emits protocol error ack when filesystem writes fail", async () => {
   await withFixture(async ({ dir, sessionsPath }) => {
     const runtime = createRuntime(sessionsPath, dir);

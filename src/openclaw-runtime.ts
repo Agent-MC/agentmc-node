@@ -22,12 +22,13 @@ const DEFAULT_REQUEST_POLL_MS = 2_000;
 const DEFAULT_DUPLICATE_TTL_MS = 300_000;
 const DEFAULT_PUSH_LOOP_DELAY_MS = 1_000;
 const MAX_RATE_LIMIT_BACKOFF_MS = 120_000;
-const DEFAULT_GATEWAY_TIMEOUT_MS = 120_000;
+const DEFAULT_GATEWAY_TIMEOUT_MS = 240_000;
 const DEFAULT_OPENCLAW_SUBMIT_TIMEOUT_MS = 30_000;
-const DEFAULT_OPENCLAW_WAIT_TIMEOUT_MS = 90_000;
+const DEFAULT_OPENCLAW_WAIT_TIMEOUT_MS = 180_000;
 const DEFAULT_OPENCLAW_PROFILE_UPDATE_TIMEOUT_MS = 15_000;
 const DEFAULT_OPENCLAW_MAX_BUFFER_BYTES = 10 * 1024 * 1024;
 const DEFAULT_OPENCLAW_FORCE_KILL_GRACE_MS = 2_000;
+const DEFAULT_CHAT_STATUS_DELTA_INTERVAL_MS = 20_000;
 const DEFAULT_SELF_HEAL_CONNECTION_STALE_MS = 45_000;
 const DEFAULT_SELF_HEAL_ACTIVITY_STALE_MS = 120_000;
 const DEFAULT_SELF_HEAL_MIN_SESSION_AGE_MS = 20_000;
@@ -1157,21 +1158,13 @@ export class OpenClawAgentRuntime {
       return;
     }
 
-    if (this.options.sendThinkingDelta) {
-      void this.publishChannelMessage(state.sessionId, "chat.agent.delta", requestId, {
-        delta: this.options.thinkingText,
-        ...(messageId > 0 ? { message_id: messageId } : {})
-      }).catch(async (error) => {
-        await this.emitError(normalizeError(error));
-      });
-    }
-
     const bridgedUserText = buildAgentMcBridgeMessage({
       userText
     });
 
     let runResult: OpenClawRunResult;
     const stopActivityPulse = this.startSessionActivityPulse(state);
+    const stopChatStatusPulse = this.startChatStatusPulse(state, requestId, messageId);
     try {
       runResult = await this.runAgentChat({
         sessionId: state.sessionId,
@@ -1188,6 +1181,7 @@ export class OpenClawAgentRuntime {
       };
       await this.emitError(normalizeError(error));
     } finally {
+      stopChatStatusPulse();
       stopActivityPulse();
       state.lastHealthActivityAtMs = Date.now();
     }
@@ -2209,6 +2203,49 @@ export class OpenClawAgentRuntime {
     }, 5_000);
 
     return () => {
+      clearInterval(timer);
+    };
+  }
+
+  private startChatStatusPulse(
+    state: Pick<SessionState, "sessionId" | "closed">,
+    requestId: string,
+    messageId: number
+  ): () => void {
+    if (!this.options.sendThinkingDelta) {
+      return () => {};
+    }
+
+    const startedAtMs = Date.now();
+    let stopped = false;
+
+    const publishDelta = (delta: string): void => {
+      if (stopped || state.closed || this.stopRequested) {
+        return;
+      }
+
+      void this.publishChannelMessage(state.sessionId, "chat.agent.delta", requestId, {
+        delta,
+        ...(messageId > 0 ? { message_id: messageId } : {})
+      }).catch(async (error) => {
+        await this.emitError(normalizeError(error));
+      });
+    };
+
+    publishDelta(this.options.thinkingText);
+
+    const timer = setInterval(() => {
+      if (stopped || state.closed || this.stopRequested) {
+        clearInterval(timer);
+        return;
+      }
+
+      publishDelta(buildInProgressStatusDelta(Date.now() - startedAtMs));
+    }, DEFAULT_CHAT_STATUS_DELTA_INTERVAL_MS);
+    timer.unref?.();
+
+    return () => {
+      stopped = true;
       clearInterval(timer);
     };
   }
@@ -3557,6 +3594,29 @@ function fallbackAssistantContentForStatus(status: OpenClawRunResult["status"]):
   }
 
   return "I finished the run, but no assistant text was found.";
+}
+
+function buildInProgressStatusDelta(elapsedMs: number): string {
+  const totalSeconds = Math.max(1, Math.floor(Math.max(0, elapsedMs) / 1_000));
+  if (totalSeconds < 60) {
+    return `Still working... (${totalSeconds}s elapsed)`;
+  }
+
+  const totalMinutes = Math.floor(totalSeconds / 60);
+  const remainingSeconds = totalSeconds % 60;
+  if (totalMinutes < 60) {
+    if (remainingSeconds <= 0) {
+      return `Still working... (${totalMinutes}m elapsed)`;
+    }
+    return `Still working... (${totalMinutes}m ${remainingSeconds}s elapsed)`;
+  }
+
+  const totalHours = Math.floor(totalMinutes / 60);
+  const remainingMinutes = totalMinutes % 60;
+  if (remainingMinutes <= 0) {
+    return `Still working... (${totalHours}h elapsed)`;
+  }
+  return `Still working... (${totalHours}h ${remainingMinutes}m elapsed)`;
 }
 
 function shouldProcessInboundKey(state: SessionState, key: string, ttlMs: number): boolean {
