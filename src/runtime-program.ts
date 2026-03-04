@@ -251,7 +251,6 @@ export class AgentRuntimeProgram {
     this.agentMcApiBaseUrl = normalizeApiBaseUrl(
       nonEmpty(options.baseUrl) ??
         readClientStringValue(this.client, "getBaseUrl") ??
-        nonEmpty(process.env.AGENTMC_BASE_URL) ??
         DEFAULT_AGENTMC_API_BASE_URL
     );
     this.agentMcOpenApiUrl =
@@ -261,55 +260,17 @@ export class AgentRuntimeProgram {
 
   static fromEnv(env: NodeJS.ProcessEnv = process.env): AgentRuntimeProgram {
     const hostKey = nonEmpty(env.AGENTMC_API_KEY);
-    const requestedAgentId = toPositiveInt(env.AGENTMC_AGENT_ID);
-    const disableHeartbeat = valueAsBoolean(env.AGENTMC_DISABLE_HEARTBEAT) === true;
-    const heartbeatIntervalSeconds =
-      toPositiveInt(env.AGENTMC_HEARTBEAT_INTERVAL_SECONDS) ?? DEFAULT_HEARTBEAT_INTERVAL_SECONDS;
 
     if (!hostKey) {
       throw new Error("AGENTMC_API_KEY is required. Set one host-level API key.");
     }
 
-    const runtimeProvider = normalizeRuntimeProvider(nonEmpty(env.AGENTMC_RUNTIME_PROVIDER));
-    const runtimeModels = parseCommaSeparatedList(env.AGENTMC_MODELS);
-    const runtimeCommandArgs = parseCommandArguments(env.AGENTMC_RUNTIME_COMMAND_ARGS);
-    const realtimeSessionPollingSetting = valueAsBoolean(env.AGENTMC_REALTIME_SESSION_POLLING);
-    // Worker runtimes in host-supervisor mode run with AGENTMC_DISABLE_HEARTBEAT=1.
-    // Default to websocket routing + reconnect catch-up in that mode; allow
-    // explicit poll fallback via AGENTMC_REALTIME_SESSION_POLLING=1.
-    const realtimeSessionPollingEnabled = disableHeartbeat
-      ? realtimeSessionPollingSetting === true
-      : realtimeSessionPollingSetting !== false;
-
     return new AgentRuntimeProgram({
       apiKey: hostKey,
-      baseUrl: nonEmpty(env.AGENTMC_BASE_URL) ?? DEFAULT_AGENTMC_API_BASE_URL,
-      agentId: requestedAgentId ?? undefined,
-      heartbeatEnabled: !disableHeartbeat,
-      realtimeSessionPollingEnabled,
-      heartbeatIntervalSeconds,
-      workspaceDir: nonEmpty(env.AGENTMC_WORKSPACE_DIR) ?? undefined,
-      statePath: nonEmpty(env.AGENTMC_STATE_PATH) ?? undefined,
-      runtimeProvider,
-      runtimeCommand: nonEmpty(env.AGENTMC_RUNTIME_COMMAND) ?? undefined,
-      runtimeCommandArgs,
-      runtimeVersionCommand: nonEmpty(env.AGENTMC_RUNTIME_VERSION_COMMAND) ?? undefined,
-      runtimeName: nonEmpty(env.AGENTMC_RUNTIME_NAME) ?? undefined,
-      runtimeVersion: nonEmpty(env.AGENTMC_RUNTIME_VERSION) ?? undefined,
-      runtimeBuild: nonEmpty(env.AGENTMC_RUNTIME_BUILD) ?? undefined,
-      runtimeModels,
-      openclawCommand: nonEmpty(env.OPENCLAW_CMD) ?? undefined,
-      openclawAgent: nonEmpty(env.OPENCLAW_AGENT) ?? undefined,
-      openclawSessionsPath: nonEmpty(env.OPENCLAW_SESSIONS_PATH) ?? undefined,
-      agentName: nonEmpty(env.AGENTMC_AGENT_NAME) ?? undefined,
-      agentType: nonEmpty(env.AGENTMC_AGENT_TYPE) ?? undefined,
-      agentEmoji: nonEmpty(env.AGENTMC_AGENT_EMOJI) ?? undefined,
-      publicIp: nonEmpty(env.AGENTMC_PUBLIC_IP) ?? undefined,
-      publicIpEndpoint: nonEmpty(env.AGENTMC_PUBLIC_IP_ENDPOINT) ?? undefined,
-      hostFingerprint: nonEmpty(env.AGENTMC_HOST_FINGERPRINT) ?? undefined,
-      hostName: nonEmpty(env.AGENTMC_HOST_NAME) ?? undefined,
-      recurringTaskWaitTimeoutMs: toPositiveInt(env.AGENTMC_RECURRING_WAIT_TIMEOUT_MS) ?? undefined,
-      recurringTaskGatewayTimeoutMs: toPositiveInt(env.AGENTMC_RECURRING_GATEWAY_TIMEOUT_MS) ?? undefined
+      baseUrl: DEFAULT_AGENTMC_API_BASE_URL,
+      heartbeatEnabled: true,
+      realtimeSessionPollingEnabled: true,
+      heartbeatIntervalSeconds: DEFAULT_HEARTBEAT_INTERVAL_SECONDS
     });
   }
 
@@ -378,13 +339,13 @@ export class AgentRuntimeProgram {
     if (this.heartbeatEnabled) {
       this.heartbeatIntervalSeconds = this.heartbeatIntervalSeconds ?? DEFAULT_HEARTBEAT_INTERVAL_SECONDS;
       if (!this.heartbeatIntervalSeconds || this.heartbeatIntervalSeconds < 1) {
-        throw new Error("Heartbeat interval is missing. Configure AGENTMC_HEARTBEAT_INTERVAL_SECONDS.");
+        throw new Error("Heartbeat interval is missing.");
       }
     }
 
     let agentId = this.resolveAgentId();
     if (!this.heartbeatEnabled && agentId === null) {
-      throw new Error("Agent id is required when AGENTMC_DISABLE_HEARTBEAT=true. Set AGENTMC_AGENT_ID.");
+      throw new Error("Agent id is required when heartbeat is disabled.");
     }
     if (agentId !== null) {
       await this.persistState({
@@ -1862,17 +1823,10 @@ function sanitizeRuntimeContextValue(value: string | null, maxLength: number): s
 }
 
 function buildAgentCommandEnv(context: AgentMcPromptContext): NodeJS.ProcessEnv {
-  const env: NodeJS.ProcessEnv = {
-    ...process.env,
-    AGENTMC_BASE_URL: context.apiBaseUrl,
-    AGENTMC_OPENAPI_URL: context.openApiUrl
-  };
+  const env: NodeJS.ProcessEnv = { ...process.env };
 
   if (context.apiKey) {
     env.AGENTMC_API_KEY = context.apiKey;
-  }
-  if (context.agentId !== null) {
-    env.AGENTMC_AGENT_ID = String(context.agentId);
   }
 
   return env;
@@ -1907,7 +1861,6 @@ function buildRecurringTaskAgentMcMessage(userPrompt: string, context: AgentMcPr
     "source=agentmc_recurring_task",
     "intent_scope=agentmc",
     ...(context.agentId !== null ? [`agent_id=${context.agentId}`] : []),
-    "agent_id_env=AGENTMC_AGENT_ID",
     `api_base_url=${context.apiBaseUrl}`,
     `openapi_url=${context.openApiUrl}`,
     "api_auth_header=X-Api-Key",
@@ -3588,7 +3541,7 @@ function normalizeRuntimeProvider(value: string | null): "auto" | RuntimeProvide
     return normalized;
   }
 
-  throw new Error("AGENTMC_RUNTIME_PROVIDER must be one of: auto, openclaw, external.");
+  throw new Error("runtimeProvider must be one of: auto, openclaw, external.");
 }
 
 function parseCommaSeparatedList(value: unknown): string[] | undefined {

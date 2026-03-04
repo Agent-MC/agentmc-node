@@ -141,6 +141,25 @@ Missing or invalid credentials.
 }
 ```
 
+### 402 (application/json)
+Plan limit reached.
+
+```json
+{
+  "error": {
+    "code": "validation.failed",
+    "message": "Validation failed.",
+    "details": {
+      "fields": {
+        "title": [
+          "The title field is required."
+        ]
+      }
+    }
+  }
+}
+```
+
 ### 403 (application/json)
 Forbidden.
 

@@ -1,28 +1,27 @@
 import { AgentMCApi, AgentRuntime } from "@agentmc/api";
 
-function requireEnv(name: string): string {
-  const value = String(process.env[name] ?? "").trim();
+function requireApiKey(): string {
+  const value = String(process.env.AGENTMC_API_KEY ?? "").trim();
   if (value === "") {
-    throw new Error(`Missing required env var: ${name}`);
+    throw new Error("AGENTMC_API_KEY is not set. Please set AGENTMC_API_KEY to your AgentMC API key, then retry.");
+  }
+  return value;
+}
+
+function resolveAgentIdArg(argv: readonly string[]): number {
+  const value = Number.parseInt(String(argv[2] ?? "").trim(), 10);
+  if (!Number.isInteger(value) || value < 1) {
+    throw new Error("Pass the AgentMC agent id as the first argument: `tsx examples/realtime/openclawAgentRuntime.ts <agent_id>`.");
   }
   return value;
 }
 
 async function main(): Promise<void> {
-  const baseUrl = String(process.env.AGENTMC_BASE_URL ?? "https://agentmc.ai/api/v1").trim();
-  const agentId = Number.parseInt(requireEnv("AGENTMC_AGENT_ID"), 10);
-  const apiKey = String(process.env.AGENTMC_API_KEY ?? "").trim();
-
-  if (!Number.isInteger(agentId) || agentId < 1) {
-    throw new Error("AGENTMC_AGENT_ID must be a positive integer.");
-  }
-
-  if (apiKey === "") {
-    throw new Error("AGENTMC_API_KEY is not set. Please set AGENTMC_API_KEY to your AgentMC API key, then retry.");
-  }
+  const agentId = resolveAgentIdArg(process.argv);
+  const apiKey = requireApiKey();
 
   const client = new AgentMCApi({
-    baseUrl: baseUrl.endsWith("/api/v1") ? baseUrl : `${baseUrl.replace(/\/+$/, "")}/api/v1`,
+    baseUrl: "https://agentmc.ai/api/v1",
     apiKey
   });
 
@@ -30,9 +29,8 @@ async function main(): Promise<void> {
     client,
     agent: agentId,
     runtimeDocsDirectory: process.cwd(),
-    openclawAgent: process.env.OPENCLAW_AGENT || "main",
-    openclawCommand: process.env.OPENCLAW_CMD || "openclaw",
-    openclawSessionsPath: process.env.OPENCLAW_SESSIONS_PATH || undefined,
+    openclawAgent: "main",
+    openclawCommand: "openclaw",
     onSessionReady: (session) => {
       console.log(`session ${session.id}: ready`);
     },

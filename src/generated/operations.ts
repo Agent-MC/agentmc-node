@@ -185,6 +185,25 @@ export const operations = [
         }
       },
       {
+        "status": "402",
+        "mediaType": "application/json",
+        "description": "Plan limit reached.",
+        "hasContent": true,
+        "example": {
+          "error": {
+            "code": "validation.failed",
+            "message": "Validation failed.",
+            "details": {
+              "fields": {
+                "title": [
+                  "The title field is required."
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
         "status": "403",
         "mediaType": "application/json",
         "description": "Forbidden.",

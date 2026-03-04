@@ -1065,6 +1065,9 @@ export class OpenClawAgentRuntime {
           path: {
             notification: notificationId
           }
+        },
+        headers: {
+          "X-Agent-Id": String(this.options.agent)
         }
       });
 
@@ -2297,7 +2300,6 @@ function resolveOptions(options: OpenClawAgentRuntimeOptions): ResolvedOptions {
   const agentmcBaseUrl = normalizeAgentMcApiBaseUrl(
     valueAsString(options.agentmcBaseUrl) ??
       readClientConfiguredValue(options.client, "getBaseUrl") ??
-      valueAsString(process.env.AGENTMC_BASE_URL) ??
       DEFAULT_AGENTMC_API_BASE_URL
   );
   const agentmcOpenApiUrl = normalizeAgentMcOpenApiUrl(
@@ -2422,11 +2424,7 @@ function sanitizeRuntimeContextValue(value: string | null, maxLength: number): s
 }
 
 function buildAgentRuntimeCommandEnv(context: BridgedAgentMcRuntimeContext): NodeJS.ProcessEnv {
-  const env: NodeJS.ProcessEnv = {
-    ...process.env,
-    AGENTMC_BASE_URL: context.apiBaseUrl,
-    AGENTMC_OPENAPI_URL: context.openApiUrl
-  };
+  const env: NodeJS.ProcessEnv = { ...process.env };
 
   if (context.apiKey) {
     env.AGENTMC_API_KEY = context.apiKey;

@@ -1,11 +1,19 @@
 import { AgentMCApi } from "@agentmc/api";
 
-async function main(): Promise<void> {
-  const apiKey = process.env.AGENTMC_API_KEY;
-  const agent = Number.parseInt(process.env.AGENTMC_AGENT_ID ?? "", 10);
+function resolveAgentIdArg(argv: readonly string[]): number {
+  const value = Number.parseInt(String(argv[2] ?? "").trim(), 10);
+  if (!Number.isInteger(value) || value < 1) {
+    throw new Error("Pass the AgentMC agent id as the first argument: `tsx examples/realtime/subscribeToRealtimeNotifications.ts <agent_id>`.");
+  }
+  return value;
+}
 
-  if (!apiKey || !Number.isInteger(agent) || agent < 1) {
-    throw new Error("Set AGENTMC_API_KEY and AGENTMC_AGENT_ID before running this example.");
+async function main(): Promise<void> {
+  const apiKey = String(process.env.AGENTMC_API_KEY ?? "").trim();
+  const agent = resolveAgentIdArg(process.argv);
+
+  if (!apiKey) {
+    throw new Error("Set AGENTMC_API_KEY before running this example.");
   }
 
   const client = new AgentMCApi({ apiKey });

@@ -10234,6 +10234,7 @@ export interface operations {
                 };
             };
             401: components["responses"]["ApiError401"];
+            402: components["responses"]["ApiError402"];
             403: components["responses"]["ApiError403"];
             404: components["responses"]["ApiError404"];
             422: components["responses"]["ApiError422"];

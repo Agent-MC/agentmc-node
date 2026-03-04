@@ -80,6 +80,9 @@
           "401": {
             "$ref": "#/components/responses/ApiError401"
           },
+          "402": {
+            "$ref": "#/components/responses/ApiError402"
+          },
           "403": {
             "$ref": "#/components/responses/ApiError403"
           },

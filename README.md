@@ -196,8 +196,9 @@ npx agentmc-api runtime:status --json
 
 `runtime:status` now also includes:
 
--   computed diagnostics (missing/stale status, unresolved workers, missing/stale heartbeats, state-file issues)
--   systemd service snapshot (`systemctl show`, default service `agentmc-host` or `AGENTMC_SERVICE_NAME`)
+-   computed diagnostics (missing/stale status, unresolved workers, workspace/state-file issues, missing/stale/invalid heartbeats, service PID mismatch checks)
+-   runtime process snapshot (`ps` command line, cpu/memory %, elapsed seconds, rss/vsz)
+-   systemd service snapshot (`systemctl show`, default service `agentmc-host`)
 -   recent runtime errors from `journalctl` (default: last `30` minutes, max `20` entries)
 
 Useful options:
@@ -209,43 +210,19 @@ Useful options:
 
 Required env:
 
--   Host runtime key:
-    -   `AGENTMC_API_KEY=<host-key>`
--   Runtime workspace: current working directory (`process.cwd()`)
--   Optional API base URL override: `AGENTMC_BASE_URL` (defaults to `https://agentmc.ai/api/v1`)
--   Optional DNS resolution order for runtime networking: `AGENTMC_DNS_RESULT_ORDER` (`ipv4first` default, or `verbatim`)
--   Optional runtime supervisor status file path: `AGENTMC_RUNTIME_STATUS_PATH` (default `.agentmc/runtime-status.json` in current working directory)
--   Agent routing: runtime auto-detects OpenClaw agents from `~/.openclaw/openclaw.json` and heartbeat auto-provisions AgentMC agents per host.
--   Runtime provider inputs:
-    -   OpenClaw auto-detect (must resolve at least one runtime model), or
-    -   `AGENTMC_RUNTIME_COMMAND` + `AGENTMC_MODELS`
--   Optional OpenClaw command override: `OPENCLAW_CMD`
-    -   If unset (or invalid), runtime checks `openclaw` on `PATH`, then common absolute paths (`/usr/bin/openclaw`, `/usr/local/bin/openclaw`, `/opt/homebrew/bin/openclaw`, `/bin/openclaw`).
--   `AGENTMC_MODELS` (comma-separated, for example `openai/gpt-5-codex`) is required whenever model auto-detection is unavailable. Heartbeats require at least one runtime model in `meta.models`.
--   Optional agent profile overrides: `AGENTMC_AGENT_NAME`, `AGENTMC_AGENT_TYPE`, `AGENTMC_AGENT_EMOJI`
-    -   If these values are unset, OpenClaw runtimes attempt agent discovery in this order:
-        1. `openclaw agents list --json`
-        2. `openclaw gateway call agents.list --json` (and `--params {}` variant)
-        3. `openclaw gateway call config.get --json` (`parsed.agents.list`)
-        4. local `openclaw.json` (`~/.openclaw/openclaw.json`, related fallbacks)
-    -   If no source returns a profile, runtime falls back to `name=agent` and `type=runtime`.
--   Optional recurring execution tuning:
-    -   `AGENTMC_RECURRING_WAIT_TIMEOUT_MS` (default `600000` / 10 minutes)
-    -   `AGENTMC_RECURRING_GATEWAY_TIMEOUT_MS` (default `720000` / 12 minutes; always coerced to at least wait timeout + 30 seconds)
--   Optional runtime auto-update tuning:
-    -   `AGENTMC_AUTO_UPDATE` (`true`/`false`; defaults to enabled when running from an installed `node_modules/@agentmc/api` package path, or when running as a production service via `NODE_ENV=production`/systemd environment markers)
-    -   `AGENTMC_AUTO_UPDATE_INTERVAL_SECONDS` (default `300`)
-    -   `AGENTMC_AUTO_UPDATE_INSTALL_TIMEOUT_MS` (default `120000`)
-    -   `AGENTMC_AUTO_UPDATE_NPM_COMMAND` (default `npm`)
-    -   `AGENTMC_AUTO_UPDATE_INSTALL_DIR` (default inferred install root from runtime package path; falls back to package root near CLI file, then `process.cwd()`)
-    -   `AGENTMC_AUTO_UPDATE_REGISTRY_URL` (default `https://registry.npmjs.org/@agentmc%2Fapi/latest`)
--   Realtime fallback defaults in host-supervisor mode:
-    -   Worker runtimes default to websocket routing + reconnect catch-up when heartbeat is disabled (`AGENTMC_DISABLE_HEARTBEAT=1`).
-    -   To enable requested-session polling fallback for workers, set `AGENTMC_REALTIME_SESSION_POLLING=1`.
+-   `AGENTMC_API_KEY=<host-key>`
 
-Keep these env values up to date for each running agent worker. Update and restart the runtime whenever provider/model/network settings change.
+Runtime defaults (no optional env overrides):
 
--   Keep `AGENTMC_MODELS` aligned with the runtime's active/default model inventory.
+-   API base URL: `https://agentmc.ai/api/v1`
+-   DNS result order: `ipv4first`
+-   Runtime status path: `.agentmc/runtime-status.json` in the current working directory
+-   Host heartbeat interval: `60s`
+-   Host realtime route interval: `1000ms`
+-   Host realtime route limit: `100`
+-   Agent routing: auto-detect OpenClaw agents from `~/.openclaw/openclaw.json`; heartbeat auto-provisions AgentMC agents per host.
+-   Realtime worker behavior: heartbeat disabled in worker mode, websocket routing enabled, polling fallback disabled.
+
 -   Keep the host API key rotated/current for the target host.
 -   OpenClaw prompt execution uses `openclaw agent --agent <openclaw-agent> --message "<prompt>"`.
 
@@ -268,14 +245,7 @@ AGENTMC_API_KEY="cc_host_key_here" \
 bash scripts/install-agentmc-host.sh
 ```
 
-Optional install/runtime env:
-
--   `AGENTMC_BASE_URL` (default `https://agentmc.ai/api/v1`)
--   `AGENTMC_RUNTIME_PROVIDER` (default `auto`)
--   `AGENTMC_SERVICE_NAME` (default `agentmc-host`)
--   `AGENTMC_SERVICE_USER` / `AGENTMC_SERVICE_GROUP` (defaults to current user)
--   `AGENTMC_AUTO_UPDATE` (default enabled for installed package runtime)
--   `AGENTMC_AUTO_UPDATE_INTERVAL_SECONDS` (default `300`)
+Install/runtime configuration uses built-in defaults; only `AGENTMC_API_KEY` is required.
 
 ## CLI
 
@@ -325,10 +295,7 @@ npm install
 npm run sync:spec
 ```
 
-Optional environment variables:
-
--   `AGENTMC_OPENAPI_PATH` (local file path override)
--   `AGENTMC_OPENAPI_URL` (remote URL override)
+`sync:spec` uses a local spec fallback at `../agentmc.ai/public/openapi.json` when present, otherwise it fetches `https://agentmc.ai/api/openapi.json`.
 
 ### 3) Generate typed client artifacts/docs/examples
 

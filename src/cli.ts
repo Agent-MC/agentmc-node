@@ -2,7 +2,7 @@ import { Command } from "commander";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { setDefaultResultOrder } from "node:dns";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { arch, cpus, hostname, networkInterfaces, platform, release, totalmem, uptime } from "node:os";
 import { dirname, resolve } from "node:path";
@@ -14,7 +14,7 @@ import { AgentMCApi } from "./client";
 import { operationsById, type OperationId } from "./generated/operations";
 import { AGENTMC_NODE_PACKAGE_VERSION } from "./package-version";
 import { closeSharedRealtimeTransports } from "./realtime";
-import { AgentRuntimeProgram } from "./runtime-program";
+import { AgentRuntimeProgram, type AgentRuntimeProgramOptions } from "./runtime-program";
 
 function parseJson(value: string | undefined, flagName: string): unknown {
   if (!value) {
@@ -58,7 +58,7 @@ interface RuntimeWorkerConfig {
 
 interface RuntimeEntry {
   worker: RuntimeWorkerConfig;
-  runtimeEnv: NodeJS.ProcessEnv;
+  runtimeOptions: AgentRuntimeProgramOptions;
 }
 
 interface HostHeartbeatAgentRow {
@@ -97,6 +97,10 @@ interface RuntimeWorkerStateSnapshot {
   exists: boolean;
   agentId: number | null;
   lastHeartbeatAt: string | null;
+  heartbeatParseError: string | null;
+  stateSizeBytes: number | null;
+  stateUpdatedAt: string | null;
+  stateAgeSeconds: number | null;
   error: string | null;
 }
 
@@ -108,10 +112,27 @@ interface RuntimeWorkerStatusReport {
   workspace_dir: string;
   state_path: string;
   openclaw_agent: string | null;
+  workspace_exists: boolean;
   state_exists: boolean;
   state_error: string | null;
+  state_size_bytes: number | null;
+  state_updated_at: string | null;
+  state_age_seconds: number | null;
   last_heartbeat_at: string | null;
+  heartbeat_parse_error: string | null;
   heartbeat_age_seconds: number | null;
+}
+
+interface RuntimeProcessStatusReport {
+  pid: number;
+  ppid: number | null;
+  state: string | null;
+  elapsed_seconds: number | null;
+  cpu_percent: number | null;
+  memory_percent: number | null;
+  rss_kb: number | null;
+  vsz_kb: number | null;
+  command: string | null;
 }
 
 interface RuntimeServiceStatusReport {
@@ -133,9 +154,14 @@ interface RuntimeStatusDiagnostics {
   status_stale: boolean;
   status_stale_threshold_seconds: number;
   heartbeat_stale_threshold_seconds: number;
+  service_pid_mismatch: boolean | null;
+  service_main_pid_not_alive: boolean | null;
   unresolved_workers: string[];
+  workers_missing_workspace: string[];
+  workers_stale_state: string[];
   workers_missing_heartbeat: string[];
   workers_stale_heartbeat: string[];
+  workers_with_invalid_heartbeat_timestamp: string[];
   workers_with_state_errors: string[];
   hints: string[];
 }
@@ -153,6 +179,7 @@ interface RuntimeStatusReport {
   updated_age_seconds: number | null;
   summary: string | null;
   workers: RuntimeWorkerStatusReport[];
+  process: RuntimeProcessStatusReport | null;
   warnings: string[];
   service: RuntimeServiceStatusReport | null;
   recent_errors: RuntimeStatusLogEntry[];
@@ -192,6 +219,24 @@ const OPENCLAW_MODEL_PLACEHOLDER_TOKENS = new Set([
   "null"
 ]);
 
+function buildEmptyRuntimeStatusDiagnostics(): RuntimeStatusDiagnostics {
+  return {
+    status_stale: false,
+    status_stale_threshold_seconds: DEFAULT_RUNTIME_STATUS_STALE_THRESHOLD_SECONDS,
+    heartbeat_stale_threshold_seconds: DEFAULT_HOST_HEARTBEAT_INTERVAL_SECONDS * 2 + 60,
+    service_pid_mismatch: null,
+    service_main_pid_not_alive: null,
+    unresolved_workers: [],
+    workers_missing_workspace: [],
+    workers_stale_state: [],
+    workers_missing_heartbeat: [],
+    workers_stale_heartbeat: [],
+    workers_with_invalid_heartbeat_timestamp: [],
+    workers_with_state_errors: [],
+    hints: []
+  };
+}
+
 function nonEmpty(value: unknown): string | null {
   if (typeof value !== "string" && typeof value !== "number") {
     return null;
@@ -214,44 +259,6 @@ function toPositiveInt(value: unknown): number | null {
   return parsed;
 }
 
-function toBoolean(value: unknown): boolean | null {
-  if (typeof value === "boolean") {
-    return value;
-  }
-  if (typeof value === "number") {
-    if (value === 1) {
-      return true;
-    }
-    if (value === 0) {
-      return false;
-    }
-    return null;
-  }
-  if (typeof value !== "string") {
-    return null;
-  }
-  const normalized = value.trim().toLowerCase();
-  if (["true", "1", "yes", "on"].includes(normalized)) {
-    return true;
-  }
-  if (["false", "0", "no", "off"].includes(normalized)) {
-    return false;
-  }
-  return null;
-}
-
-function parseCommaSeparatedList(value: unknown): string[] {
-  const raw = nonEmpty(value);
-  if (!raw) {
-    return [];
-  }
-
-  return raw
-    .split(",")
-    .map((entry) => entry.trim())
-    .filter((entry) => entry.length > 0);
-}
-
 function parseBoundedPositiveInt(
   value: unknown,
   fallback: number,
@@ -262,13 +269,13 @@ function parseBoundedPositiveInt(
   return Math.max(minValue, Math.min(maxValue, parsed));
 }
 
-function resolveRuntimeStatusPath(env: NodeJS.ProcessEnv, override?: string): string {
-  const configured = nonEmpty(override) ?? nonEmpty(env.AGENTMC_RUNTIME_STATUS_PATH);
+function resolveRuntimeStatusPath(override?: string): string {
+  const configured = nonEmpty(override);
   return resolve(configured ?? resolve(process.cwd(), DEFAULT_RUNTIME_STATUS_PATH));
 }
 
-function resolveRuntimeServiceName(env: NodeJS.ProcessEnv, override?: string): string {
-  return nonEmpty(override) ?? nonEmpty(env.AGENTMC_SERVICE_NAME) ?? DEFAULT_RUNTIME_SERVICE_NAME;
+function resolveRuntimeServiceName(override?: string): string {
+  return nonEmpty(override) ?? DEFAULT_RUNTIME_SERVICE_NAME;
 }
 
 interface RuntimeAutoUpdateConfig {
@@ -281,12 +288,7 @@ interface RuntimeAutoUpdateConfig {
   packageName: string;
 }
 
-function resolveRuntimeAutoUpdateInstallDir(env: NodeJS.ProcessEnv): string {
-  const configured = nonEmpty(env.AGENTMC_AUTO_UPDATE_INSTALL_DIR);
-  if (configured) {
-    return resolve(configured);
-  }
-
+function resolveRuntimeAutoUpdateInstallDir(): string {
   const cliFilePath = fileURLToPath(import.meta.url);
   const normalizedCliFilePath = cliFilePath.replace(/\\/g, "/");
   const markerIndex = normalizedCliFilePath.lastIndexOf(INSTALLED_PACKAGE_PATH_MARKER);
@@ -330,21 +332,14 @@ function resolveRuntimeAutoUpdateConfig(env: NodeJS.ProcessEnv): RuntimeAutoUpda
   const normalizedCliFilePath = fileURLToPath(import.meta.url).replace(/\\/g, "/");
   const defaultEnabled =
     normalizedCliFilePath.includes(INSTALLED_PACKAGE_PATH_MARKER) || isProductionServiceEnvironment(env);
-  const enabled = toBoolean(env.AGENTMC_AUTO_UPDATE) ?? defaultEnabled;
 
   return {
-    enabled,
-    intervalSeconds: Math.max(
-      30,
-      toPositiveInt(env.AGENTMC_AUTO_UPDATE_INTERVAL_SECONDS) ?? DEFAULT_AUTO_UPDATE_INTERVAL_SECONDS
-    ),
-    installTimeoutMs: Math.max(
-      10_000,
-      toPositiveInt(env.AGENTMC_AUTO_UPDATE_INSTALL_TIMEOUT_MS) ?? DEFAULT_AUTO_UPDATE_INSTALL_TIMEOUT_MS
-    ),
-    npmCommand: nonEmpty(env.AGENTMC_AUTO_UPDATE_NPM_COMMAND) ?? "npm",
-    installDir: resolveRuntimeAutoUpdateInstallDir(env),
-    registryUrl: nonEmpty(env.AGENTMC_AUTO_UPDATE_REGISTRY_URL) ?? DEFAULT_AUTO_UPDATE_REGISTRY_URL,
+    enabled: defaultEnabled,
+    intervalSeconds: DEFAULT_AUTO_UPDATE_INTERVAL_SECONDS,
+    installTimeoutMs: DEFAULT_AUTO_UPDATE_INSTALL_TIMEOUT_MS,
+    npmCommand: "npm",
+    installDir: resolveRuntimeAutoUpdateInstallDir(),
+    registryUrl: DEFAULT_AUTO_UPDATE_REGISTRY_URL,
     packageName: DEFAULT_AUTO_UPDATE_PACKAGE_NAME
   };
 }
@@ -394,8 +389,25 @@ function readRuntimeWorkerStateSnapshot(statePath: string): RuntimeWorkerStateSn
       exists: false,
       agentId: null,
       lastHeartbeatAt: null,
+      heartbeatParseError: null,
+      stateSizeBytes: null,
+      stateUpdatedAt: null,
+      stateAgeSeconds: null,
       error: null
     };
+  }
+
+  const now = new Date();
+  let stateSizeBytes: number | null = null;
+  let stateUpdatedAt: string | null = null;
+  let stateAgeSeconds: number | null = null;
+  try {
+    const stats = statSync(statePath);
+    stateSizeBytes = stats.size;
+    stateUpdatedAt = stats.mtime.toISOString();
+    stateAgeSeconds = secondsSince(stats.mtime, now);
+  } catch {
+    // File stats are best-effort; keep reading JSON payload for useful diagnostics.
   }
 
   try {
@@ -407,14 +419,23 @@ function readRuntimeWorkerStateSnapshot(statePath: string): RuntimeWorkerStateSn
         exists: true,
         agentId: null,
         lastHeartbeatAt: null,
+        heartbeatParseError: null,
+        stateSizeBytes,
+        stateUpdatedAt,
+        stateAgeSeconds,
         error: "invalid_state_json"
       };
     }
 
+    const lastHeartbeatAt = nonEmpty(object.last_heartbeat_at);
     return {
       exists: true,
       agentId: toPositiveInt(object.agent_id),
-      lastHeartbeatAt: nonEmpty(object.last_heartbeat_at),
+      lastHeartbeatAt,
+      heartbeatParseError: lastHeartbeatAt && !parseIsoDate(lastHeartbeatAt) ? "invalid_heartbeat_timestamp" : null,
+      stateSizeBytes,
+      stateUpdatedAt,
+      stateAgeSeconds,
       error: null
     };
   } catch (error) {
@@ -422,6 +443,10 @@ function readRuntimeWorkerStateSnapshot(statePath: string): RuntimeWorkerStateSn
       exists: true,
       agentId: null,
       lastHeartbeatAt: null,
+      heartbeatParseError: null,
+      stateSizeBytes,
+      stateUpdatedAt,
+      stateAgeSeconds,
       error: error instanceof Error ? error.message : String(error)
     };
   }
@@ -441,26 +466,32 @@ function isPidAlive(pid: number | null): boolean {
   }
 }
 
-function readRuntimeStatusReport(statusPath: string, env: NodeJS.ProcessEnv): RuntimeStatusReport {
+function readRuntimeStatusReport(statusPath: string): RuntimeStatusReport {
   const warnings: string[] = [];
   const now = new Date();
 
   if (!existsSync(statusPath)) {
-    const fallbackStatePath = resolve(nonEmpty(env.AGENTMC_STATE_PATH) ?? resolve(process.cwd(), DEFAULT_RUNTIME_STATE_PATH));
+    const fallbackStatePath = resolve(process.cwd(), DEFAULT_RUNTIME_STATE_PATH);
     const fallbackState = readRuntimeWorkerStateSnapshot(fallbackStatePath);
     const fallbackHeartbeatDate = parseIsoDate(fallbackState.lastHeartbeatAt);
+    const fallbackWorkspaceDir = dirname(dirname(fallbackStatePath));
     const fallbackWorker: RuntimeWorkerStatusReport[] = fallbackState.exists
       ? [{
           local_key: "default",
           local_name: null,
           provider: null,
           agent_id: fallbackState.agentId,
-          workspace_dir: dirname(dirname(fallbackStatePath)),
+          workspace_dir: fallbackWorkspaceDir,
           state_path: fallbackStatePath,
           openclaw_agent: null,
+          workspace_exists: existsSync(fallbackWorkspaceDir),
           state_exists: fallbackState.exists,
           state_error: fallbackState.error,
+          state_size_bytes: fallbackState.stateSizeBytes,
+          state_updated_at: fallbackState.stateUpdatedAt,
+          state_age_seconds: fallbackState.stateAgeSeconds,
           last_heartbeat_at: fallbackState.lastHeartbeatAt,
+          heartbeat_parse_error: fallbackState.heartbeatParseError,
           heartbeat_age_seconds: fallbackHeartbeatDate ? secondsSince(fallbackHeartbeatDate, now) : null
         }]
       : [];
@@ -483,22 +514,14 @@ function readRuntimeStatusReport(statusPath: string, env: NodeJS.ProcessEnv): Ru
       updated_age_seconds: null,
       summary: null,
       workers: fallbackWorker,
+      process: null,
       warnings,
       service: null,
       recent_errors: [],
       recent_errors_service_name: null,
       recent_errors_window_minutes: DEFAULT_RUNTIME_ERROR_LOOKBACK_MINUTES,
       recent_errors_limit: DEFAULT_RUNTIME_ERROR_LIMIT,
-      diagnostics: {
-        status_stale: false,
-        status_stale_threshold_seconds: DEFAULT_RUNTIME_STATUS_STALE_THRESHOLD_SECONDS,
-        heartbeat_stale_threshold_seconds: DEFAULT_HOST_HEARTBEAT_INTERVAL_SECONDS * 2 + 60,
-        unresolved_workers: [],
-        workers_missing_heartbeat: [],
-        workers_stale_heartbeat: [],
-        workers_with_state_errors: [],
-        hints: []
-      }
+      diagnostics: buildEmptyRuntimeStatusDiagnostics()
     };
   }
 
@@ -566,22 +589,14 @@ function readRuntimeStatusReport(statusPath: string, env: NodeJS.ProcessEnv): Ru
       updated_age_seconds: null,
       summary: null,
       workers: [],
+      process: null,
       warnings,
       service: null,
       recent_errors: [],
       recent_errors_service_name: null,
       recent_errors_window_minutes: DEFAULT_RUNTIME_ERROR_LOOKBACK_MINUTES,
       recent_errors_limit: DEFAULT_RUNTIME_ERROR_LIMIT,
-      diagnostics: {
-        status_stale: false,
-        status_stale_threshold_seconds: DEFAULT_RUNTIME_STATUS_STALE_THRESHOLD_SECONDS,
-        heartbeat_stale_threshold_seconds: DEFAULT_HOST_HEARTBEAT_INTERVAL_SECONDS * 2 + 60,
-        unresolved_workers: [],
-        workers_missing_heartbeat: [],
-        workers_stale_heartbeat: [],
-        workers_with_state_errors: [],
-        hints: []
-      }
+      diagnostics: buildEmptyRuntimeStatusDiagnostics()
     };
   }
 
@@ -592,9 +607,14 @@ function readRuntimeStatusReport(statusPath: string, env: NodeJS.ProcessEnv): Ru
     const lastHeartbeatDate = parseIsoDate(state.lastHeartbeatAt);
     return {
       ...worker,
+      workspace_exists: existsSync(worker.workspace_dir),
       state_exists: state.exists,
       state_error: state.error,
+      state_size_bytes: state.stateSizeBytes,
+      state_updated_at: state.stateUpdatedAt,
+      state_age_seconds: state.stateAgeSeconds,
       last_heartbeat_at: state.lastHeartbeatAt,
+      heartbeat_parse_error: state.heartbeatParseError,
       heartbeat_age_seconds: lastHeartbeatDate ? secondsSince(lastHeartbeatDate, now) : null
     };
   });
@@ -612,22 +632,14 @@ function readRuntimeStatusReport(statusPath: string, env: NodeJS.ProcessEnv): Ru
     updated_age_seconds: updatedAtDate ? secondsSince(updatedAtDate, now) : null,
     summary: parsedSnapshot.summary,
     workers: workerReports,
+    process: null,
     warnings,
     service: null,
     recent_errors: [],
     recent_errors_service_name: null,
     recent_errors_window_minutes: DEFAULT_RUNTIME_ERROR_LOOKBACK_MINUTES,
     recent_errors_limit: DEFAULT_RUNTIME_ERROR_LIMIT,
-    diagnostics: {
-      status_stale: false,
-      status_stale_threshold_seconds: DEFAULT_RUNTIME_STATUS_STALE_THRESHOLD_SECONDS,
-      heartbeat_stale_threshold_seconds: DEFAULT_HOST_HEARTBEAT_INTERVAL_SECONDS * 2 + 60,
-      unresolved_workers: [],
-      workers_missing_heartbeat: [],
-      workers_stale_heartbeat: [],
-      workers_with_state_errors: [],
-      hints: []
-    }
+    diagnostics: buildEmptyRuntimeStatusDiagnostics()
   };
 }
 
@@ -802,26 +814,146 @@ function readRecentRuntimeErrors(input: {
   }
 }
 
+function readRuntimeProcessStatus(pid: number | null): {
+  status: RuntimeProcessStatusReport | null;
+  warnings: string[];
+} {
+  const warnings: string[] = [];
+  if (pid === null) {
+    return {
+      status: null,
+      warnings
+    };
+  }
+
+  try {
+    const output = execFileSync(
+      "ps",
+      [
+        "-p",
+        String(pid),
+        "-o",
+        "ppid=",
+        "-o",
+        "stat=",
+        "-o",
+        "etimes=",
+        "-o",
+        "pcpu=",
+        "-o",
+        "pmem=",
+        "-o",
+        "rss=",
+        "-o",
+        "vsz=",
+        "-o",
+        "command="
+      ],
+      {
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"]
+      }
+    );
+    const line = firstNonEmptyLine(output);
+    if (!line) {
+      warnings.push(`ps returned no process details for pid ${pid}`);
+      return {
+        status: null,
+        warnings
+      };
+    }
+
+    const values = line.trim().split(/\s+/);
+    if (values.length < 8) {
+      warnings.push(`unable to parse process details for pid ${pid}`);
+      return {
+        status: {
+          pid,
+          ppid: null,
+          state: null,
+          elapsed_seconds: null,
+          cpu_percent: null,
+          memory_percent: null,
+          rss_kb: null,
+          vsz_kb: null,
+          command: line.trim()
+        },
+        warnings
+      };
+    }
+
+    const [ppidText, state, elapsedSecondsText, cpuPercentText, memoryPercentText, rssKbText, vszKbText, ...command] = values;
+    return {
+      status: {
+        pid,
+        ppid: toPositiveInt(ppidText),
+        state: nonEmpty(state),
+        elapsed_seconds: toPositiveInt(elapsedSecondsText),
+        cpu_percent: Number.isFinite(Number(cpuPercentText)) ? Number(cpuPercentText) : null,
+        memory_percent: Number.isFinite(Number(memoryPercentText)) ? Number(memoryPercentText) : null,
+        rss_kb: toPositiveInt(rssKbText),
+        vsz_kb: toPositiveInt(vszKbText),
+        command: nonEmpty(command.join(" "))
+      },
+      warnings
+    };
+  } catch (error) {
+    const normalizedError = error as NodeJS.ErrnoException & { stderr?: string | Buffer };
+    if (normalizedError.code === "ENOENT") {
+      warnings.push("ps not found; process details unavailable");
+      return {
+        status: null,
+        warnings
+      };
+    }
+
+    const stderr = firstNonEmptyLine(execOutputToString(normalizedError.stderr)) ?? normalizedError.message;
+    warnings.push(`failed to read process details for pid ${pid}: ${stderr}`);
+    return {
+      status: null,
+      warnings
+    };
+  }
+}
+
 function buildRuntimeStatusDiagnostics(
   report: RuntimeStatusReport,
-  env: NodeJS.ProcessEnv,
   service: RuntimeServiceStatusReport | null,
   recentErrors: RuntimeStatusLogEntry[]
 ): RuntimeStatusDiagnostics {
   const statusStaleThresholdSeconds = DEFAULT_RUNTIME_STATUS_STALE_THRESHOLD_SECONDS;
-  const heartbeatIntervalSeconds =
-    toPositiveInt(env.AGENTMC_HOST_HEARTBEAT_INTERVAL_SECONDS) ??
-    toPositiveInt(env.AGENTMC_HEARTBEAT_INTERVAL_SECONDS) ??
-    DEFAULT_HOST_HEARTBEAT_INTERVAL_SECONDS;
+  const heartbeatIntervalSeconds = DEFAULT_HOST_HEARTBEAT_INTERVAL_SECONDS;
   const heartbeatStaleThresholdSeconds = Math.max(180, heartbeatIntervalSeconds * 2 + 60);
 
+  let servicePidMismatch: boolean | null = null;
+  let serviceMainPidNotAlive: boolean | null = null;
+  const serviceMainPid = service?.main_pid ?? null;
+  if (serviceMainPid !== null) {
+    serviceMainPidNotAlive = !isPidAlive(serviceMainPid);
+    if (report.pid !== null) {
+      servicePidMismatch = report.pid !== serviceMainPid;
+    }
+  }
+
   const unresolvedWorkers: string[] = [];
+  const workersMissingWorkspace: string[] = [];
+  const workersStaleState: string[] = [];
   const workersMissingHeartbeat: string[] = [];
   const workersStaleHeartbeat: string[] = [];
+  const workersWithInvalidHeartbeatTimestamp: string[] = [];
   const workersWithStateErrors: string[] = [];
   for (const worker of report.workers) {
     if (worker.agent_id === null) {
       unresolvedWorkers.push(worker.local_key);
+    }
+    if (!worker.workspace_exists) {
+      workersMissingWorkspace.push(worker.local_key);
+    }
+    if (worker.state_age_seconds !== null && worker.state_age_seconds > heartbeatStaleThresholdSeconds) {
+      workersStaleState.push(worker.local_key);
+    }
+    if (worker.heartbeat_parse_error) {
+      workersWithInvalidHeartbeatTimestamp.push(worker.local_key);
     }
     if (!worker.state_exists || worker.state_error) {
       workersWithStateErrors.push(worker.local_key);
@@ -845,17 +977,32 @@ function buildRuntimeStatusDiagnostics(
   if (report.status === "running" && !report.process_alive) {
     hints.push("Status says running but PID is not alive. Restart the runtime service.");
   }
+  if (servicePidMismatch) {
+    hints.push("Status PID does not match systemd MainPID. The status file may be stale or service restarted.");
+  }
+  if (serviceMainPidNotAlive) {
+    hints.push("Systemd MainPID is not alive. Inspect unit logs and service restart behavior.");
+  }
   if (statusStale) {
     hints.push("Supervisor status file appears stale. Check service health and restart if needed.");
   }
   if (unresolvedWorkers.length > 0) {
     hints.push("Some workers are unresolved in AgentMC. Check host heartbeat/API key and mapping logs.");
   }
+  if (workersMissingWorkspace.length > 0) {
+    hints.push("Some worker workspace directories are missing.");
+  }
+  if (workersStaleState.length > 0) {
+    hints.push("Some worker state files are stale. Check runtime write permissions and heartbeat loops.");
+  }
   if (workersMissingHeartbeat.length > 0) {
     hints.push("Some workers have not persisted heartbeats yet. Check recent heartbeat errors.");
   }
   if (workersStaleHeartbeat.length > 0) {
     hints.push("Some workers have stale heartbeats. Verify API reachability and runtime loops.");
+  }
+  if (workersWithInvalidHeartbeatTimestamp.length > 0) {
+    hints.push("Some worker state files contain invalid heartbeat timestamps.");
   }
   if (workersWithStateErrors.length > 0) {
     hints.push("Some worker state files are missing or invalid JSON.");
@@ -871,9 +1018,14 @@ function buildRuntimeStatusDiagnostics(
     status_stale: statusStale,
     status_stale_threshold_seconds: statusStaleThresholdSeconds,
     heartbeat_stale_threshold_seconds: heartbeatStaleThresholdSeconds,
+    service_pid_mismatch: servicePidMismatch,
+    service_main_pid_not_alive: serviceMainPidNotAlive,
     unresolved_workers: unresolvedWorkers,
+    workers_missing_workspace: workersMissingWorkspace,
+    workers_stale_state: workersStaleState,
     workers_missing_heartbeat: workersMissingHeartbeat,
     workers_stale_heartbeat: workersStaleHeartbeat,
+    workers_with_invalid_heartbeat_timestamp: workersWithInvalidHeartbeatTimestamp,
     workers_with_state_errors: workersWithStateErrors,
     hints
   };
@@ -881,7 +1033,6 @@ function buildRuntimeStatusDiagnostics(
 
 function enrichRuntimeStatusReport(
   report: RuntimeStatusReport,
-  env: NodeJS.ProcessEnv,
   input: {
     serviceName: string;
     includeRecentErrors: boolean;
@@ -904,16 +1055,23 @@ function enrichRuntimeStatusReport(
         warnings: [] as string[]
       };
   warnings.push(...recentErrorResult.warnings);
+  const processResult = readRuntimeProcessStatus(report.pid);
+  warnings.push(...processResult.warnings);
 
-  return {
+  const enrichedReport: RuntimeStatusReport = {
     ...report,
     warnings,
+    process: processResult.status,
     service: serviceResult.status,
     recent_errors: recentErrorResult.entries,
     recent_errors_service_name: input.includeRecentErrors ? input.serviceName : null,
     recent_errors_window_minutes: input.recentErrorWindowMinutes,
-    recent_errors_limit: input.recentErrorLimit,
-    diagnostics: buildRuntimeStatusDiagnostics(report, env, serviceResult.status, recentErrorResult.entries)
+    recent_errors_limit: input.recentErrorLimit
+  };
+
+  return {
+    ...enrichedReport,
+    diagnostics: buildRuntimeStatusDiagnostics(enrichedReport, serviceResult.status, recentErrorResult.entries)
   };
 }
 
@@ -939,7 +1097,43 @@ function printRuntimeStatusReport(report: RuntimeStatusReport): void {
     if (worker.heartbeat_age_seconds !== null) {
       process.stdout.write(` (${worker.heartbeat_age_seconds}s ago)`);
     }
+    process.stdout.write(` workspace=${worker.workspace_exists ? "ok" : "missing"}`);
+    process.stdout.write(` state=${worker.state_exists ? "present" : "missing"}`);
+    if (worker.state_age_seconds !== null) {
+      process.stdout.write(` state_age=${worker.state_age_seconds}s`);
+    }
+    if (worker.state_error) {
+      process.stdout.write(` state_error=${worker.state_error}`);
+    }
+    if (worker.heartbeat_parse_error) {
+      process.stdout.write(` heartbeat_error=${worker.heartbeat_parse_error}`);
+    }
     process.stdout.write("\n");
+  }
+  if (report.process) {
+    process.stdout.write(`Process: pid=${report.process.pid}`);
+    if (report.process.ppid !== null) {
+      process.stdout.write(` ppid=${report.process.ppid}`);
+    }
+    if (report.process.state) {
+      process.stdout.write(` state=${report.process.state}`);
+    }
+    if (report.process.elapsed_seconds !== null) {
+      process.stdout.write(` elapsed=${report.process.elapsed_seconds}s`);
+    }
+    if (report.process.cpu_percent !== null) {
+      process.stdout.write(` cpu=${report.process.cpu_percent.toFixed(1)}%`);
+    }
+    if (report.process.memory_percent !== null) {
+      process.stdout.write(` mem=${report.process.memory_percent.toFixed(1)}%`);
+    }
+    if (report.process.rss_kb !== null) {
+      process.stdout.write(` rss=${report.process.rss_kb}KB`);
+    }
+    process.stdout.write("\n");
+    if (report.process.command) {
+      process.stdout.write(`Command: ${report.process.command}\n`);
+    }
   }
   if (report.service) {
     process.stdout.write(
@@ -985,14 +1179,11 @@ async function runMultiAgentRuntimeFromEnv(env: NodeJS.ProcessEnv): Promise<bool
     return false;
   }
 
-  configureRuntimeDnsResolution(env);
+  configureRuntimeDnsResolution();
 
-  const workerRestartDelayMs = toPositiveInt(env.AGENTMC_WORKER_RESTART_DELAY_MS) ?? DEFAULT_WORKER_RESTART_DELAY_MS;
-  const workerRestartMaxDelayMs = Math.max(
-    workerRestartDelayMs,
-    toPositiveInt(env.AGENTMC_WORKER_RESTART_MAX_DELAY_MS) ?? DEFAULT_WORKER_RESTART_MAX_DELAY_MS
-  );
-  const statusPath = resolveRuntimeStatusPath(env);
+  const workerRestartDelayMs = DEFAULT_WORKER_RESTART_DELAY_MS;
+  const workerRestartMaxDelayMs = DEFAULT_WORKER_RESTART_MAX_DELAY_MS;
+  const statusPath = resolveRuntimeStatusPath();
   let statusWorkers: RuntimeWorkerConfig[] = [];
   const statusSnapshot: RuntimeSupervisorSnapshot = {
     schema_version: 1,
@@ -1087,18 +1278,10 @@ async function runMultiAgentRuntimeFromEnv(env: NodeJS.ProcessEnv): Promise<bool
       });
     }
 
-    const baseUrl = nonEmpty(env.AGENTMC_BASE_URL) ?? undefined;
-    if (toPositiveInt(env.AGENTMC_AGENT_ID) !== null) {
-      process.stderr.write(
-        "[agentmc-runtime] AGENTMC_AGENT_ID is ignored in host supervisor mode; using discovered multi-agent workers.\n"
-      );
-    }
-
-    const runtimeProvider = normalizeRuntimeProvider(env.AGENTMC_RUNTIME_PROVIDER);
+    const runtimeProvider = normalizeRuntimeProvider(null);
     const discoveredAgents = await detectRuntimeAgents({
       runtimeProvider,
-      workspaceDir: process.cwd(),
-      env
+      workspaceDir: process.cwd()
     });
     if (discoveredAgents.length === 0) {
       throw new Error("Runtime bootstrap failed. No runtime agents detected from OpenClaw config/discovery.");
@@ -1117,30 +1300,21 @@ async function runMultiAgentRuntimeFromEnv(env: NodeJS.ProcessEnv): Promise<bool
       summary: `starting ${resolved.workers.length} worker runtime(s)`
     });
 
-    const hostHeartbeatIntervalSeconds =
-      toPositiveInt(env.AGENTMC_HOST_HEARTBEAT_INTERVAL_SECONDS) ??
-      toPositiveInt(env.AGENTMC_HEARTBEAT_INTERVAL_SECONDS) ??
-      DEFAULT_HOST_HEARTBEAT_INTERVAL_SECONDS;
-    const hostRealtimeRouteIntervalMs = Math.max(
-      250,
-      toPositiveInt(env.AGENTMC_REALTIME_ROUTE_INTERVAL_MS) ?? DEFAULT_HOST_REALTIME_ROUTE_INTERVAL_MS
-    );
-    const hostRealtimeRouteLimit = Math.max(
-      1,
-      Math.min(500, toPositiveInt(env.AGENTMC_REALTIME_ROUTE_LIMIT) ?? DEFAULT_HOST_REALTIME_ROUTE_LIMIT)
-    );
+    const hostHeartbeatIntervalSeconds = DEFAULT_HOST_HEARTBEAT_INTERVAL_SECONDS;
+    const hostRealtimeRouteIntervalMs = DEFAULT_HOST_REALTIME_ROUTE_INTERVAL_MS;
+    const hostRealtimeRouteLimit = DEFAULT_HOST_REALTIME_ROUTE_LIMIT;
 
     const heartbeatClient = new AgentMCApi({
-      baseUrl,
+      baseUrl: undefined,
       apiKey: hostApiKey
     });
-    const hostFingerprint = resolveHostFingerprint(env);
+    const hostFingerprint = resolveHostFingerprint();
     await persistStatusSafe({
       host_fingerprint: hostFingerprint,
       summary: "sending initial host heartbeat"
     });
 
-    const initialHeartbeat = await sendHostHeartbeat(heartbeatClient, env, resolved.workers, hostFingerprint);
+    const initialHeartbeat = await sendHostHeartbeat(heartbeatClient, resolved.workers, hostFingerprint);
     applyHeartbeatAgentMapping(resolved.workers, initialHeartbeat);
     await persistStatusSafe({
       summary: "initial host heartbeat complete"
@@ -1160,18 +1334,17 @@ async function runMultiAgentRuntimeFromEnv(env: NodeJS.ProcessEnv): Promise<bool
       `[agentmc-runtime] host heartbeat active interval=${hostHeartbeatIntervalSeconds}s host=${hostFingerprint}\n`
     );
     process.stderr.write(
-      `[agentmc-runtime] host realtime mode=single-websocket-router+worker-session-poll-fallback interval_ms=${hostRealtimeRouteIntervalMs} limit=${hostRealtimeRouteLimit}\n`
+      `[agentmc-runtime] host realtime mode=single-websocket-router interval_ms=${hostRealtimeRouteIntervalMs} limit=${hostRealtimeRouteLimit}\n`
     );
 
     const runtimeEntries: RuntimeEntry[] = resolved.workers.map((worker) => ({
       worker,
-      runtimeEnv: buildRuntimeEnv(env, worker, true)
+      runtimeOptions: buildRuntimeOptions(worker, true)
     }));
     const runtimeEntriesByLocalKey = new Map(runtimeEntries.map((entry) => [entry.worker.localKey, entry]));
 
     hostHeartbeatLoopPromise = runHostHeartbeatLoop({
       client: heartbeatClient,
-      env,
       workers: resolved.workers,
       hostFingerprint,
       intervalSeconds: hostHeartbeatIntervalSeconds,
@@ -1186,7 +1359,7 @@ async function runMultiAgentRuntimeFromEnv(env: NodeJS.ProcessEnv): Promise<bool
             continue;
           }
 
-          entry.runtimeEnv = buildRuntimeEnv(env, entry.worker, true);
+          entry.runtimeOptions = buildRuntimeOptions(entry.worker, true);
           const runtime = activeRuntimes.get(workerKey);
           if (!runtime) {
             continue;
@@ -1273,15 +1446,8 @@ async function runMultiAgentRuntimeFromEnv(env: NodeJS.ProcessEnv): Promise<bool
   }
 }
 
-function configureRuntimeDnsResolution(env: NodeJS.ProcessEnv): void {
-  const configured = nonEmpty(env.AGENTMC_DNS_RESULT_ORDER)?.toLowerCase() ?? DEFAULT_RUNTIME_DNS_RESULT_ORDER;
-  if (configured !== "ipv4first" && configured !== "verbatim") {
-    process.stderr.write(
-      `[agentmc-runtime] ignoring unsupported AGENTMC_DNS_RESULT_ORDER=${configured}; expected "ipv4first" or "verbatim".\n`
-    );
-    return;
-  }
-
+function configureRuntimeDnsResolution(): void {
+  const configured = DEFAULT_RUNTIME_DNS_RESULT_ORDER;
   try {
     setDefaultResultOrder(configured);
     process.stderr.write(`[agentmc-runtime] dns result order set to ${configured}\n`);
@@ -1293,7 +1459,6 @@ function configureRuntimeDnsResolution(env: NodeJS.ProcessEnv): void {
 
 async function runHostHeartbeatLoop(input: {
   client: AgentMCApi;
-  env: NodeJS.ProcessEnv;
   workers: RuntimeWorkerConfig[];
   hostFingerprint: string;
   intervalSeconds: number;
@@ -1307,7 +1472,7 @@ async function runHostHeartbeatLoop(input: {
     }
 
     try {
-      const heartbeat = await sendHostHeartbeat(input.client, input.env, input.workers, input.hostFingerprint);
+      const heartbeat = await sendHostHeartbeat(input.client, input.workers, input.hostFingerprint);
       const changedWorkerKeys = applyHeartbeatAgentMapping(input.workers, heartbeat);
       if (input.onAgentMappingChanged && changedWorkerKeys.length > 0) {
         await input.onAgentMappingChanged(changedWorkerKeys);
@@ -1328,68 +1493,69 @@ async function runHostRealtimeSessionRoutingLoop(input: {
   shouldStop: () => boolean;
 }): Promise<void> {
   while (!input.shouldStop()) {
-    try {
-      const response = await input.client.operations.listAgentRealtimeRequestedSessions();
+    const sessionLimit = Math.max(1, Math.min(100, input.queryLimit));
+    for (const worker of input.workers) {
+      if (input.shouldStop()) {
+        break;
+      }
 
-      if (response.error) {
-        const summary = summarizeApiError(response.error);
-        throw new Error(
-          `listAgentRealtimeRequestedSessions failed with status ${response.status}${summary ? ` (${summary})` : ""}`
+      const agentId = worker.agentId;
+      if (!agentId || agentId < 1) {
+        continue;
+      }
+
+      const runtime = input.activeRuntimes.get(worker.localKey);
+      if (!runtime) {
+        continue;
+      }
+
+      try {
+        const response = await input.client.operations.listAgentRealtimeRequestedSessions({
+          params: {
+            query: {
+              limit: sessionLimit
+            }
+          },
+          headers: {
+            "X-Agent-Id": String(agentId)
+          }
+        });
+
+        if (response.error) {
+          const summary = summarizeApiError(response.error);
+          throw new Error(
+            `listAgentRealtimeRequestedSessions failed with status ${response.status}${summary ? ` (${summary})` : ""}`
+          );
+        }
+
+        const payload = valueAsObject(response.data) ?? (await readJsonResponseObject(response.response));
+        const sessions = Array.isArray(payload?.data) ? payload.data : [];
+        const orderedSessions = [...sessions].sort((left, right) => {
+          const leftId = toPositiveInt(valueAsObject(left)?.id) ?? 0;
+          const rightId = toPositiveInt(valueAsObject(right)?.id) ?? 0;
+          return rightId - leftId;
+        });
+
+        for (const session of orderedSessions) {
+          const sessionObject = valueAsObject(session);
+          if (!sessionObject) {
+            continue;
+          }
+
+          const sessionId = toPositiveInt(sessionObject.id);
+          const status = nonEmpty(sessionObject.status)?.toLowerCase();
+          if (sessionId === null || (status !== "requested" && status !== "claimed" && status !== "active")) {
+            continue;
+          }
+
+          runtime.attachRealtimeSession(sessionId);
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        process.stderr.write(
+          `[agentmc-runtime] host realtime routing failed for worker ${worker.localKey} (agent=${agentId}): ${message}\n`
         );
       }
-
-      const payload = valueAsObject(response.data) ?? (await readJsonResponseObject(response.response));
-      const sessions = Array.isArray(payload?.data) ? payload.data : [];
-      const orderedSessions = [...sessions].sort((left, right) => {
-        const leftId = toPositiveInt(valueAsObject(left)?.id) ?? 0;
-        const rightId = toPositiveInt(valueAsObject(right)?.id) ?? 0;
-        return rightId - leftId;
-      });
-      const limitedSessions = orderedSessions.slice(0, Math.max(1, input.queryLimit));
-      const routedSessionIds = new Set<number>();
-      const workerByAgentId = new Map<number, RuntimeWorkerConfig>();
-      for (const worker of input.workers) {
-        if (worker.agentId !== null) {
-          workerByAgentId.set(worker.agentId, worker);
-        }
-      }
-
-      for (const session of limitedSessions) {
-        const sessionObject = valueAsObject(session);
-        if (!sessionObject) {
-          continue;
-        }
-
-        const sessionId = toPositiveInt(sessionObject.id);
-        const agentId = toPositiveInt(sessionObject.agent_id);
-        const status = nonEmpty(sessionObject.status)?.toLowerCase();
-        if (
-          sessionId === null ||
-          agentId === null ||
-          (status !== "requested" && status !== "claimed" && status !== "active")
-        ) {
-          continue;
-        }
-        if (routedSessionIds.has(sessionId)) {
-          continue;
-        }
-        routedSessionIds.add(sessionId);
-
-        const worker = workerByAgentId.get(agentId);
-        if (!worker) {
-          continue;
-        }
-
-        const runtime = input.activeRuntimes.get(worker.localKey);
-        if (!runtime) {
-          continue;
-        }
-
-        runtime.attachRealtimeSession(sessionId);
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      process.stderr.write(`[agentmc-runtime] host realtime routing failed: ${message}\n`);
     }
 
     await sleepWithStop(input.intervalMs, input.shouldStop);
@@ -1534,23 +1700,21 @@ async function sleepWithStop(totalMs: number, shouldStop: () => boolean): Promis
 
 async function sendHostHeartbeat(
   client: AgentMCApi,
-  env: NodeJS.ProcessEnv,
   workers: RuntimeWorkerConfig[],
   hostFingerprint: string
 ): Promise<HostHeartbeatAgentRow[]> {
   const privateIp = resolvePrivateIp();
-  const configuredPublicIp = nonEmpty(env.AGENTMC_PUBLIC_IP);
-  const publicIp = configuredPublicIp ?? privateIp ?? "127.0.0.1";
-  const configuredRuntimeProvider = normalizeRuntimeProvider(env.AGENTMC_RUNTIME_PROVIDER);
+  const publicIp = privateIp ?? "127.0.0.1";
+  const configuredRuntimeProvider = normalizeRuntimeProvider(null);
   const resolvedRuntimeProvider = resolveHostHeartbeatRuntimeProvider(configuredRuntimeProvider, workers);
-  const runtimeIdentity = resolveHostHeartbeatRuntimeIdentity(env, configuredRuntimeProvider, resolvedRuntimeProvider);
-  const models = resolveHostHeartbeatModels(env, workers, resolvedRuntimeProvider);
+  const runtimeIdentity = resolveHostHeartbeatRuntimeIdentity(configuredRuntimeProvider, resolvedRuntimeProvider);
+  const models = resolveHostHeartbeatModels(workers, resolvedRuntimeProvider);
   const heartbeatModels =
     models.length > 0 ? models : resolveHostHeartbeatFallbackModels(runtimeIdentity, resolvedRuntimeProvider);
   const hasOpenClawWorkers = workers.some((worker) => nonEmpty(worker.provider)?.toLowerCase() === "openclaw");
   const latestOpenClawProfiles =
     hasOpenClawWorkers
-      ? resolveLatestHostHeartbeatOpenClawProfiles(env)
+      ? resolveLatestHostHeartbeatOpenClawProfiles()
       : new Map<string, { name: string | null; emoji: string | null }>();
 
   const payload = {
@@ -1570,7 +1734,7 @@ async function sendHostHeartbeat(
     },
     host: {
       fingerprint: hostFingerprint,
-      name: nonEmpty(env.AGENTMC_HOST_NAME) ?? hostname(),
+      name: hostname(),
       meta: {
         hostname: hostname(),
         ip: privateIp ?? publicIp,
@@ -1683,9 +1847,8 @@ function updateWorkerProfileFromHeartbeat(
 }
 
 function resolveLatestHostHeartbeatOpenClawProfiles(
-  env: NodeJS.ProcessEnv
 ): Map<string, { name: string | null; emoji: string | null }> {
-  const command = nonEmpty(env.OPENCLAW_CMD) ?? "openclaw";
+  const command = "openclaw";
   const rows = resolveOpenClawHeartbeatAgentRows(command);
   const profiles = new Map<string, { name: string | null; emoji: string | null }>();
 
@@ -2073,7 +2236,6 @@ function resolveHostHeartbeatRuntimeProvider(
 }
 
 function resolveHostHeartbeatRuntimeIdentity(
-  env: NodeJS.ProcessEnv,
   configuredProvider: "auto" | "openclaw" | "external",
   resolvedProvider: HostHeartbeatRuntimeProvider
 ): {
@@ -2086,11 +2248,11 @@ function resolveHostHeartbeatRuntimeIdentity(
   openclawVersion: string | null;
   openclawBuild: string | null;
 } {
-  const configuredRuntimeVersion = nonEmpty(env.AGENTMC_RUNTIME_VERSION);
-  const configuredRuntimeBuild = nonEmpty(env.AGENTMC_RUNTIME_BUILD);
+  const configuredRuntimeVersion: string | null = null;
+  const configuredRuntimeBuild: string | null = null;
 
   if (resolvedProvider === "openclaw") {
-    const openclawIdentity = resolveOpenClawVersionIdentity(env);
+    const openclawIdentity = resolveOpenClawVersionIdentity();
     const version = configuredRuntimeVersion ?? openclawIdentity?.version ?? "unknown";
     const build = configuredRuntimeBuild ?? openclawIdentity?.build ?? null;
 
@@ -2111,7 +2273,7 @@ function resolveHostHeartbeatRuntimeIdentity(
   return {
     type: "host-runtime",
     mode,
-    name: nonEmpty(env.AGENTMC_RUNTIME_NAME) ?? "agentmc-node-host",
+    name: "agentmc-node-host",
     version: configuredRuntimeVersion ?? process.version,
     build: configuredRuntimeBuild ?? null,
     modelPrefix: resolvedProvider === "external" ? "external" : mode,
@@ -2120,13 +2282,11 @@ function resolveHostHeartbeatRuntimeIdentity(
   };
 }
 
-function resolveOpenClawVersionIdentity(
-  env: NodeJS.ProcessEnv
-): {
+function resolveOpenClawVersionIdentity(): {
   version: string;
   build: string | null;
 } | null {
-  const command = nonEmpty(env.OPENCLAW_CMD) ?? "openclaw";
+  const command = "openclaw";
   const output = readCommandVersionOutput(command, ["--version"]);
   if (!output) {
     return null;
@@ -2198,20 +2358,14 @@ function extractBuildToken(line: string): string | null {
 }
 
 function resolveHostHeartbeatModels(
-  env: NodeJS.ProcessEnv,
   workers: RuntimeWorkerConfig[],
   resolvedProvider: HostHeartbeatRuntimeProvider
 ): string[] {
-  const configured = parseCommaSeparatedList(env.AGENTMC_MODELS);
-  if (configured.length > 0) {
-    return dedupeModelIdentifiers(configured);
-  }
-
   if (resolvedProvider !== "openclaw") {
     return [];
   }
 
-  const command = nonEmpty(env.OPENCLAW_CMD) ?? "openclaw";
+  const command = "openclaw";
   const openclawAgents = new Set<string>();
   for (const worker of workers) {
     if (worker.provider?.toLowerCase() !== "openclaw") {
@@ -2222,11 +2376,6 @@ function resolveHostHeartbeatModels(
     if (key) {
       openclawAgents.add(key);
     }
-  }
-
-  const configuredOpenClawAgent = nonEmpty(env.OPENCLAW_AGENT);
-  if (configuredOpenClawAgent) {
-    openclawAgents.add(configuredOpenClawAgent);
   }
 
   const discovered: string[] = [];
@@ -2436,18 +2585,13 @@ function applyHeartbeatAgentMapping(workers: RuntimeWorkerConfig[], rows: HostHe
   return changedWorkerKeys;
 }
 
-function resolveHostFingerprint(env: NodeJS.ProcessEnv): string {
-  const configured = nonEmpty(env.AGENTMC_HOST_FINGERPRINT);
-  if (configured && configured.length >= 64) {
-    return configured.slice(0, 128);
-  }
-
+function resolveHostFingerprint(): string {
   const seed = [
     hostname(),
     platform(),
     arch(),
     String(cpus().length),
-    nonEmpty(env.AGENTMC_BASE_URL) ?? "",
+    "https://agentmc.ai/api/v1",
     process.cwd()
   ].join("|");
 
@@ -2485,35 +2629,18 @@ function summarizeApiError(error: unknown): string | null {
   return code;
 }
 
-function buildRuntimeEnv(baseEnv: NodeJS.ProcessEnv, worker: RuntimeWorkerConfig, disableHeartbeat = false): NodeJS.ProcessEnv {
-  const runtimeEnv: NodeJS.ProcessEnv = {
-    ...baseEnv,
-    AGENTMC_API_KEY: worker.apiKey,
-    AGENTMC_WORKSPACE_DIR: worker.workspaceDir,
-    AGENTMC_STATE_PATH: worker.statePath
+function buildRuntimeOptions(worker: RuntimeWorkerConfig, disableHeartbeat = false): AgentRuntimeProgramOptions {
+  const provider = normalizeRuntimeProvider(worker.provider);
+  return {
+    apiKey: worker.apiKey,
+    workspaceDir: worker.workspaceDir,
+    statePath: worker.statePath,
+    agentId: worker.agentId ?? undefined,
+    heartbeatEnabled: !disableHeartbeat,
+    realtimeSessionPollingEnabled: disableHeartbeat ? false : true,
+    runtimeProvider: provider,
+    openclawAgent: worker.openclawAgent
   };
-
-  if (worker.agentId !== null) {
-    runtimeEnv.AGENTMC_AGENT_ID = String(worker.agentId);
-  } else {
-    delete runtimeEnv.AGENTMC_AGENT_ID;
-  }
-
-  if (worker.openclawAgent) {
-    runtimeEnv.OPENCLAW_AGENT = worker.openclawAgent;
-  }
-
-  if (disableHeartbeat) {
-    runtimeEnv.AGENTMC_DISABLE_HEARTBEAT = "1";
-    if (nonEmpty(runtimeEnv.AGENTMC_REALTIME_SESSION_POLLING) === null) {
-      runtimeEnv.AGENTMC_REALTIME_SESSION_POLLING = "0";
-    }
-  } else {
-    delete runtimeEnv.AGENTMC_DISABLE_HEARTBEAT;
-    delete runtimeEnv.AGENTMC_REALTIME_SESSION_POLLING;
-  }
-
-  return runtimeEnv;
 }
 
 async function runRuntimeEntryWithRestart(input: {
@@ -2545,7 +2672,7 @@ async function runRuntimeEntryWithRestart(input: {
     const workerLabel =
       `agent=${entry.worker.agentId ?? `auto:${entry.worker.localKey}`} provider=${entry.worker.provider ?? "unknown"} ` +
       `local=${entry.worker.localName ?? "unknown"} workspace=${entry.worker.workspaceDir}`;
-    const runtime = AgentRuntimeProgram.fromEnv(entry.runtimeEnv);
+    const runtime = new AgentRuntimeProgram(entry.runtimeOptions);
     activeRuntimes.set(entry.worker.localKey, runtime);
     const startedAtMs = Date.now();
     process.stderr.write(`[agentmc-runtime] worker start ${workerLabel}\n`);
@@ -2781,9 +2908,9 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
         recentErrors?: boolean;
         json?: boolean;
       }) => {
-      const statusPath = resolveRuntimeStatusPath(process.env, options.statusPath);
-      const baseReport = readRuntimeStatusReport(statusPath, process.env);
-      const serviceName = resolveRuntimeServiceName(process.env, options.serviceName);
+      const statusPath = resolveRuntimeStatusPath(options.statusPath);
+      const baseReport = readRuntimeStatusReport(statusPath);
+      const serviceName = resolveRuntimeServiceName(options.serviceName);
       const recentErrorWindowMinutes = parseBoundedPositiveInt(
         options.errorsSinceMinutes,
         DEFAULT_RUNTIME_ERROR_LOOKBACK_MINUTES,
@@ -2796,7 +2923,7 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
         1,
         200
       );
-      const report = enrichRuntimeStatusReport(baseReport, process.env, {
+      const report = enrichRuntimeStatusReport(baseReport, {
         serviceName,
         includeRecentErrors: options.recentErrors !== false,
         recentErrorWindowMinutes,

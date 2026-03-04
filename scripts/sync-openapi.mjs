@@ -11,12 +11,8 @@ const projectRoot = resolve(scriptDir, "..");
 const specDir = resolve(projectRoot, "spec");
 const sourceSpecPath = resolve(specDir, "openapi.source.json");
 
-const sourcePathFromEnv = process.env.AGENTMC_OPENAPI_PATH;
 const defaultLocalPath = resolve(projectRoot, "..", "agentmc.ai", "public", "openapi.json");
-const sourceUrl = process.env.AGENTMC_OPENAPI_URL ?? "https://agentmc.ai/api/openapi.json";
-const disableLocalFallback = ["1", "true", "yes", "on"].includes(
-  String(process.env.AGENTMC_OPENAPI_DISABLE_LOCAL_FALLBACK ?? "").toLowerCase()
-);
+const sourceUrl = "https://agentmc.ai/api/openapi.json";
 
 mkdirSync(specDir, { recursive: true });
 
@@ -104,11 +100,7 @@ function sanitizeSpec(rawSpec) {
 }
 
 async function loadSpec() {
-  if (sourcePathFromEnv && existsSync(sourcePathFromEnv)) {
-    return readFileSync(sourcePathFromEnv, "utf8");
-  }
-
-  if (!disableLocalFallback && existsSync(defaultLocalPath)) {
+  if (existsSync(defaultLocalPath)) {
     return readFileSync(defaultLocalPath, "utf8");
   }
 
