@@ -220,6 +220,7 @@ Runtime defaults (no optional env overrides):
 -   Host heartbeat interval: `60s`
 -   Host realtime route interval: `1000ms`
 -   Host realtime route limit: `100`
+-   Host realtime connected reconcile poll: `60s` (push events still trigger immediate routing)
 -   Agent routing: auto-detect OpenClaw agents from `~/.openclaw/openclaw.json`; heartbeat auto-provisions AgentMC agents per host.
 -   Realtime worker behavior: heartbeat disabled in worker mode, websocket routing enabled, polling fallback disabled.
 

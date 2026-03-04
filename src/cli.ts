@@ -200,6 +200,7 @@ const WORKER_RESTART_RESET_WINDOW_MS = 60_000;
 const DEFAULT_HOST_HEARTBEAT_INTERVAL_SECONDS = 60;
 const DEFAULT_HOST_REALTIME_ROUTE_INTERVAL_MS = 1_000;
 const DEFAULT_HOST_REALTIME_ROUTE_LIMIT = 100;
+const DEFAULT_HOST_REALTIME_CONNECTED_RECONCILE_POLL_MS = 60_000;
 const DEFAULT_AUTO_UPDATE_INTERVAL_SECONDS = 300;
 const DEFAULT_AUTO_UPDATE_INSTALL_TIMEOUT_MS = 120_000;
 const DEFAULT_AUTO_UPDATE_PACKAGE_NAME = "@agentmc/api";
@@ -1608,7 +1609,8 @@ async function runHostRealtimeSessionRoutingLoop(input: {
       }
 
       if (hostRealtimeSubscription) {
-        return Math.max(10_000, input.intervalMs * 10);
+        // Push events drive immediate routing; keep only a low-frequency API reconciliation poll.
+        return Math.max(DEFAULT_HOST_REALTIME_CONNECTED_RECONCILE_POLL_MS, input.intervalMs * 10);
       }
 
       const idlePollMs = Math.max(input.intervalMs, 5_000);
