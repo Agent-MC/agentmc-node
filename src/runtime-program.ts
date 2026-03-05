@@ -603,6 +603,16 @@ export class AgentRuntimeProgram {
       build,
       mode: "openclaw",
       models,
+      runAgent: async (input) => {
+        const timestamp = new Date().toISOString();
+        return {
+          requestId: input.requestId,
+          runId: `agentmc-mock-${input.sessionId}-${input.requestId}`,
+          status: "ok",
+          textSource: "wait",
+          content: [input.userText, timestamp].join("\n")
+        };
+      },
       machineIdentityResolver: (fallbackName, fallbackIdentity) =>
         this.resolveOpenClawMachineIdentitySnapshot(fallbackName, fallbackIdentity)
     };
