@@ -797,6 +797,12 @@ export class OpenClawAgentRuntime {
     const normalizedSender = normalizeLowercase(signal.sender);
 
     if (signal.id > 0) {
+      if (signal.id > state.lastSignalId + 1) {
+        void this.catchUpSessionSignals(state, "signal_gap").catch(async (error) => {
+          await this.emitError(normalizeError(error));
+        });
+      }
+
       const isAgentSender = normalizedSender === "agent";
 
       if (isAgentSender) {
@@ -2423,7 +2429,7 @@ export class OpenClawAgentRuntime {
 
   private async catchUpSessionSignals(
     state: SessionState,
-    reason: "session_ready" | "connection_recovered"
+    reason: "session_ready" | "connection_recovered" | "signal_gap"
   ): Promise<void> {
     if (state.closed || this.stopRequested || state.catchupInFlight) {
       return;
