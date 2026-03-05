@@ -796,6 +796,66 @@ test("websocket notification bridge dedupes between signal and subscription call
   });
 });
 
+test("api notification ingestion skips notifications already handled from realtime signals", async () => {
+  await withFixture(async ({ dir, sessionsPath }) => {
+    const runtime = createRuntime(sessionsPath, dir);
+    let runCount = 0;
+
+    runtime.runOpenClawChat = async (input) => {
+      runCount += 1;
+      return {
+        requestId: input.requestId,
+        runId: "run-api-poll-deduped-notification",
+        status: "ok",
+        textSource: "wait",
+        content: "handled"
+      };
+    };
+
+    const state = createSessionState();
+    runtime.sessions.set(state.sessionId, state);
+
+    const notification = {
+      id: "d5cdb64e-072e-42b7-99d8-b1d535d98b1d",
+      notification_type: "mention",
+      message: "Ensure heartbeat catch-up does not duplicate realtime handling.",
+      is_read: false,
+      created_at: "2026-03-05T10:00:00Z",
+      updated_at: "2026-03-05T10:00:00Z"
+    };
+
+    await runtime.handleSignal(
+      state,
+      {
+        id: 34,
+        session_id: state.sessionId,
+        sender: "browser",
+        type: "message",
+        payload: {
+          type: "notification.created",
+          payload: {
+            notification
+          }
+        },
+        created_at: null
+      },
+      "websocket"
+    );
+
+    const ingestResult = await runtime.ingestNotificationsFromApi([notification], {
+      source: "api_poll",
+      sessionId: state.sessionId
+    });
+
+    assert.equal(runCount, 1);
+    assert.equal(ingestResult.source, "api_poll");
+    assert.equal(ingestResult.sessionId, state.sessionId);
+    assert.equal(ingestResult.totalReceived, 1);
+    assert.equal(ingestResult.processed, 0);
+    assert.equal(ingestResult.skipped, 1);
+  });
+});
+
 test("does not bridge read notifications by default", async () => {
   await withFixture(async ({ dir, sessionsPath }) => {
     const runtime = createRuntime(sessionsPath, dir);
