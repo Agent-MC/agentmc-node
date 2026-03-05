@@ -2279,9 +2279,11 @@ export class OpenClawAgentRuntime {
       });
     };
 
-    publishDelta(buildThinkingStatusDelta(thinkingFrameIndex, this.options.thinkingText));
+    const dispatchTarget = resolveChatDispatchTargetLabel(this.options.runtimeSource, this.options.openclawCommand);
+    publishDelta(buildDispatchStatusDelta(dispatchTarget));
 
     let thinkingTimer: ReturnType<typeof setInterval> | null = null;
+    let staticThinkingTimer: ReturnType<typeof setTimeout> | null = null;
     if (shouldAnimateThinkingStatus(this.options.thinkingText)) {
       thinkingTimer = setInterval(() => {
         if (stopped || state.closed || this.stopRequested) {
@@ -2295,6 +2297,17 @@ export class OpenClawAgentRuntime {
         publishDelta(THINKING_STATUS_FRAMES[thinkingFrameIndex] ?? this.options.thinkingText);
       }, DEFAULT_THINKING_ANIMATION_INTERVAL_MS);
       thinkingTimer.unref?.();
+    } else {
+      const staticThinkingText = this.options.thinkingText.trim();
+      if (staticThinkingText !== "") {
+        staticThinkingTimer = setTimeout(() => {
+          if (stopped || state.closed || this.stopRequested) {
+            return;
+          }
+          publishDelta(staticThinkingText);
+        }, 1200);
+        staticThinkingTimer.unref?.();
+      }
     }
 
     const inProgressTimer = setInterval(() => {
@@ -2314,6 +2327,9 @@ export class OpenClawAgentRuntime {
       stopped = true;
       if (thinkingTimer) {
         clearInterval(thinkingTimer);
+      }
+      if (staticThinkingTimer) {
+        clearTimeout(staticThinkingTimer);
       }
       clearInterval(inProgressTimer);
     };
@@ -3714,7 +3730,7 @@ function isThinkingBlockType(value: string): boolean {
 
 function sanitizeAssistantOutputText(value: string): string {
   let text = value.trim();
-  if (text === "") {
+  if (isPlaceholderAssistantOutput(text)) {
     return "";
   }
 
@@ -3731,7 +3747,8 @@ function sanitizeAssistantOutputText(value: string): string {
     text = stripped;
   }
 
-  return sanitizeAssistantReply(text);
+  const sanitized = sanitizeAssistantReply(text);
+  return isPlaceholderAssistantOutput(sanitized) ? "" : sanitized;
 }
 
 function sanitizeAssistantReply(value: string): string {
@@ -3761,10 +3778,34 @@ function fallbackAssistantContentForStatus(status: OpenClawRunResult["status"]):
   return "I finished the run, but no assistant text was found.";
 }
 
+function isPlaceholderAssistantOutput(value: string): boolean {
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "") {
+    return true;
+  }
+
+  return normalized === "undefined" || normalized === "null" || normalized === "[object object]";
+}
+
 function buildInProgressStatusDelta(): string {
   const messageIndex = Math.floor(Math.random() * IN_PROGRESS_STATUS_MESSAGES.length);
   const message = IN_PROGRESS_STATUS_MESSAGES[messageIndex] ?? "Still working...";
   return message;
+}
+
+function resolveChatDispatchTargetLabel(runtimeSource: string, openclawCommand: string): string {
+  void runtimeSource;
+  void openclawCommand;
+  return "agent";
+}
+
+function buildDispatchStatusDelta(targetLabel: string): string {
+  const normalizedTarget = targetLabel.trim();
+  if (normalizedTarget === "") {
+    return "Sent to agent. Waiting for response...";
+  }
+
+  return `Sent to ${normalizedTarget}. Waiting for response...`;
 }
 
 function shouldAnimateThinkingStatus(thinkingText: string): boolean {
