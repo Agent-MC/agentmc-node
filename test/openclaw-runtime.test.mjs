@@ -1072,6 +1072,111 @@ test("chat bridge errors do not leak raw exception details to chat output", asyn
   });
 });
 
+test("direct OpenClaw CLI failures do not leak raw command errors to chat output", async () => {
+  await withFixture(async ({ dir, sessionsPath }) => {
+    const secret = "mc_cli_secret_token";
+    const commandPath = join(dir, "mock-openclaw-fail.mjs");
+    let lastPublished = null;
+    let capturedError = null;
+
+    await writeFile(
+      commandPath,
+      `#!/usr/bin/env node
+console.error("bridge exploded with ${secret}");
+process.exit(1);
+`,
+      "utf8"
+    );
+    await chmod(commandPath, 0o755);
+
+    const runtime = createRuntime(sessionsPath, dir, {
+      openclawCommand: commandPath,
+      onError: (error) => {
+        capturedError = error;
+      }
+    });
+    runtime.publishChannelMessage = async (_sessionId, channelType, _requestId, payload) => {
+      if (channelType === "chat.agent.done") {
+        lastPublished = payload;
+      }
+    };
+
+    await runtime.handleChatUserSignal(
+      createSessionState(),
+      {
+        id: 701,
+        session_id: 114,
+        sender: "browser",
+        type: "message",
+        payload: {},
+        created_at: null
+      },
+      {
+        request_id: "req-cli-redaction-1"
+      },
+      {
+        request_id: "req-cli-redaction-1",
+        content: "Please help"
+      }
+    );
+
+    assert.ok(lastPublished);
+    assert.equal(
+      lastPublished.content,
+      "I hit an OpenClaw bridge error and could not produce assistant output."
+    );
+    assert.equal(lastPublished.content.includes(secret), false);
+    assert.ok(capturedError instanceof Error);
+    assert.equal(capturedError.message.includes(secret), false);
+  });
+});
+
+test("chat.user accepts queued_message_id as a source message id alias", async () => {
+  await withFixture(async ({ dir, sessionsPath }) => {
+    const runtime = createRuntime(sessionsPath, dir, {
+      sendThinkingDelta: false
+    });
+    const published = [];
+
+    runtime.runOpenClawChat = async (input) => ({
+      requestId: input.requestId,
+      runId: "run-queued-message-id",
+      status: "ok",
+      textSource: "wait",
+      content: "Queued message id handled."
+    });
+    runtime.publishChannelMessage = async (_sessionId, channelType, requestId, payload) => {
+      published.push({ channelType, requestId, payload });
+    };
+
+    await runtime.handleChatUserSignal(
+      createSessionState(),
+      {
+        id: 702,
+        session_id: 114,
+        sender: "browser",
+        type: "message",
+        payload: {},
+        created_at: null
+      },
+      {
+        request_id: "req-queued-message-id-1"
+      },
+      {
+        request_id: "req-queued-message-id-1",
+        queued_message_id: 88,
+        content: "Please keep the source message id."
+      }
+    );
+
+    const doneMessages = published.filter((entry) => entry.channelType === "chat.agent.done");
+    assert.equal(doneMessages.length, 1);
+    assert.equal(doneMessages[0]?.requestId, "req-queued-message-id-1");
+    assert.equal(doneMessages[0]?.payload?.message_id, 88);
+    assert.equal(doneMessages[0]?.payload?.content, "Queued message id handled.");
+  });
+});
+
 test("chunked chat.user messages are reassembled before runtime execution", async () => {
   await withFixture(async ({ dir, sessionsPath }) => {
     const runtime = createRuntime(sessionsPath, dir, {

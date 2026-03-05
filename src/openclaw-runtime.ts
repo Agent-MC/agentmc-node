@@ -1147,7 +1147,7 @@ export class OpenClawAgentRuntime {
       valueAsString(envelope.request_id)?.trim() ||
       requestIdHint ||
       (chunkIdHint ? `req-${state.sessionId}-${chunkIdHint}` : `req-${state.sessionId}-${Date.now().toString(36)}`);
-    const messageId = toPositiveInteger(resolvedPayload.message_id);
+    const messageId = resolveInboundMessageId(resolvedPayload, payload, envelope);
     const dedupeKey = messageId > 0 ? `chat:message:${messageId}` : `chat:request:${requestId}`;
     if (!shouldProcessInboundKey(state, dedupeKey, this.options.duplicateTtlMs)) {
       return;
@@ -1156,6 +1156,7 @@ export class OpenClawAgentRuntime {
     const userText =
       valueAsString(resolvedPayload.content)?.trim() ||
       valueAsString(resolvedPayload.message)?.trim() ||
+      valueAsString(resolvedPayload.text)?.trim() ||
       "";
 
     if (userText === "") {
@@ -1375,7 +1376,10 @@ export class OpenClawAgentRuntime {
       runId = resolveOpenClawRunId(commandResult) ?? fallbackRunId;
 
       const directText = sanitizeAssistantOutputText(
-        parseExternalAgentOutput(output.stdout) || parseExternalAgentOutput(output.stderr)
+        parseExternalAgentOutput(output.stdout) ||
+          parseExternalAgentOutput(output.stderr, {
+            allowPlainText: false
+          })
       );
       if (directText !== "") {
         return {
@@ -1394,7 +1398,10 @@ export class OpenClawAgentRuntime {
       runId = resolveOpenClawRunId(commandResult) ?? runId;
 
       const directText = sanitizeAssistantOutputText(
-        parseExternalAgentOutput(stdout) || parseExternalAgentOutput(stderr)
+        parseExternalAgentOutput(stdout) ||
+          parseExternalAgentOutput(stderr, {
+            allowPlainText: false
+          })
       );
       if (directText !== "") {
         return {
@@ -1426,12 +1433,19 @@ export class OpenClawAgentRuntime {
     }
 
     if (commandStatus === "error") {
+      await this.emitError(
+        new Error(
+          `OpenClaw command failed without assistant output for request ${input.requestId}. ` +
+            "Check runtime logs and OpenClaw auth/session state."
+        )
+      );
+
       return {
         requestId: input.requestId,
         runId,
         status: "error",
         textSource: "error",
-        content: `I hit an error in the OpenClaw run: ${commandErrorMessage ?? "unknown error"}`
+        content: fallbackAssistantContentForStatus("error")
       };
     }
 
@@ -3247,16 +3261,23 @@ function execOutputToString(value: unknown): string {
   return "";
 }
 
-function parseExternalAgentOutput(value: unknown): string {
+function parseExternalAgentOutput(
+  value: unknown,
+  options: {
+    allowPlainText?: boolean;
+  } = {}
+): string {
   const trimmed = valueAsString(value)?.trim() ?? "";
   if (trimmed === "") {
     return "";
   }
 
+  const allowPlainText = options.allowPlainText !== false;
+
   try {
     const parsed = JSON.parse(trimmed);
     if (typeof parsed === "string") {
-      return parsed;
+      return allowPlainText ? parsed : "";
     }
 
     if (parsed && typeof parsed === "object") {
@@ -3275,7 +3296,7 @@ function parseExternalAgentOutput(value: unknown): string {
     // Keep plain text fallback.
   }
 
-  return trimmed;
+  return allowPlainText ? trimmed : "";
 }
 
 function extractText(value: unknown, depth = 0): string | null {
@@ -3840,8 +3861,11 @@ function extractInboundChunkData(payload: JsonObject): string | null {
     "chunk_encoding",
     "request_id",
     "message_id",
+    "queued_message_id",
+    "source_message_id",
     "content",
-    "message"
+    "message",
+    "text"
   ]);
   const candidateKey = Object.keys(payload).find((key) => {
     if (reservedKeys.has(key)) {
@@ -3867,6 +3891,21 @@ function decodeChunkedPayloadObject(payloadBase64: string): JsonObject | null {
   } catch {
     return null;
   }
+}
+
+function resolveInboundMessageId(...sources: JsonObject[]): number {
+  const candidateKeys = ["message_id", "queued_message_id", "source_message_id"] as const;
+
+  for (const source of sources) {
+    for (const key of candidateKeys) {
+      const messageId = toPositiveInteger(source[key]);
+      if (messageId > 0) {
+        return messageId;
+      }
+    }
+  }
+
+  return 0;
 }
 
 function buildAgentMcBridgeMessage(input: { userText: string }): string {
