@@ -881,7 +881,14 @@ export async function subscribeToRealtimeNotifications(
     }
 
     if (session !== null) {
-      await closeClaimedSessionOnSubscribeFailure(client, options.agent, session.id, options.onError);
+      if (shouldCloseClaimedSessionOnSubscribeFailure(error)) {
+        await closeClaimedSessionOnSubscribeFailure(client, options.agent, session.id, options.onError);
+      } else {
+        await callErrorHandler(
+          options.onError,
+          new Error(`Retaining claimed realtime session ${session.id} after transient subscribe failure.`)
+        );
+      }
     }
 
     throw normalizeError(error);
@@ -1886,6 +1893,15 @@ async function closeClaimedSessionOnSubscribeFailure(
       createOperationError("closeAgentRealtimeSession", closeResult.status, closeResult.error)
     );
   }
+}
+
+function shouldCloseClaimedSessionOnSubscribeFailure(error: unknown): boolean {
+  const status = extractStatusCode(error);
+  if (status === null) {
+    return false;
+  }
+
+  return status === 401 || status === 403 || status === 404 || status === 410 || status === 422;
 }
 
 function isRetryableClaimFailureStatus(status: number): boolean {
