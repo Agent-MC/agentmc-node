@@ -4,15 +4,7 @@ const client = new AgentMCApi({
   apiKey: process.env.AGENTMC_API_KEY
 });
 
-const result = await client.operations.listNotifications({
-  "params": {
-    "query": {
-      "unread": true,
-      "per_page": 25,
-      "page": 1
-    }
-  }
-});
+const result = await client.operations.listNotifications();
 
 if (result.error) {
   console.error(result.status, result.error);

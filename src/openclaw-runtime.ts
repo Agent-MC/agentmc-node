@@ -719,16 +719,14 @@ export class OpenClawAgentRuntime {
 
           await this.emitError(
             new Error(
-              `Realtime websocket startup failed for session ${state.sessionId}; recycling session. ${normalizedError.message}`
+              `Realtime websocket startup failed for session ${state.sessionId}; recycling local subscription and retaining the remote session. ${normalizedError.message}`
             )
           );
           state.closeReason = "session_websocket_startup_failed";
           await this.closeSession(
             state,
             state.closeReason,
-            this.options.selfHealCloseRemote,
-            this.options.selfHealCloseRemote,
-            "failed"
+            false
           );
           return;
         }
@@ -756,13 +754,13 @@ export class OpenClawAgentRuntime {
       } finally {
         const hasOwnedSessionHandle = state.subscription !== null || state.session !== null;
         const shouldCloseRemote =
-          !this.stopRequested && this.options.selfHealCloseRemote && hasOwnedSessionHandle;
+          this.stopRequested && this.options.closeSessionOnStop && hasOwnedSessionHandle;
         await this.closeSession(
           state,
           state.closeReason ?? "session_loop_ended",
           shouldCloseRemote,
           shouldCloseRemote,
-          shouldCloseRemote ? "failed" : undefined
+          shouldCloseRemote ? this.options.closeStatus : undefined
         );
       }
     })();
@@ -2330,11 +2328,11 @@ export class OpenClawAgentRuntime {
         const reason = `session_self_heal_${state.connectionState}_stale`;
         await this.emitError(
           new Error(
-            `Self-heal recycling session ${state.sessionId}: ${state.connectionState} for ${fallbackMs}ms with no health activity for ${healthStaleMs}ms.`
+            `Self-heal recycling local subscription for session ${state.sessionId}: ${state.connectionState} for ${fallbackMs}ms with no health activity for ${healthStaleMs}ms.`
           )
         );
         state.closeReason = reason;
-        await this.closeSession(state, reason, this.options.selfHealCloseRemote, true, "failed");
+        await this.closeSession(state, reason, false);
         return;
       }
     }
@@ -2346,10 +2344,12 @@ export class OpenClawAgentRuntime {
 
     const reason = "session_self_heal_activity_stale";
     await this.emitError(
-      new Error(`Self-heal recycling session ${state.sessionId}: no health activity for ${inactivityMs}ms.`)
+      new Error(
+        `Self-heal recycling local subscription for session ${state.sessionId}: no health activity for ${inactivityMs}ms.`
+      )
     );
     state.closeReason = reason;
-    await this.closeSession(state, reason, this.options.selfHealCloseRemote, true, "failed");
+    await this.closeSession(state, reason, false);
   }
 
   private async closeSession(

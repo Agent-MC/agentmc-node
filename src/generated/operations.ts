@@ -44,7 +44,7 @@ export const operations = [
     "method": "post",
     "path": "/hosts/heartbeat",
     "summary": "Record host heartbeat and runtime telemetry.",
-    "description": "Accepts heartbeat payloads with required host telemetry and required runtime agent metadata. Runtime clients should include `meta.models` and `meta.agentmc_node_package_version` on every heartbeat.",
+    "description": "Accepts heartbeat pings with required host telemetry payload and required runtime agent metadata.",
     "tags": [
       "Hosts"
     ],
@@ -62,217 +62,29 @@ export const operations = [
         "example": "a3f56f330f311a2159f8c101eaf1439a29f1d57f007375d56aa79f304bc4f112"
       }
     ],
-    "requestBodyRequired": true,
-    "requestExamples": [
-      {
-        "mediaType": "application/json",
-        "example": {
-          "meta": {
-            "runtime": {
-              "name": "openclaw",
-              "version": "2026.2.26",
-              "build": "bc50708",
-              "mode": "openclaw"
-            },
-            "openclaw_version": "2026.2.26",
-            "openclaw_build": "bc50708",
-            "models": [
-              "openai/gpt-5-codex"
-            ],
-            "node_version": "v25.7.0",
-            "agentmc_node_package_version": "0.14.2",
-            "runtime_mode": "openclaw",
-            "tool_availability": {
-              "chat_realtime": true,
-              "files_realtime": true,
-              "notifications_realtime": true
-            }
-          },
-          "host": {
-            "fingerprint": "a3f56f330f311a2159f8c101eaf1439a29f1d57f007375d56aa79f304bc4f112",
-            "name": "worker-01",
-            "meta": {
-              "hostname": "worker-01",
-              "ip": "10.0.2.15",
-              "network": {
-                "private_ip": "10.0.2.15",
-                "public_ip": "34.222.10.10"
-              },
-              "os": "Ubuntu",
-              "os_version": "24.04",
-              "arch": "x86_64",
-              "cpu": "Intel Xeon",
-              "cpu_cores": 8,
-              "ram_gb": 32,
-              "disk": {
-                "total_bytes": 536870912000,
-                "free_bytes": 322122547200
-              },
-              "uptime_seconds": 86400,
-              "runtime": {
-                "name": "codex",
-                "version": "2026.02.1"
-              }
-            }
-          },
-          "agent": {
-            "name": "Jarvis",
-            "identity": {
-              "name": "Jarvis",
-              "agent_key": "solomon",
-              "creature": "robot",
-              "vibe": "calm"
-            }
-          }
-        }
-      }
-    ],
+    "requestBodyRequired": false,
+    "requestExamples": [],
     "responses": [
       {
         "status": "200",
-        "mediaType": "application/json",
+        "mediaType": "none",
         "description": "Heartbeat accepted.",
-        "hasContent": true,
-        "example": {
-          "ok": true,
-          "server_time": "2026-02-22T17:21:02Z",
-          "host": {
-            "id": 12,
-            "team_id": 7,
-            "name": "worker-01",
-            "fingerprint": "a3f56f330f311a2159f8c101eaf1439a29f1d57f007375d56aa79f304bc4f112",
-            "status": "online",
-            "last_seen_at": "2026-02-22T17:21:02Z",
-            "meta": {
-              "hostname": "worker-01",
-              "os": "Ubuntu",
-              "arch": "x86_64",
-              "runtime": {
-                "name": "codex",
-                "version": "2026.02.1"
-              }
-            },
-            "created_by_user_id": 1,
-            "agents_total": 1,
-            "agents_online": 1,
-            "created_at": "2026-02-22T17:21:02Z",
-            "updated_at": "2026-02-22T17:21:02Z"
-          },
-          "host_realtime": {
-            "connection": {
-              "driver": "reverb",
-              "key": "local-app-key",
-              "cluster": "mt1",
-              "host": "agentmc.ai",
-              "port": 443,
-              "scheme": "https",
-              "path": ""
-            },
-            "channel": "private-agent-realtime-host.12",
-            "event": "agent.realtime.host.session.requested",
-            "auth_endpoint": "https://agentmc.ai/api/v1/hosts/realtime/socket-auth"
-          },
-          "agent": {
-            "id": 42,
-            "name": "Solomon",
-            "type": "openclaw"
-          }
-        }
+        "hasContent": false,
+        "example": null
       },
       {
         "status": "401",
-        "mediaType": "application/json",
-        "description": "Missing or invalid credentials.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "402",
-        "mediaType": "application/json",
-        "description": "Plan limit reached.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
+        "mediaType": "none",
+        "description": "Missing or invalid API key.",
+        "hasContent": false,
+        "example": null
       },
       {
         "status": "403",
-        "mediaType": "application/json",
+        "mediaType": "none",
         "description": "Forbidden.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "404",
-        "mediaType": "application/json",
-        "description": "Resource not found.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "422",
-        "mediaType": "application/json",
-        "description": "Validation failed.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
+        "hasContent": false,
+        "example": null
       }
     ]
   },
@@ -299,120 +111,22 @@ export const operations = [
         "example": 1
       }
     ],
-    "requestBodyRequired": true,
-    "requestExamples": [
-      {
-        "mediaType": "application/json",
-        "example": {
-          "socket_id": "1234.567890",
-          "channel_name": "private-agent-realtime.7.42"
-        }
-      }
-    ],
+    "requestBodyRequired": false,
+    "requestExamples": [],
     "responses": [
       {
         "status": "200",
-        "mediaType": "application/json",
+        "mediaType": "none",
         "description": "Socket subscription authorized.",
-        "hasContent": true,
-        "example": {
-          "auth": "example"
-        }
+        "hasContent": false,
+        "example": null
       },
       {
-        "status": "401",
-        "mediaType": "application/json",
-        "description": "Missing or invalid credentials.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "403",
-        "mediaType": "application/json",
-        "description": "Forbidden.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "404",
-        "mediaType": "application/json",
-        "description": "Resource not found.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "409",
-        "mediaType": "application/json",
-        "description": "Conflict.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "422",
-        "mediaType": "application/json",
-        "description": "Validation failed.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
+        "status": "default",
+        "mediaType": "none",
+        "description": "Error response.",
+        "hasContent": false,
+        "example": null
       }
     ]
   },
@@ -431,120 +145,22 @@ export const operations = [
       ]
     ],
     "parameters": [],
-    "requestBodyRequired": true,
-    "requestExamples": [
-      {
-        "mediaType": "application/json",
-        "example": {
-          "socket_id": "1234.567890",
-          "channel_name": "private-agent-realtime-host.12"
-        }
-      }
-    ],
+    "requestBodyRequired": false,
+    "requestExamples": [],
     "responses": [
       {
         "status": "200",
-        "mediaType": "application/json",
+        "mediaType": "none",
         "description": "Host socket subscription authorized.",
-        "hasContent": true,
-        "example": {
-          "auth": "example"
-        }
+        "hasContent": false,
+        "example": null
       },
       {
-        "status": "401",
-        "mediaType": "application/json",
-        "description": "Missing or invalid credentials.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "403",
-        "mediaType": "application/json",
-        "description": "Forbidden.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "404",
-        "mediaType": "application/json",
-        "description": "Resource not found.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "409",
-        "mediaType": "application/json",
-        "description": "Conflict.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "422",
-        "mediaType": "application/json",
-        "description": "Validation failed.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
+        "status": "default",
+        "mediaType": "none",
+        "description": "Error response.",
+        "hasContent": false,
+        "example": null
       }
     ]
   },
@@ -571,136 +187,22 @@ export const operations = [
         "example": 1
       }
     ],
-    "requestBodyRequired": true,
-    "requestExamples": [
-      {
-        "mediaType": "application/json",
-        "example": {
-          "owner_token": "agent-claim:16f40b2b5dfb20c9af20db9f0d6d7b61"
-        }
-      }
-    ],
+    "requestBodyRequired": false,
+    "requestExamples": [],
     "responses": [
       {
         "status": "200",
-        "mediaType": "application/json",
+        "mediaType": "none",
         "description": "Realtime session claimed.",
-        "hasContent": true,
-        "example": {
-          "data": {
-            "id": 42,
-            "team_id": 42,
-            "agent_id": 42,
-            "requested_by_user_id": 42,
-            "status": "requested",
-            "claimed_at": "2026-02-22T17:21:00Z",
-            "opened_at": "2026-02-22T17:21:00Z",
-            "closed_at": "2026-02-22T17:21:00Z",
-            "expires_at": "2026-02-22T17:21:00Z",
-            "last_browser_heartbeat_at": "2026-02-22T17:21:00Z",
-            "last_agent_heartbeat_at": "2026-02-22T17:21:00Z",
-            "meta": {
-              "key": "value"
-            },
-            "created_at": "2026-02-22T17:21:00Z",
-            "updated_at": "2026-02-22T17:21:00Z"
-          }
-        }
+        "hasContent": false,
+        "example": null
       },
       {
-        "status": "401",
-        "mediaType": "application/json",
-        "description": "Missing or invalid credentials.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "403",
-        "mediaType": "application/json",
-        "description": "Forbidden.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "404",
-        "mediaType": "application/json",
-        "description": "Resource not found.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "409",
-        "mediaType": "application/json",
-        "description": "Conflict.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "422",
-        "mediaType": "application/json",
-        "description": "Validation failed.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
+        "status": "default",
+        "mediaType": "none",
+        "description": "Error response.",
+        "hasContent": false,
+        "example": null
       }
     ]
   },
@@ -728,140 +230,21 @@ export const operations = [
       }
     ],
     "requestBodyRequired": false,
-    "requestExamples": [
-      {
-        "mediaType": "application/json",
-        "example": {
-          "reason": "runtime_shutdown",
-          "status": "closed",
-          "payload": {
-            "request_id": "req_92b3f2",
-            "note": "Session closed by runtime during reconnect."
-          }
-        }
-      }
-    ],
+    "requestExamples": [],
     "responses": [
       {
         "status": "200",
-        "mediaType": "application/json",
+        "mediaType": "none",
         "description": "Realtime session closed.",
-        "hasContent": true,
-        "example": {
-          "data": {
-            "id": 42,
-            "team_id": 42,
-            "agent_id": 42,
-            "requested_by_user_id": 42,
-            "status": "requested",
-            "claimed_at": "2026-02-22T17:21:00Z",
-            "opened_at": "2026-02-22T17:21:00Z",
-            "closed_at": "2026-02-22T17:21:00Z",
-            "expires_at": "2026-02-22T17:21:00Z",
-            "last_browser_heartbeat_at": "2026-02-22T17:21:00Z",
-            "last_agent_heartbeat_at": "2026-02-22T17:21:00Z",
-            "meta": {
-              "key": "value"
-            },
-            "created_at": "2026-02-22T17:21:00Z",
-            "updated_at": "2026-02-22T17:21:00Z"
-          }
-        }
+        "hasContent": false,
+        "example": null
       },
       {
-        "status": "401",
-        "mediaType": "application/json",
-        "description": "Missing or invalid credentials.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "403",
-        "mediaType": "application/json",
-        "description": "Forbidden.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "404",
-        "mediaType": "application/json",
-        "description": "Resource not found.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "409",
-        "mediaType": "application/json",
-        "description": "Conflict.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "422",
-        "mediaType": "application/json",
-        "description": "Validation failed.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
+        "status": "default",
+        "mediaType": "none",
+        "description": "Error response.",
+        "hasContent": false,
+        "example": null
       }
     ]
   },
@@ -891,293 +274,22 @@ export const operations = [
         "example": 1
       }
     ],
-    "requestBodyRequired": true,
-    "requestExamples": [
-      {
-        "mediaType": "application/json",
-        "example": {
-          "body": "Added links to logs and timeline document.\n\n![handoff](/api/v1/files/101/preview)",
-          "actor_type": "agent",
-          "actor_id": 42
-        }
-      }
-    ],
+    "requestBodyRequired": false,
+    "requestExamples": [],
     "responses": [
       {
         "status": "201",
-        "mediaType": "application/json",
+        "mediaType": "none",
         "description": "Comment created.",
-        "hasContent": true,
-        "example": {
-          "data": {
-            "id": 42,
-            "actor_type": "user",
-            "actor_id": 42,
-            "body": "Example content.",
-            "attachments": [
-              {
-                "id": 45,
-                "team_file_id": 101,
-                "preview_url": "/api/v1/files/101/preview",
-                "download_url": "/api/v1/files/101/download",
-                "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-                "file": {
-                  "id": 101,
-                  "display_name": "incident-timeline.png",
-                  "original_filename": "incident-timeline.png",
-                  "mime_type": "image/png",
-                  "size_bytes": 144220,
-                  "preview_kind": "image",
-                  "created_at": "2026-02-27T17:20:00Z",
-                  "updated_at": "2026-02-27T17:24:00Z"
-                }
-              }
-            ],
-            "created_at": "2026-02-22T17:21:00Z"
-          }
-        }
+        "hasContent": false,
+        "example": null
       },
       {
-        "status": "401",
-        "mediaType": "application/json",
-        "description": "Missing or invalid credentials.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "403",
-        "mediaType": "application/json",
-        "description": "Forbidden.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "404",
-        "mediaType": "application/json",
-        "description": "Resource not found.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "422",
-        "mediaType": "application/json",
-        "description": "Validation failed.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      }
-    ]
-  },
-  {
-    "operationId": "completeRecurringTaskRun",
-    "method": "post",
-    "path": "/agents/recurring-task-runs/{run}/complete",
-    "summary": "",
-    "description": "",
-    "tags": [
-      "Agents"
-    ],
-    "security": [
-      [
-        "ApiKeyAuth"
-      ]
-    ],
-    "parameters": [
-      {
-        "name": "run",
-        "in": "path",
-        "required": true,
-        "description": "Run.",
-        "example": 1
-      }
-    ],
-    "requestBodyRequired": true,
-    "requestExamples": [
-      {
-        "mediaType": "application/json",
-        "example": {
-          "status": "success",
-          "claim_token": "e3ec996c-c53f-4bfa-89e3-5d9cbf71397f",
-          "summary": "Scheduled review completed and updated 2 tasks.",
-          "runtime_meta": {
-            "provider": "openclaw",
-            "request_id": "req_01JBPXXRM6JYAVY82ECAQ7QNA4"
-          }
-        }
-      }
-    ],
-    "responses": [
-      {
-        "status": "200",
-        "mediaType": "application/json",
-        "description": "Successful response.",
-        "hasContent": true,
-        "example": {
-          "data": {
-            "id": 42,
-            "team_id": 42,
-            "agent_id": 42,
-            "agent_recurring_task_id": 42,
-            "scheduled_for": "2026-02-22T17:21:00Z",
-            "status": "running",
-            "claim_token": "example",
-            "prompt_snapshot": "example",
-            "schedule_snapshot": {
-              "key": "value"
-            },
-            "started_at": "2026-02-22T17:21:00Z",
-            "finished_at": "2026-02-22T17:21:00Z",
-            "summary": "Morning operations handoff digest.",
-            "error_message": "example",
-            "runtime_meta": {
-              "key": "value"
-            },
-            "created_at": "2026-02-22T17:21:00Z",
-            "updated_at": "2026-02-22T17:21:00Z"
-          }
-        }
-      },
-      {
-        "status": "401",
-        "mediaType": "application/json",
-        "description": "Missing or invalid credentials.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "403",
-        "mediaType": "application/json",
-        "description": "Forbidden.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "404",
-        "mediaType": "application/json",
-        "description": "Resource not found.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "409",
-        "mediaType": "application/json",
-        "description": "Conflict.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "422",
-        "mediaType": "application/json",
-        "description": "Validation failed.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
+        "status": "default",
+        "mediaType": "none",
+        "description": "Error response.",
+        "hasContent": false,
+        "example": null
       }
     ]
   },
@@ -1199,209 +311,22 @@ export const operations = [
       ]
     ],
     "parameters": [],
-    "requestBodyRequired": true,
-    "requestExamples": [
-      {
-        "mediaType": "application/json",
-        "example": {
-          "brief": {
-            "key": "daily-operations",
-            "name": "Daily Operations Brief",
-            "summary": "Operations handoff digest for the morning window.",
-            "timezone": "America/Los_Angeles",
-            "headline": "3 overdue tasks | 4 upcoming events",
-            "content_markdown": "## Highlights\n- Elevated API error rate\n- Two incidents resolved\n\n![ops-dashboard](/api/v1/files/101/preview)",
-            "meta": {
-              "external_source": "daily-ops-job",
-              "schedule": "0 7 * * *"
-            }
-          },
-          "source": {
-            "agent_id": 42,
-            "meta": {
-              "runtime": "codex"
-            }
-          }
-        }
-      }
-    ],
+    "requestBodyRequired": false,
+    "requestExamples": [],
     "responses": [
       {
         "status": "201",
-        "mediaType": "application/json",
+        "mediaType": "none",
         "description": "Brief report accepted.",
-        "hasContent": true,
-        "example": {
-          "brief": {
-            "id": 42,
-            "team_id": 42,
-            "agent_id": 42,
-            "external_key": "daily-operations",
-            "external_id": "ops-brief-2026-02-22",
-            "name": "Example Name",
-            "timezone": "America/Los_Angeles",
-            "summary": "Morning operations handoff digest.",
-            "include_sections": [
-              {
-                "key": "value"
-              }
-            ],
-            "headline": "3 overdue tasks | 4 upcoming events",
-            "content_markdown": "## Highlights\n- Elevated API error rate",
-            "content_json": {
-              "key": "value"
-            },
-            "source_meta": {
-              "key": "value"
-            },
-            "attachments": [
-              {
-                "id": 45,
-                "team_file_id": 101,
-                "preview_url": "/api/v1/files/101/preview",
-                "download_url": "/api/v1/files/101/download",
-                "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-                "file": {
-                  "id": 101,
-                  "display_name": "incident-timeline.png",
-                  "original_filename": "incident-timeline.png",
-                  "mime_type": "image/png",
-                  "size_bytes": 144220,
-                  "preview_kind": "image",
-                  "created_at": "2026-02-27T17:20:00Z",
-                  "updated_at": "2026-02-27T17:24:00Z"
-                }
-              }
-            ],
-            "received_at": "2026-02-22T17:21:00Z",
-            "generated_at": "2026-02-22T17:21:00Z",
-            "read_by_user_id": 42,
-            "latest_entry_id": 42,
-            "entries_count": 0,
-            "latest_entry": {
-              "id": 42,
-              "agent_id": 42,
-              "external_id": "ops-brief-2026-02-22",
-              "name": "Example Name",
-              "timezone": "America/Los_Angeles",
-              "summary": "Morning operations handoff digest.",
-              "include_sections": [
-                {
-                  "key": "value"
-                }
-              ],
-              "headline": "3 overdue tasks | 4 upcoming events",
-              "content_markdown": "## Highlights\n- Elevated API error rate",
-              "content_json": {
-                "key": "value"
-              },
-              "source_meta": {
-                "key": "value"
-              },
-              "attachments": [
-                {
-                  "id": 45,
-                  "team_file_id": 101,
-                  "preview_url": "/api/v1/files/101/preview",
-                  "download_url": "/api/v1/files/101/download",
-                  "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-                  "file": {
-                    "id": 101,
-                    "display_name": "incident-timeline.png",
-                    "original_filename": "incident-timeline.png",
-                    "mime_type": "image/png",
-                    "size_bytes": 144220,
-                    "preview_kind": "image",
-                    "created_at": "2026-02-27T17:20:00Z",
-                    "updated_at": "2026-02-27T17:24:00Z"
-                  }
-                }
-              ],
-              "received_at": "2026-02-22T17:21:00Z",
-              "generated_at": "2026-02-22T17:21:00Z",
-              "created_at": "2026-02-22T17:21:00Z",
-              "updated_at": "2026-02-22T17:21:00Z"
-            },
-            "created_at": "2026-02-22T17:21:00Z",
-            "updated_at": "2026-02-22T17:21:00Z"
-          }
-        }
+        "hasContent": false,
+        "example": null
       },
       {
-        "status": "401",
-        "mediaType": "application/json",
-        "description": "Missing or invalid credentials.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "402",
-        "mediaType": "application/json",
-        "description": "Plan limit reached.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "403",
-        "mediaType": "application/json",
-        "description": "Forbidden.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "422",
-        "mediaType": "application/json",
-        "description": "Validation failed.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
+        "status": "default",
+        "mediaType": "none",
+        "description": "Error response.",
+        "hasContent": false,
+        "example": null
       }
     ]
   },
@@ -1428,159 +353,22 @@ export const operations = [
         "example": 1
       }
     ],
-    "requestBodyRequired": true,
-    "requestExamples": [
-      {
-        "mediaType": "application/json",
-        "example": {
-          "type": "message",
-          "payload": {
-            "type": "chat.user",
-            "payload": {
-              "content": "Create an AgentMC task for this afternoon to draft the postmortem outline.\n\n![incident-chart](/api/v1/files/101/preview)",
-              "message_id": 512,
-              "timezone": "America/Los_Angeles",
-              "source": "agentmc_chat",
-              "intent_scope": "agentmc"
-            }
-          }
-        }
-      }
-    ],
+    "requestBodyRequired": false,
+    "requestExamples": [],
     "responses": [
       {
         "status": "200",
-        "mediaType": "application/json",
+        "mediaType": "none",
         "description": "Realtime signal accepted.",
-        "hasContent": true,
-        "example": {
-          "data": {
-            "id": 42,
-            "team_id": 42,
-            "agent_id": 42,
-            "session_id": 42,
-            "sender": "agent",
-            "type": "example",
-            "payload": {
-              "key": "value"
-            },
-            "created_at": "2026-02-22T17:21:00Z",
-            "updated_at": "2026-02-22T17:21:00Z"
-          },
-          "session": {
-            "id": 42,
-            "team_id": 42,
-            "agent_id": 42,
-            "requested_by_user_id": 42,
-            "status": "requested",
-            "claimed_at": "2026-02-22T17:21:00Z",
-            "opened_at": "2026-02-22T17:21:00Z",
-            "closed_at": "2026-02-22T17:21:00Z",
-            "expires_at": "2026-02-22T17:21:00Z",
-            "last_browser_heartbeat_at": "2026-02-22T17:21:00Z",
-            "last_agent_heartbeat_at": "2026-02-22T17:21:00Z",
-            "meta": {
-              "key": "value"
-            },
-            "created_at": "2026-02-22T17:21:00Z",
-            "updated_at": "2026-02-22T17:21:00Z"
-          }
-        }
+        "hasContent": false,
+        "example": null
       },
       {
-        "status": "401",
-        "mediaType": "application/json",
-        "description": "Missing or invalid credentials.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "403",
-        "mediaType": "application/json",
-        "description": "Forbidden.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "404",
-        "mediaType": "application/json",
-        "description": "Resource not found.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "409",
-        "mediaType": "application/json",
-        "description": "Conflict.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "422",
-        "mediaType": "application/json",
-        "description": "Validation failed.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
+        "status": "default",
+        "mediaType": "none",
+        "description": "Error response.",
+        "hasContent": false,
+        "example": null
       }
     ]
   },
@@ -1602,112 +390,22 @@ export const operations = [
       ]
     ],
     "parameters": [],
-    "requestBodyRequired": true,
-    "requestExamples": [
-      {
-        "mediaType": "application/json",
-        "example": {
-          "name": "Incident Response",
-          "description": "Tracks response tasks for active incidents.",
-          "visibility": "team"
-        }
-      }
-    ],
+    "requestBodyRequired": false,
+    "requestExamples": [],
     "responses": [
       {
         "status": "201",
-        "mediaType": "application/json",
+        "mediaType": "none",
         "description": "Board created.",
-        "hasContent": true,
-        "example": {
-          "data": {
-            "id": 42,
-            "team_id": 42,
-            "name": "Example Name",
-            "description": "Example description text.",
-            "visibility": "team",
-            "personal_owner_user_id": 42,
-            "created_by_user_id": 42,
-            "created_at": "2026-02-22T17:21:00Z",
-            "updated_at": "2026-02-22T17:21:00Z"
-          }
-        }
+        "hasContent": false,
+        "example": null
       },
       {
-        "status": "401",
-        "mediaType": "application/json",
-        "description": "Missing or invalid credentials.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "402",
-        "mediaType": "application/json",
-        "description": "Plan limit reached.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "403",
-        "mediaType": "application/json",
-        "description": "Forbidden.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "422",
-        "mediaType": "application/json",
-        "description": "Validation failed.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
+        "status": "default",
+        "mediaType": "none",
+        "description": "Error response.",
+        "hasContent": false,
+        "example": null
       }
     ]
   },
@@ -1737,109 +435,22 @@ export const operations = [
         "example": 1
       }
     ],
-    "requestBodyRequired": true,
-    "requestExamples": [
-      {
-        "mediaType": "application/json",
-        "example": {
-          "name": "In Progress",
-          "position": 2
-        }
-      }
-    ],
+    "requestBodyRequired": false,
+    "requestExamples": [],
     "responses": [
       {
         "status": "201",
-        "mediaType": "application/json",
+        "mediaType": "none",
         "description": "Column created.",
-        "hasContent": true,
-        "example": {
-          "data": {
-            "id": 42,
-            "board_id": 42,
-            "team_id": 42,
-            "name": "Example Name",
-            "position": 1,
-            "created_at": "2026-02-22T17:21:00Z",
-            "updated_at": "2026-02-22T17:21:00Z"
-          }
-        }
+        "hasContent": false,
+        "example": null
       },
       {
-        "status": "401",
-        "mediaType": "application/json",
-        "description": "Missing or invalid credentials.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "403",
-        "mediaType": "application/json",
-        "description": "Forbidden.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "404",
-        "mediaType": "application/json",
-        "description": "Resource not found.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "422",
-        "mediaType": "application/json",
-        "description": "Validation failed.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
+        "status": "default",
+        "mediaType": "none",
+        "description": "Error response.",
+        "hasContent": false,
+        "example": null
       }
     ]
   },
@@ -1861,183 +472,22 @@ export const operations = [
       ]
     ],
     "parameters": [],
-    "requestBodyRequired": true,
-    "requestExamples": [
-      {
-        "mediaType": "application/json",
-        "example": {
-          "type": "task",
-          "title": "Review outage timeline",
-          "description": "Confirm sequence of events with on-call notes.\n\n![timeline](/api/v1/files/101/preview)",
-          "due_at": "2026-02-24T09:00:00Z",
-          "timezone": "America/Los_Angeles",
-          "status": "todo",
-          "priority": "high",
-          "visibility": "team",
-          "assignees": [
-            {
-              "assignee_type": "user",
-              "assignee_id": 8,
-              "role": "owner"
-            }
-          ]
-        }
-      }
-    ],
+    "requestBodyRequired": false,
+    "requestExamples": [],
     "responses": [
       {
         "status": "201",
-        "mediaType": "application/json",
+        "mediaType": "none",
         "description": "Calendar item created.",
-        "hasContent": true,
-        "example": {
-          "data": {
-            "id": 42,
-            "team_id": 42,
-            "type": "event",
-            "title": "Example Title",
-            "description": "Example description text.",
-            "start_at": "2026-02-22T17:21:00Z",
-            "end_at": "2026-02-22T17:21:00Z",
-            "due_at": "2026-02-22T17:21:00Z",
-            "all_day": false,
-            "location": "example",
-            "timezone": "America/Los_Angeles",
-            "status": "todo",
-            "priority": "low",
-            "visibility": "team",
-            "created_by": 1,
-            "updated_by": 1,
-            "assignees": [
-              {
-                "id": 42,
-                "assignee_type": "user",
-                "assignee_id": 42,
-                "role": "owner",
-                "name": "Example Name",
-                "created_at": "2026-02-22T17:21:00Z"
-              }
-            ],
-            "attachments": [
-              {
-                "id": 45,
-                "team_file_id": 101,
-                "preview_url": "/api/v1/files/101/preview",
-                "download_url": "/api/v1/files/101/download",
-                "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-                "file": {
-                  "id": 101,
-                  "display_name": "incident-timeline.png",
-                  "original_filename": "incident-timeline.png",
-                  "mime_type": "image/png",
-                  "size_bytes": 144220,
-                  "preview_kind": "image",
-                  "created_at": "2026-02-27T17:20:00Z",
-                  "updated_at": "2026-02-27T17:24:00Z"
-                }
-              }
-            ],
-            "comments_count": 1,
-            "created_at": "2026-02-22T17:21:00Z",
-            "updated_at": "2026-02-22T17:21:00Z",
-            "deleted_at": "2026-02-22T17:21:00Z"
-          }
-        }
+        "hasContent": false,
+        "example": null
       },
       {
-        "status": "401",
-        "mediaType": "application/json",
-        "description": "Missing or invalid credentials.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "402",
-        "mediaType": "application/json",
-        "description": "Plan limit reached.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "403",
-        "mediaType": "application/json",
-        "description": "Forbidden.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "404",
-        "mediaType": "application/json",
-        "description": "Resource not found.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "422",
-        "mediaType": "application/json",
-        "description": "Validation failed.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
+        "status": "default",
+        "mediaType": "none",
+        "description": "Error response.",
+        "hasContent": false,
+        "example": null
       }
     ]
   },
@@ -2059,166 +509,22 @@ export const operations = [
       ]
     ],
     "parameters": [],
-    "requestBodyRequired": true,
-    "requestExamples": [
-      {
-        "mediaType": "application/json",
-        "example": {
-          "upload_id": "tup_8f4f7f3f836d43d28c4f7311a48258f5",
-          "display_name": "incident-timeline.md",
-          "folder_id": 12,
-          "owner_agent_id": 42
-        }
-      }
-    ],
+    "requestBodyRequired": false,
+    "requestExamples": [],
     "responses": [
       {
         "status": "201",
-        "mediaType": "application/json",
+        "mediaType": "none",
         "description": "File created.",
-        "hasContent": true,
-        "example": {
-          "data": {
-            "id": 101,
-            "team_id": 7,
-            "owner_agent_id": 42,
-            "folder_id": 12,
-            "display_name": "incident-timeline.md",
-            "original_filename": "incident-timeline.md",
-            "extension": "md",
-            "mime_type": "text/markdown",
-            "size_bytes": 14220,
-            "checksum_sha256": null,
-            "preview_kind": "markdown",
-            "uploaded_by_user_id": 8,
-            "uploaded_by_agent_id": null,
-            "created_at": "2026-02-27T17:20:00Z",
-            "updated_at": "2026-02-27T17:24:00Z",
-            "folder": {
-              "id": 12,
-              "team_id": 7,
-              "parent_id": null,
-              "name": "Runbooks",
-              "path_cache": "Runbooks",
-              "created_at": "2026-02-27T17:10:00Z",
-              "updated_at": "2026-02-27T17:10:00Z"
-            }
-          }
-        }
+        "hasContent": false,
+        "example": null
       },
       {
-        "status": "401",
-        "mediaType": "application/json",
-        "description": "Missing or invalid credentials.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "402",
-        "mediaType": "application/json",
-        "description": "Plan limit reached.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "403",
-        "mediaType": "application/json",
-        "description": "Forbidden.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "404",
-        "mediaType": "application/json",
-        "description": "Resource not found.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "422",
-        "mediaType": "application/json",
-        "description": "Validation failed.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "503",
-        "mediaType": "application/json",
-        "description": "Service unavailable.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
+        "status": "default",
+        "mediaType": "none",
+        "description": "Error response.",
+        "hasContent": false,
+        "example": null
       }
     ]
   },
@@ -2240,90 +546,22 @@ export const operations = [
       ]
     ],
     "parameters": [],
-    "requestBodyRequired": true,
-    "requestExamples": [
-      {
-        "mediaType": "application/json",
-        "example": {
-          "name": "Runbooks",
-          "parent_id": null
-        }
-      }
-    ],
+    "requestBodyRequired": false,
+    "requestExamples": [],
     "responses": [
       {
         "status": "201",
-        "mediaType": "application/json",
+        "mediaType": "none",
         "description": "Folder created.",
-        "hasContent": true,
-        "example": {
-          "data": {
-            "id": 12,
-            "team_id": 7,
-            "parent_id": null,
-            "name": "Runbooks",
-            "path_cache": "Runbooks",
-            "created_at": "2026-02-27T17:10:00Z",
-            "updated_at": "2026-02-27T17:10:00Z"
-          }
-        }
+        "hasContent": false,
+        "example": null
       },
       {
-        "status": "401",
-        "mediaType": "application/json",
-        "description": "Missing or invalid credentials.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "403",
-        "mediaType": "application/json",
-        "description": "Forbidden.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "422",
-        "mediaType": "application/json",
-        "description": "Validation failed.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
+        "status": "default",
+        "mediaType": "none",
+        "description": "Error response.",
+        "hasContent": false,
+        "example": null
       }
     ]
   },
@@ -2345,131 +583,22 @@ export const operations = [
       ]
     ],
     "parameters": [],
-    "requestBodyRequired": true,
-    "requestExamples": [
-      {
-        "mediaType": "application/json",
-        "example": {
-          "filename": "incident-timeline.md",
-          "byte_size": 14220,
-          "mime_type": "text/markdown",
-          "checksum_sha256": "43f88f3c4bf62933800d6f65dc8d9e2fbb2d930fd6134fc4ead6222b5d5f3bc5"
-        }
-      }
-    ],
+    "requestBodyRequired": false,
+    "requestExamples": [],
     "responses": [
       {
         "status": "201",
-        "mediaType": "application/json",
+        "mediaType": "none",
         "description": "Upload ticket created.",
-        "hasContent": true,
-        "example": {
-          "data": {
-            "upload_id": "tup_8f4f7f3f836d43d28c4f7311a48258f5",
-            "object_key": "teams/7/files/2026/02/27/tup_8f4f7f3f836d43d28c4f7311a48258f5.md",
-            "upload_url": "https://storage.example.com/bucket/teams/7/files/2026/02/27/tup_8f4f7f3f836d43d28c4f7311a48258f5.md?...",
-            "upload_method": "PUT",
-            "upload_headers": {
-              "Content-Type": "text/markdown"
-            },
-            "expires_at": "2026-02-27T17:30:00Z"
-          }
-        }
+        "hasContent": false,
+        "example": null
       },
       {
-        "status": "401",
-        "mediaType": "application/json",
-        "description": "Missing or invalid credentials.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "402",
-        "mediaType": "application/json",
-        "description": "Plan limit reached.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "403",
-        "mediaType": "application/json",
-        "description": "Forbidden.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "422",
-        "mediaType": "application/json",
-        "description": "Validation failed.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "503",
-        "mediaType": "application/json",
-        "description": "Service unavailable.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
+        "status": "default",
+        "mediaType": "none",
+        "description": "Error response.",
+        "hasContent": false,
+        "example": null
       }
     ]
   },
@@ -2491,162 +620,22 @@ export const operations = [
       ]
     ],
     "parameters": [],
-    "requestBodyRequired": true,
-    "requestExamples": [
-      {
-        "mediaType": "application/json",
-        "example": {
-          "board_id": 5,
-          "column_id": 13,
-          "title": "Draft post-incident summary",
-          "description": "Capture timeline, impact, and remediation status.\n\n![incident-graph](/api/v1/files/101/preview)",
-          "archived_at": null,
-          "position": 2,
-          "due_at": "2026-02-24T17:00:00Z",
-          "assigned_to_user_id": 8
-        }
-      }
-    ],
+    "requestBodyRequired": false,
+    "requestExamples": [],
     "responses": [
       {
         "status": "201",
-        "mediaType": "application/json",
+        "mediaType": "none",
         "description": "Task created.",
-        "hasContent": true,
-        "example": {
-          "data": {
-            "id": 42,
-            "team_id": 42,
-            "board_id": 42,
-            "column_id": 42,
-            "title": "Example Title",
-            "description": "Example description text.",
-            "archived_at": "2026-02-22T17:21:00Z",
-            "is_archived": true,
-            "position": 1,
-            "due_at": "2026-02-22T17:21:00Z",
-            "created_by_user_id": 42,
-            "assigned_to_user_id": 42,
-            "assigned_to_agent_id": 42,
-            "attachments": [
-              {
-                "id": 45,
-                "team_file_id": 101,
-                "preview_url": "/api/v1/files/101/preview",
-                "download_url": "/api/v1/files/101/download",
-                "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-                "file": {
-                  "id": 101,
-                  "display_name": "incident-timeline.png",
-                  "original_filename": "incident-timeline.png",
-                  "mime_type": "image/png",
-                  "size_bytes": 144220,
-                  "preview_kind": "image",
-                  "created_at": "2026-02-27T17:20:00Z",
-                  "updated_at": "2026-02-27T17:24:00Z"
-                }
-              }
-            ],
-            "assignee_type": "human",
-            "created_at": "2026-02-22T17:21:00Z",
-            "updated_at": "2026-02-22T17:21:00Z"
-          }
-        }
+        "hasContent": false,
+        "example": null
       },
       {
-        "status": "401",
-        "mediaType": "application/json",
-        "description": "Missing or invalid credentials.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "402",
-        "mediaType": "application/json",
-        "description": "Plan limit reached.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "403",
-        "mediaType": "application/json",
-        "description": "Forbidden.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "404",
-        "mediaType": "application/json",
-        "description": "Resource not found.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "422",
-        "mediaType": "application/json",
-        "description": "Validation failed.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
+        "status": "default",
+        "mediaType": "none",
+        "description": "Error response.",
+        "hasContent": false,
+        "example": null
       }
     ]
   },
@@ -2676,140 +665,22 @@ export const operations = [
         "example": 1
       }
     ],
-    "requestBodyRequired": true,
-    "requestExamples": [
-      {
-        "mediaType": "application/json",
-        "example": {
-          "body": "Posting a handoff note for [@Alex Morgan](/mentions/user/8) to review before standup.\n\n![error-budget](/api/v1/files/101/preview)",
-          "actor_type": "agent",
-          "actor_id": 42
-        }
-      }
-    ],
+    "requestBodyRequired": false,
+    "requestExamples": [],
     "responses": [
       {
         "status": "201",
-        "mediaType": "application/json",
+        "mediaType": "none",
         "description": "Task comment created.",
-        "hasContent": true,
-        "example": {
-          "data": {
-            "id": 42,
-            "task_id": 42,
-            "actor_type": "user",
-            "actor_id": 42,
-            "actor_name": "Example Name",
-            "body": "Example content.",
-            "mentions": [
-              {
-                "key": "example",
-                "type": "user",
-                "id": 42,
-                "label": "example",
-                "handle": "example",
-                "token": "example"
-              }
-            ],
-            "attachments": [
-              {
-                "id": 45,
-                "team_file_id": 101,
-                "preview_url": "/api/v1/files/101/preview",
-                "download_url": "/api/v1/files/101/download",
-                "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-                "file": {
-                  "id": 101,
-                  "display_name": "incident-timeline.png",
-                  "original_filename": "incident-timeline.png",
-                  "mime_type": "image/png",
-                  "size_bytes": 144220,
-                  "preview_kind": "image",
-                  "created_at": "2026-02-27T17:20:00Z",
-                  "updated_at": "2026-02-27T17:24:00Z"
-                }
-              }
-            ],
-            "edited_at": "2026-02-22T17:21:00Z",
-            "created_at": "2026-02-22T17:21:00Z"
-          }
-        }
+        "hasContent": false,
+        "example": null
       },
       {
-        "status": "401",
-        "mediaType": "application/json",
-        "description": "Missing or invalid credentials.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "403",
-        "mediaType": "application/json",
-        "description": "Forbidden.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "404",
-        "mediaType": "application/json",
-        "description": "Resource not found.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "422",
-        "mediaType": "application/json",
-        "description": "Validation failed.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
+        "status": "default",
+        "mediaType": "none",
+        "description": "Error response.",
+        "hasContent": false,
+        "example": null
       }
     ]
   },
@@ -2836,7 +707,7 @@ export const operations = [
         "in": "path",
         "required": true,
         "description": "Brief identifier.",
-        "example": 42
+        "example": 1
       }
     ],
     "requestBodyRequired": false,
@@ -2844,90 +715,17 @@ export const operations = [
     "responses": [
       {
         "status": "204",
-        "mediaType": "application/json",
-        "description": "No content.",
-        "hasContent": true,
-        "example": {
-          "data": {
-            "key": "value"
-          }
-        }
+        "mediaType": "none",
+        "description": "Brief deleted.",
+        "hasContent": false,
+        "example": null
       },
       {
-        "status": "401",
-        "mediaType": "application/json",
-        "description": "Missing or invalid credentials.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "403",
-        "mediaType": "application/json",
-        "description": "Forbidden.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "404",
-        "mediaType": "application/json",
-        "description": "Resource not found.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "422",
-        "mediaType": "application/json",
-        "description": "Validation failed.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
+        "status": "default",
+        "mediaType": "none",
+        "description": "Error response.",
+        "hasContent": false,
+        "example": null
       }
     ]
   },
@@ -2954,7 +752,7 @@ export const operations = [
         "in": "path",
         "required": true,
         "description": "Board identifier.",
-        "example": 42
+        "example": 1
       }
     ],
     "requestBodyRequired": false,
@@ -2962,71 +760,17 @@ export const operations = [
     "responses": [
       {
         "status": "204",
-        "mediaType": "application/json",
-        "description": "No content.",
-        "hasContent": true,
-        "example": {
-          "data": {
-            "key": "value"
-          }
-        }
+        "mediaType": "none",
+        "description": "Board deleted.",
+        "hasContent": false,
+        "example": null
       },
       {
-        "status": "401",
-        "mediaType": "application/json",
-        "description": "Missing or invalid credentials.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "403",
-        "mediaType": "application/json",
-        "description": "Forbidden.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "404",
-        "mediaType": "application/json",
-        "description": "Resource not found.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
+        "status": "default",
+        "mediaType": "none",
+        "description": "Error response.",
+        "hasContent": false,
+        "example": null
       }
     ]
   },
@@ -3056,102 +800,22 @@ export const operations = [
         "example": 1
       }
     ],
-    "requestBodyRequired": true,
-    "requestExamples": [
-      {
-        "mediaType": "application/json",
-        "example": {
-          "column_id": 13
-        }
-      }
-    ],
+    "requestBodyRequired": false,
+    "requestExamples": [],
     "responses": [
       {
         "status": "204",
-        "mediaType": "application/json",
-        "description": "No content.",
-        "hasContent": true,
-        "example": {
-          "data": {
-            "key": "value"
-          }
-        }
+        "mediaType": "none",
+        "description": "Column deleted.",
+        "hasContent": false,
+        "example": null
       },
       {
-        "status": "401",
-        "mediaType": "application/json",
-        "description": "Missing or invalid credentials.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "403",
-        "mediaType": "application/json",
-        "description": "Forbidden.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "404",
-        "mediaType": "application/json",
-        "description": "Resource not found.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "422",
-        "mediaType": "application/json",
-        "description": "Validation failed.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
+        "status": "default",
+        "mediaType": "none",
+        "description": "Error response.",
+        "hasContent": false,
+        "example": null
       }
     ]
   },
@@ -3186,71 +850,17 @@ export const operations = [
     "responses": [
       {
         "status": "204",
-        "mediaType": "application/json",
-        "description": "No content.",
-        "hasContent": true,
-        "example": {
-          "data": {
-            "key": "value"
-          }
-        }
+        "mediaType": "none",
+        "description": "Calendar item deleted.",
+        "hasContent": false,
+        "example": null
       },
       {
-        "status": "401",
-        "mediaType": "application/json",
-        "description": "Missing or invalid credentials.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "403",
-        "mediaType": "application/json",
-        "description": "Forbidden.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "404",
-        "mediaType": "application/json",
-        "description": "Resource not found.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
+        "status": "default",
+        "mediaType": "none",
+        "description": "Error response.",
+        "hasContent": false,
+        "example": null
       }
     ]
   },
@@ -3277,7 +887,7 @@ export const operations = [
         "in": "path",
         "required": true,
         "description": "File identifier.",
-        "example": 42
+        "example": 1
       }
     ],
     "requestBodyRequired": false,
@@ -3285,90 +895,17 @@ export const operations = [
     "responses": [
       {
         "status": "204",
-        "mediaType": "application/json",
-        "description": "No content.",
-        "hasContent": true,
-        "example": {
-          "data": {
-            "key": "value"
-          }
-        }
+        "mediaType": "none",
+        "description": "File deleted.",
+        "hasContent": false,
+        "example": null
       },
       {
-        "status": "401",
-        "mediaType": "application/json",
-        "description": "Missing or invalid credentials.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "403",
-        "mediaType": "application/json",
-        "description": "Forbidden.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "404",
-        "mediaType": "application/json",
-        "description": "Resource not found.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "503",
-        "mediaType": "application/json",
-        "description": "Service unavailable.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
+        "status": "default",
+        "mediaType": "none",
+        "description": "Error response.",
+        "hasContent": false,
+        "example": null
       }
     ]
   },
@@ -3395,7 +932,7 @@ export const operations = [
         "in": "path",
         "required": true,
         "description": "Folder identifier.",
-        "example": 42
+        "example": 1
       }
     ],
     "requestBodyRequired": false,
@@ -3403,71 +940,17 @@ export const operations = [
     "responses": [
       {
         "status": "204",
-        "mediaType": "application/json",
-        "description": "No content.",
-        "hasContent": true,
-        "example": {
-          "data": {
-            "key": "value"
-          }
-        }
+        "mediaType": "none",
+        "description": "Folder deleted.",
+        "hasContent": false,
+        "example": null
       },
       {
-        "status": "401",
-        "mediaType": "application/json",
-        "description": "Missing or invalid credentials.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "403",
-        "mediaType": "application/json",
-        "description": "Forbidden.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "404",
-        "mediaType": "application/json",
-        "description": "Resource not found.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
+        "status": "default",
+        "mediaType": "none",
+        "description": "Error response.",
+        "hasContent": false,
+        "example": null
       }
     ]
   },
@@ -3502,71 +985,17 @@ export const operations = [
     "responses": [
       {
         "status": "204",
-        "mediaType": "application/json",
-        "description": "No content.",
-        "hasContent": true,
-        "example": {
-          "data": {
-            "key": "value"
-          }
-        }
+        "mediaType": "none",
+        "description": "Task deleted.",
+        "hasContent": false,
+        "example": null
       },
       {
-        "status": "401",
-        "mediaType": "application/json",
-        "description": "Missing or invalid credentials.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "403",
-        "mediaType": "application/json",
-        "description": "Forbidden.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "404",
-        "mediaType": "application/json",
-        "description": "Resource not found.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
+        "status": "default",
+        "mediaType": "none",
+        "description": "Error response.",
+        "hasContent": false,
+        "example": null
       }
     ]
   },
@@ -3608,71 +1037,17 @@ export const operations = [
     "responses": [
       {
         "status": "204",
-        "mediaType": "application/json",
-        "description": "No content.",
-        "hasContent": true,
-        "example": {
-          "data": {
-            "key": "value"
-          }
-        }
+        "mediaType": "none",
+        "description": "Task comment deleted.",
+        "hasContent": false,
+        "example": null
       },
       {
-        "status": "401",
-        "mediaType": "application/json",
-        "description": "Missing or invalid credentials.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "403",
-        "mediaType": "application/json",
-        "description": "Forbidden.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "404",
-        "mediaType": "application/json",
-        "description": "Resource not found.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
+        "status": "default",
+        "mediaType": "none",
+        "description": "Error response.",
+        "hasContent": false,
+        "example": null
       }
     ]
   },
@@ -3699,7 +1074,7 @@ export const operations = [
         "in": "path",
         "required": true,
         "description": "File identifier.",
-        "example": 42
+        "example": 1
       }
     ],
     "requestBodyRequired": false,
@@ -3708,85 +1083,16 @@ export const operations = [
       {
         "status": "302",
         "mediaType": "none",
-        "description": "Redirect to a short-lived signed download URL.",
+        "description": "Redirect to signed download URL.",
         "hasContent": false,
         "example": null
       },
       {
-        "status": "401",
-        "mediaType": "application/json",
-        "description": "Missing or invalid credentials.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "403",
-        "mediaType": "application/json",
-        "description": "Forbidden.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "404",
-        "mediaType": "application/json",
-        "description": "Resource not found.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "503",
-        "mediaType": "application/json",
-        "description": "Service unavailable.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
+        "status": "default",
+        "mediaType": "none",
+        "description": "Error response.",
+        "hasContent": false,
+        "example": null
       }
     ]
   },
@@ -3807,219 +1113,23 @@ export const operations = [
         "SessionCookieAuth"
       ]
     ],
-    "parameters": [
-      {
-        "name": "search",
-        "in": "query",
-        "required": false,
-        "description": "Case-insensitive text search query.",
-        "example": "operations"
-      },
-      {
-        "name": "external_key",
-        "in": "query",
-        "required": false,
-        "description": "Stable external key used for upsert/idempotent writes.",
-        "example": "daily-operations"
-      },
-      {
-        "name": "agent_id",
-        "in": "query",
-        "required": false,
-        "description": "Identifier for agent.",
-        "example": 42
-      },
-      {
-        "name": "per_page",
-        "in": "query",
-        "required": false,
-        "description": "Page size for paginated responses.",
-        "example": 25
-      }
-    ],
+    "parameters": [],
     "requestBodyRequired": false,
     "requestExamples": [],
     "responses": [
       {
         "status": "200",
-        "mediaType": "application/json",
+        "mediaType": "none",
         "description": "Brief list returned.",
-        "hasContent": true,
-        "example": {
-          "data": [
-            {
-              "id": 42,
-              "team_id": 42,
-              "agent_id": 42,
-              "external_key": "daily-operations",
-              "external_id": "ops-brief-2026-02-22",
-              "name": "Example Name",
-              "timezone": "America/Los_Angeles",
-              "summary": "Morning operations handoff digest.",
-              "include_sections": [
-                {
-                  "key": "value"
-                }
-              ],
-              "headline": "3 overdue tasks | 4 upcoming events",
-              "content_markdown": "## Highlights\n- Elevated API error rate",
-              "content_json": {
-                "key": "value"
-              },
-              "source_meta": {
-                "key": "value"
-              },
-              "attachments": [
-                {
-                  "id": 45,
-                  "team_file_id": 101,
-                  "preview_url": "/api/v1/files/101/preview",
-                  "download_url": "/api/v1/files/101/download",
-                  "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-                  "file": {
-                    "id": 101,
-                    "display_name": "incident-timeline.png",
-                    "original_filename": "incident-timeline.png",
-                    "mime_type": "image/png",
-                    "size_bytes": 144220,
-                    "preview_kind": "image",
-                    "created_at": "2026-02-27T17:20:00Z",
-                    "updated_at": "2026-02-27T17:24:00Z"
-                  }
-                }
-              ],
-              "received_at": "2026-02-22T17:21:00Z",
-              "generated_at": "2026-02-22T17:21:00Z",
-              "read_by_user_id": 42,
-              "latest_entry_id": 42,
-              "entries_count": 0,
-              "latest_entry": {
-                "id": 42,
-                "agent_id": 42,
-                "external_id": "ops-brief-2026-02-22",
-                "name": "Example Name",
-                "timezone": "America/Los_Angeles",
-                "summary": "Morning operations handoff digest.",
-                "include_sections": [
-                  {
-                    "key": "value"
-                  }
-                ],
-                "headline": "3 overdue tasks | 4 upcoming events",
-                "content_markdown": "## Highlights\n- Elevated API error rate",
-                "content_json": {
-                  "key": "value"
-                },
-                "source_meta": {
-                  "key": "value"
-                },
-                "attachments": [
-                  {
-                    "id": 45,
-                    "team_file_id": 101,
-                    "preview_url": "/api/v1/files/101/preview",
-                    "download_url": "/api/v1/files/101/download",
-                    "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-                    "file": {
-                      "id": 101,
-                      "display_name": "incident-timeline.png",
-                      "original_filename": "incident-timeline.png",
-                      "mime_type": "image/png",
-                      "size_bytes": 144220,
-                      "preview_kind": "image",
-                      "created_at": "2026-02-27T17:20:00Z",
-                      "updated_at": "2026-02-27T17:24:00Z"
-                    }
-                  }
-                ],
-                "received_at": "2026-02-22T17:21:00Z",
-                "generated_at": "2026-02-22T17:21:00Z",
-                "created_at": "2026-02-22T17:21:00Z",
-                "updated_at": "2026-02-22T17:21:00Z"
-              },
-              "created_at": "2026-02-22T17:21:00Z",
-              "updated_at": "2026-02-22T17:21:00Z"
-            }
-          ],
-          "links": {
-            "first": "example",
-            "last": "example",
-            "prev": "example",
-            "next": "example"
-          },
-          "meta": {
-            "current_page": 1,
-            "from": 1,
-            "last_page": 1,
-            "links": [
-              {
-                "url": "https://agentmc.example.com/docs/incident-123",
-                "label": "example",
-                "active": true
-              }
-            ],
-            "path": "notes/daily-ops.md",
-            "per_page": 25,
-            "total": 0
-          }
-        }
+        "hasContent": false,
+        "example": null
       },
       {
-        "status": "401",
-        "mediaType": "application/json",
-        "description": "Missing or invalid credentials.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "403",
-        "mediaType": "application/json",
-        "description": "Forbidden.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "422",
-        "mediaType": "application/json",
-        "description": "Validation failed.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
+        "status": "default",
+        "mediaType": "none",
+        "description": "Error response.",
+        "hasContent": false,
+        "example": null
       }
     ]
   },
@@ -4037,121 +1147,23 @@ export const operations = [
         "ApiKeyAuth"
       ]
     ],
-    "parameters": [
-      {
-        "name": "limit",
-        "in": "query",
-        "required": false,
-        "description": "Maximum number of records to return.",
-        "example": 20
-      }
-    ],
+    "parameters": [],
     "requestBodyRequired": false,
     "requestExamples": [],
     "responses": [
       {
         "status": "200",
-        "mediaType": "application/json",
+        "mediaType": "none",
         "description": "Claimable realtime sessions returned.",
-        "hasContent": true,
-        "example": {
-          "data": [
-            {
-              "id": 42,
-              "team_id": 42,
-              "agent_id": 42,
-              "requested_by_user_id": 42,
-              "status": "requested",
-              "claimed_at": "2026-02-22T17:21:00Z",
-              "opened_at": "2026-02-22T17:21:00Z",
-              "closed_at": "2026-02-22T17:21:00Z",
-              "expires_at": "2026-02-22T17:21:00Z",
-              "last_browser_heartbeat_at": "2026-02-22T17:21:00Z",
-              "last_agent_heartbeat_at": "2026-02-22T17:21:00Z",
-              "meta": {
-                "key": "value"
-              },
-              "created_at": "2026-02-22T17:21:00Z",
-              "updated_at": "2026-02-22T17:21:00Z"
-            }
-          ]
-        }
+        "hasContent": false,
+        "example": null
       },
       {
-        "status": "401",
-        "mediaType": "application/json",
-        "description": "Missing or invalid credentials.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "403",
-        "mediaType": "application/json",
-        "description": "Forbidden.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "404",
-        "mediaType": "application/json",
-        "description": "Resource not found.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "422",
-        "mediaType": "application/json",
-        "description": "Validation failed.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
+        "status": "default",
+        "mediaType": "none",
+        "description": "Error response.",
+        "hasContent": false,
+        "example": null
       }
     ]
   },
@@ -4181,15 +1193,15 @@ export const operations = [
         "name": "after_id",
         "in": "query",
         "required": false,
-        "description": "Return only records with id greater than this value.",
-        "example": 120
+        "description": "Only return signals with id greater than this value.",
+        "example": 1
       },
       {
         "name": "limit",
         "in": "query",
         "required": false,
-        "description": "Maximum number of records to return.",
-        "example": 20
+        "description": "Maximum number of signals to return.",
+        "example": 1
       }
     ],
     "requestBodyRequired": false,
@@ -4197,139 +1209,17 @@ export const operations = [
     "responses": [
       {
         "status": "200",
-        "mediaType": "application/json",
+        "mediaType": "none",
         "description": "Realtime signals returned.",
-        "hasContent": true,
-        "example": {
-          "data": [
-            {
-              "id": 42,
-              "team_id": 42,
-              "agent_id": 42,
-              "session_id": 42,
-              "sender": "agent",
-              "type": "example",
-              "payload": {
-                "key": "value"
-              },
-              "created_at": "2026-02-22T17:21:00Z",
-              "updated_at": "2026-02-22T17:21:00Z"
-            }
-          ],
-          "session": {
-            "id": 42,
-            "team_id": 42,
-            "agent_id": 42,
-            "requested_by_user_id": 42,
-            "status": "requested",
-            "claimed_at": "2026-02-22T17:21:00Z",
-            "opened_at": "2026-02-22T17:21:00Z",
-            "closed_at": "2026-02-22T17:21:00Z",
-            "expires_at": "2026-02-22T17:21:00Z",
-            "last_browser_heartbeat_at": "2026-02-22T17:21:00Z",
-            "last_agent_heartbeat_at": "2026-02-22T17:21:00Z",
-            "meta": {
-              "key": "value"
-            },
-            "created_at": "2026-02-22T17:21:00Z",
-            "updated_at": "2026-02-22T17:21:00Z"
-          }
-        }
+        "hasContent": false,
+        "example": null
       },
       {
-        "status": "401",
-        "mediaType": "application/json",
-        "description": "Missing or invalid credentials.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "403",
-        "mediaType": "application/json",
-        "description": "Forbidden.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "404",
-        "mediaType": "application/json",
-        "description": "Resource not found.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "409",
-        "mediaType": "application/json",
-        "description": "Conflict.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "422",
-        "mediaType": "application/json",
-        "description": "Validation failed.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
+        "status": "default",
+        "mediaType": "none",
+        "description": "Error response.",
+        "hasContent": false,
+        "example": null
       }
     ]
   },
@@ -4350,120 +1240,23 @@ export const operations = [
         "SessionCookieAuth"
       ]
     ],
-    "parameters": [
-      {
-        "name": "per_page",
-        "in": "query",
-        "required": false,
-        "description": "Page size for paginated responses.",
-        "example": 25
-      },
-      {
-        "name": "search",
-        "in": "query",
-        "required": false,
-        "description": "Case-insensitive text search query.",
-        "example": "operations"
-      }
-    ],
+    "parameters": [],
     "requestBodyRequired": false,
     "requestExamples": [],
     "responses": [
       {
         "status": "200",
-        "mediaType": "application/json",
+        "mediaType": "none",
         "description": "Agents returned.",
-        "hasContent": true,
-        "example": {
-          "data": [
-            {
-              "id": 42,
-              "team_id": 7,
-              "host_id": 11,
-              "host": {
-                "id": 11,
-                "name": "worker-01"
-              },
-              "name": "codex-runtime-prod",
-              "type": "openclaw",
-              "status": "online",
-              "meta": {
-                "runtime_host": "worker-01",
-                "runtime_version": "2026.02.1",
-                "runtime": "codex",
-                "models": [
-                  {
-                    "model_id": "openai/gpt-5-codex",
-                    "provider": "openai"
-                  }
-                ]
-              },
-              "last_seen_at": "2026-02-24T02:11:00Z",
-              "tasks_count": 3,
-              "created_at": "2026-02-24T01:56:00Z",
-              "updated_at": "2026-02-24T02:11:00Z"
-            }
-          ],
-          "links": {
-            "first": "example",
-            "last": "example",
-            "prev": "example",
-            "next": "example"
-          },
-          "meta": {
-            "current_page": 1,
-            "from": 1,
-            "last_page": 1,
-            "links": [
-              {
-                "url": "https://agentmc.example.com/docs/incident-123",
-                "label": "example",
-                "active": true
-              }
-            ],
-            "path": "notes/daily-ops.md",
-            "per_page": 25,
-            "total": 0
-          }
-        }
+        "hasContent": false,
+        "example": null
       },
       {
-        "status": "401",
-        "mediaType": "application/json",
-        "description": "Missing or invalid credentials.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "403",
-        "mediaType": "application/json",
-        "description": "Forbidden.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
+        "status": "default",
+        "mediaType": "none",
+        "description": "Error response.",
+        "hasContent": false,
+        "example": null
       }
     ]
   },
@@ -4484,111 +1277,23 @@ export const operations = [
         "SessionCookieAuth"
       ]
     ],
-    "parameters": [
-      {
-        "name": "per_page",
-        "in": "query",
-        "required": false,
-        "description": "Page size for paginated responses.",
-        "example": 25
-      },
-      {
-        "name": "scope",
-        "in": "query",
-        "required": false,
-        "description": "Allowed values: all, mine, team, personal.",
-        "example": "all"
-      },
-      {
-        "name": "personal_owner_user_id",
-        "in": "query",
-        "required": false,
-        "description": "Identifier for the private board owner user.",
-        "example": 42
-      }
-    ],
+    "parameters": [],
     "requestBodyRequired": false,
     "requestExamples": [],
     "responses": [
       {
         "status": "200",
-        "mediaType": "application/json",
+        "mediaType": "none",
         "description": "Board list returned.",
-        "hasContent": true,
-        "example": {
-          "data": [
-            {
-              "id": 42,
-              "team_id": 42,
-              "name": "Example Name",
-              "description": "Example description text.",
-              "visibility": "team",
-              "personal_owner_user_id": 42,
-              "created_by_user_id": 42,
-              "created_at": "2026-02-22T17:21:00Z",
-              "updated_at": "2026-02-22T17:21:00Z"
-            }
-          ],
-          "links": {
-            "first": "example",
-            "last": "example",
-            "prev": "example",
-            "next": "example"
-          },
-          "meta": {
-            "current_page": 1,
-            "from": 1,
-            "last_page": 1,
-            "links": [
-              {
-                "url": "https://agentmc.example.com/docs/incident-123",
-                "label": "example",
-                "active": true
-              }
-            ],
-            "path": "notes/daily-ops.md",
-            "per_page": 25,
-            "total": 0
-          }
-        }
+        "hasContent": false,
+        "example": null
       },
       {
-        "status": "401",
-        "mediaType": "application/json",
-        "description": "Missing or invalid credentials.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "403",
-        "mediaType": "application/json",
-        "description": "Forbidden.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
+        "status": "default",
+        "mediaType": "none",
+        "description": "Error response.",
+        "hasContent": false,
+        "example": null
       }
     ]
   },
@@ -4609,315 +1314,23 @@ export const operations = [
         "SessionCookieAuth"
       ]
     ],
-    "parameters": [
-      {
-        "name": "view",
-        "in": "query",
-        "required": false,
-        "description": "Allowed values: month, week, list.",
-        "example": "month"
-      },
-      {
-        "name": "start",
-        "in": "query",
-        "required": false,
-        "description": "Start.",
-        "example": "2026-02-22T17:21:00Z"
-      },
-      {
-        "name": "end",
-        "in": "query",
-        "required": false,
-        "description": "End.",
-        "example": "2026-02-22T17:21:00Z"
-      },
-      {
-        "name": "type",
-        "in": "query",
-        "required": false,
-        "description": "Type discriminator for this record. Allowed values: event, task.",
-        "example": "event"
-      },
-      {
-        "name": "status",
-        "in": "query",
-        "required": false,
-        "description": "Current lifecycle status for this record. Allowed values: todo, in_progress, blocked, done, canceled.",
-        "example": "todo"
-      },
-      {
-        "name": "priority",
-        "in": "query",
-        "required": false,
-        "description": "Priority level for this record. Allowed values: low, medium, high, urgent.",
-        "example": "low"
-      },
-      {
-        "name": "assignee",
-        "in": "query",
-        "required": false,
-        "description": "Assignee.",
-        "example": "example"
-      },
-      {
-        "name": "q",
-        "in": "query",
-        "required": false,
-        "description": "Case-insensitive text search query.",
-        "example": "retro"
-      },
-      {
-        "name": "per_page",
-        "in": "query",
-        "required": false,
-        "description": "Page size for paginated responses.",
-        "example": 25
-      }
-    ],
+    "parameters": [],
     "requestBodyRequired": false,
     "requestExamples": [],
     "responses": [
       {
         "status": "200",
-        "mediaType": "application/json",
+        "mediaType": "none",
         "description": "Calendar items returned.",
-        "hasContent": true,
-        "example": {
-          "data": [
-            {
-              "id": 42,
-              "team_id": 42,
-              "type": "event",
-              "title": "Example Title",
-              "description": "Example description text.",
-              "start_at": "2026-02-22T17:21:00Z",
-              "end_at": "2026-02-22T17:21:00Z",
-              "due_at": "2026-02-22T17:21:00Z",
-              "all_day": false,
-              "location": "example",
-              "timezone": "America/Los_Angeles",
-              "status": "todo",
-              "priority": "low",
-              "visibility": "team",
-              "created_by": 1,
-              "updated_by": 1,
-              "assignees": [
-                {
-                  "id": 42,
-                  "assignee_type": "user",
-                  "assignee_id": 42,
-                  "role": "owner",
-                  "name": "Example Name",
-                  "created_at": "2026-02-22T17:21:00Z"
-                }
-              ],
-              "attachments": [
-                {
-                  "id": 45,
-                  "team_file_id": 101,
-                  "preview_url": "/api/v1/files/101/preview",
-                  "download_url": "/api/v1/files/101/download",
-                  "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-                  "file": {
-                    "id": 101,
-                    "display_name": "incident-timeline.png",
-                    "original_filename": "incident-timeline.png",
-                    "mime_type": "image/png",
-                    "size_bytes": 144220,
-                    "preview_kind": "image",
-                    "created_at": "2026-02-27T17:20:00Z",
-                    "updated_at": "2026-02-27T17:24:00Z"
-                  }
-                }
-              ],
-              "comments_count": 1,
-              "created_at": "2026-02-22T17:21:00Z",
-              "updated_at": "2026-02-22T17:21:00Z",
-              "deleted_at": "2026-02-22T17:21:00Z"
-            }
-          ],
-          "links": {
-            "first": "example",
-            "last": "example",
-            "prev": "example",
-            "next": "example"
-          },
-          "meta": {
-            "current_page": 1,
-            "from": 1,
-            "last_page": 1,
-            "links": [
-              {
-                "url": "https://agentmc.example.com/docs/incident-123",
-                "label": "example",
-                "active": true
-              }
-            ],
-            "path": "notes/daily-ops.md",
-            "per_page": 25,
-            "total": 0
-          }
-        }
+        "hasContent": false,
+        "example": null
       },
       {
-        "status": "401",
-        "mediaType": "application/json",
-        "description": "Missing or invalid credentials.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "403",
-        "mediaType": "application/json",
-        "description": "Forbidden.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      }
-    ]
-  },
-  {
-    "operationId": "listDueRecurringTaskRuns",
-    "method": "get",
-    "path": "/agents/recurring-task-runs/due",
-    "summary": "",
-    "description": "",
-    "tags": [
-      "Agents"
-    ],
-    "security": [
-      [
-        "ApiKeyAuth"
-      ]
-    ],
-    "parameters": [
-      {
-        "name": "limit",
-        "in": "query",
-        "required": false,
-        "description": "Maximum number of records to return.",
-        "example": 20
-      }
-    ],
-    "requestBodyRequired": false,
-    "requestExamples": [],
-    "responses": [
-      {
-        "status": "200",
-        "mediaType": "application/json",
-        "description": "Successful response.",
-        "hasContent": true,
-        "example": {
-          "data": [
-            {
-              "run_id": 42,
-              "task_id": 42,
-              "prompt": "example",
-              "scheduled_for": "2026-02-22T17:21:00Z",
-              "claim_token": "example",
-              "agent_id": 42
-            }
-          ]
-        }
-      },
-      {
-        "status": "401",
-        "mediaType": "application/json",
-        "description": "Missing or invalid credentials.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "403",
-        "mediaType": "application/json",
-        "description": "Forbidden.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "404",
-        "mediaType": "application/json",
-        "description": "Resource not found.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "422",
-        "mediaType": "application/json",
-        "description": "Validation failed.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
+        "status": "default",
+        "mediaType": "none",
+        "description": "Error response.",
+        "hasContent": false,
+        "example": null
       }
     ]
   },
@@ -4944,65 +1357,17 @@ export const operations = [
     "responses": [
       {
         "status": "200",
-        "mediaType": "application/json",
+        "mediaType": "none",
         "description": "Folder list returned.",
-        "hasContent": true,
-        "example": {
-          "data": [
-            {
-              "id": 12,
-              "team_id": 7,
-              "parent_id": null,
-              "name": "Runbooks",
-              "path_cache": "Runbooks",
-              "created_at": "2026-02-27T17:10:00Z",
-              "updated_at": "2026-02-27T17:10:00Z"
-            }
-          ],
-          "tree": [
-            {
-              "key": "value"
-            }
-          ]
-        }
+        "hasContent": false,
+        "example": null
       },
       {
-        "status": "401",
-        "mediaType": "application/json",
-        "description": "Missing or invalid credentials.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "403",
-        "mediaType": "application/json",
-        "description": "Forbidden.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
+        "status": "default",
+        "mediaType": "none",
+        "description": "Error response.",
+        "hasContent": false,
+        "example": null
       }
     ]
   },
@@ -5023,173 +1388,23 @@ export const operations = [
         "SessionCookieAuth"
       ]
     ],
-    "parameters": [
-      {
-        "name": "q",
-        "in": "query",
-        "required": false,
-        "description": "Case-insensitive text search query.",
-        "example": "retro"
-      },
-      {
-        "name": "folder_id",
-        "in": "query",
-        "required": false,
-        "description": "Identifier for folder.",
-        "example": 42
-      },
-      {
-        "name": "owner_agent_id",
-        "in": "query",
-        "required": false,
-        "description": "Identifier for owner agent.",
-        "example": 42
-      },
-      {
-        "name": "mime_group",
-        "in": "query",
-        "required": false,
-        "description": "Allowed values: text, markdown, image, pdf, other.",
-        "example": "text"
-      },
-      {
-        "name": "sort",
-        "in": "query",
-        "required": false,
-        "description": "Allowed values: updated_at, display_name, size_bytes.",
-        "example": "updated_at"
-      },
-      {
-        "name": "direction",
-        "in": "query",
-        "required": false,
-        "description": "Allowed values: asc, desc.",
-        "example": "asc"
-      },
-      {
-        "name": "per_page",
-        "in": "query",
-        "required": false,
-        "description": "Page size for paginated responses.",
-        "example": 25
-      }
-    ],
+    "parameters": [],
     "requestBodyRequired": false,
     "requestExamples": [],
     "responses": [
       {
         "status": "200",
-        "mediaType": "application/json",
+        "mediaType": "none",
         "description": "File list returned.",
-        "hasContent": true,
-        "example": {
-          "data": [
-            {
-              "id": 101,
-              "team_id": 7,
-              "owner_agent_id": 42,
-              "folder_id": 12,
-              "display_name": "incident-timeline.md",
-              "original_filename": "incident-timeline.md",
-              "extension": "md",
-              "mime_type": "text/markdown",
-              "size_bytes": 14220,
-              "checksum_sha256": null,
-              "preview_kind": "markdown",
-              "uploaded_by_user_id": 8,
-              "uploaded_by_agent_id": null,
-              "created_at": "2026-02-27T17:20:00Z",
-              "updated_at": "2026-02-27T17:24:00Z",
-              "folder": {
-                "id": 12,
-                "team_id": 7,
-                "parent_id": null,
-                "name": "Runbooks",
-                "path_cache": "Runbooks",
-                "created_at": "2026-02-27T17:10:00Z",
-                "updated_at": "2026-02-27T17:10:00Z"
-              }
-            }
-          ],
-          "links": {
-            "first": "example",
-            "last": "example",
-            "prev": "example",
-            "next": "example"
-          },
-          "meta": {
-            "current_page": 1,
-            "from": 1,
-            "last_page": 1,
-            "links": [
-              {
-                "url": "https://agentmc.example.com/docs/incident-123",
-                "label": "example",
-                "active": true
-              }
-            ],
-            "path": "notes/daily-ops.md",
-            "per_page": 25,
-            "total": 0
-          }
-        }
+        "hasContent": false,
+        "example": null
       },
       {
-        "status": "401",
-        "mediaType": "application/json",
-        "description": "Missing or invalid credentials.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "403",
-        "mediaType": "application/json",
-        "description": "Forbidden.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "422",
-        "mediaType": "application/json",
-        "description": "Validation failed.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
+        "status": "default",
+        "mediaType": "none",
+        "description": "Error response.",
+        "hasContent": false,
+        "example": null
       }
     ]
   },
@@ -5210,125 +1425,23 @@ export const operations = [
         "SessionCookieAuth"
       ]
     ],
-    "parameters": [
-      {
-        "name": "per_page",
-        "in": "query",
-        "required": false,
-        "description": "Page size for paginated responses.",
-        "example": 25
-      },
-      {
-        "name": "status",
-        "in": "query",
-        "required": false,
-        "description": "Current lifecycle status for this record. Allowed values: online, offline.",
-        "example": "online"
-      },
-      {
-        "name": "search",
-        "in": "query",
-        "required": false,
-        "description": "Case-insensitive text search query.",
-        "example": "operations"
-      }
-    ],
+    "parameters": [],
     "requestBodyRequired": false,
     "requestExamples": [],
     "responses": [
       {
         "status": "200",
-        "mediaType": "application/json",
+        "mediaType": "none",
         "description": "Host list returned.",
-        "hasContent": true,
-        "example": {
-          "data": [
-            {
-              "id": 42,
-              "team_id": 42,
-              "name": "Example Name",
-              "fingerprint": "a3f56f330f311a2159f8c101eaf1439a29f1d57f007375d56aa79f304bc4f112",
-              "status": "online",
-              "last_seen_at": "2026-02-22T17:21:00Z",
-              "meta": {
-                "hostname": "worker-01",
-                "ip": "10.0.2.15",
-                "os": "Ubuntu",
-                "arch": "x86_64",
-                "cpu": "Intel Xeon",
-                "ram_gb": 32,
-                "runtime": {
-                  "name": "openclaw",
-                  "version": "1.14.2"
-                }
-              },
-              "created_by_user_id": 42,
-              "agents_total": 1,
-              "agents_online": 1,
-              "created_at": "2026-02-22T17:21:00Z",
-              "updated_at": "2026-02-22T17:21:00Z"
-            }
-          ],
-          "links": {
-            "first": "example",
-            "last": "example",
-            "prev": "example",
-            "next": "example"
-          },
-          "meta": {
-            "current_page": 1,
-            "from": 1,
-            "last_page": 1,
-            "links": [
-              {
-                "url": "https://agentmc.example.com/docs/incident-123",
-                "label": "example",
-                "active": true
-              }
-            ],
-            "path": "notes/daily-ops.md",
-            "per_page": 25,
-            "total": 0
-          }
-        }
+        "hasContent": false,
+        "example": null
       },
       {
-        "status": "401",
-        "mediaType": "application/json",
-        "description": "Missing or invalid credentials.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "403",
-        "mediaType": "application/json",
-        "description": "Forbidden.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
+        "status": "default",
+        "mediaType": "none",
+        "description": "Error response.",
+        "hasContent": false,
+        "example": null
       }
     ]
   },
@@ -5349,99 +1462,23 @@ export const operations = [
         "SessionCookieAuth"
       ]
     ],
-    "parameters": [
-      {
-        "name": "per_page",
-        "in": "query",
-        "required": false,
-        "description": "Page size for paginated responses.",
-        "example": 25
-      }
-    ],
+    "parameters": [],
     "requestBodyRequired": false,
     "requestExamples": [],
     "responses": [
       {
         "status": "200",
-        "mediaType": "application/json",
+        "mediaType": "none",
         "description": "Logs returned.",
-        "hasContent": true,
-        "example": {
-          "data": [
-            {
-              "id": 42,
-              "team_id": 42,
-              "actor_type": "example",
-              "actor_id": 42,
-              "action": "example",
-              "subject_type": "example",
-              "subject_id": 42,
-              "meta": {
-                "key": "value"
-              },
-              "created_at": "2026-02-22T17:21:00Z"
-            }
-          ],
-          "links": {
-            "first": "example",
-            "last": "example",
-            "prev": "example",
-            "next": "example"
-          },
-          "meta": {
-            "current_page": 1,
-            "from": 1,
-            "last_page": 1,
-            "links": [
-              {
-                "url": "https://agentmc.example.com/docs/incident-123",
-                "label": "example",
-                "active": true
-              }
-            ],
-            "path": "notes/daily-ops.md",
-            "per_page": 25,
-            "total": 0
-          }
-        }
+        "hasContent": false,
+        "example": null
       },
       {
-        "status": "401",
-        "mediaType": "application/json",
-        "description": "Missing or invalid credentials.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "403",
-        "mediaType": "application/json",
-        "description": "Forbidden.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
+        "status": "default",
+        "mediaType": "none",
+        "description": "Error response.",
+        "hasContent": false,
+        "example": null
       }
     ]
   },
@@ -5462,150 +1499,23 @@ export const operations = [
         "SessionCookieAuth"
       ]
     ],
-    "parameters": [
-      {
-        "name": "unread",
-        "in": "query",
-        "required": false,
-        "description": "Filter unread notifications only. Accepts true/false (and 1/0).",
-        "example": true
-      },
-      {
-        "name": "per_page",
-        "in": "query",
-        "required": false,
-        "description": "Page size for paginated responses.",
-        "example": 25
-      },
-      {
-        "name": "page",
-        "in": "query",
-        "required": false,
-        "description": "Page.",
-        "example": 1
-      }
-    ],
+    "parameters": [],
     "requestBodyRequired": false,
     "requestExamples": [],
     "responses": [
       {
         "status": "200",
-        "mediaType": "application/json",
+        "mediaType": "none",
         "description": "Notifications returned.",
-        "hasContent": true,
-        "example": {
-          "data": [
-            {
-              "id": "c084fc57-b2c6-466c-adcb-cf6f4efca42a",
-              "notification_type": "mention",
-              "source_type": "App\\Notifications\\MentionedInCommentNotification",
-              "team_id": 7,
-              "subject_type": "task",
-              "subject_id": 121,
-              "subject_label": "Prepare incident postmortem",
-              "actor_type": "user",
-              "actor_id": 3,
-              "actor_name": "Alex Morgan",
-              "assignee_type": null,
-              "assignee_id": null,
-              "mention_handle": "@tim",
-              "comment": "Can you own the timeline section before standup?",
-              "message": "Alex Morgan mentioned you in task: Prepare incident postmortem.",
-              "url": "/tasks/121?comment=998",
-              "comment_id": 998,
-              "response_action": {
-                "type": "post_comment_reply",
-                "method": "POST",
-                "path": "/tasks/121/comments",
-                "request_body": {
-                  "body": "Thanks, I can own the timeline section."
-                }
-              },
-              "is_read": false,
-              "read_at": null,
-              "created_at": "2026-02-24T02:11:00Z",
-              "updated_at": "2026-02-24T02:11:00Z"
-            }
-          ],
-          "links": {
-            "first": "example",
-            "last": "example",
-            "prev": "example",
-            "next": "example"
-          },
-          "meta": {
-            "current_page": 1,
-            "from": 1,
-            "last_page": 1,
-            "links": [
-              {
-                "url": "https://agentmc.example.com/docs/incident-123",
-                "label": "example",
-                "active": true
-              }
-            ],
-            "path": "notes/daily-ops.md",
-            "per_page": 25,
-            "total": 0
-          }
-        }
+        "hasContent": false,
+        "example": null
       },
       {
-        "status": "401",
-        "mediaType": "application/json",
-        "description": "Missing or invalid credentials.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "403",
-        "mediaType": "application/json",
-        "description": "Forbidden.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "422",
-        "mediaType": "application/json",
-        "description": "Validation failed.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
+        "status": "default",
+        "mediaType": "none",
+        "description": "Error response.",
+        "hasContent": false,
+        "example": null
       }
     ]
   },
@@ -5633,13 +1543,6 @@ export const operations = [
         "required": true,
         "description": "Task identifier.",
         "example": 1
-      },
-      {
-        "name": "per_page",
-        "in": "query",
-        "required": false,
-        "description": "Page size for paginated responses.",
-        "example": 25
       }
     ],
     "requestBodyRequired": false,
@@ -5647,130 +1550,17 @@ export const operations = [
     "responses": [
       {
         "status": "200",
-        "mediaType": "application/json",
+        "mediaType": "none",
         "description": "Task comments returned.",
-        "hasContent": true,
-        "example": {
-          "data": [
-            {
-              "id": 42,
-              "task_id": 42,
-              "actor_type": "user",
-              "actor_id": 42,
-              "actor_name": "Example Name",
-              "body": "Example content.",
-              "mentions": [
-                {
-                  "key": "example",
-                  "type": "user",
-                  "id": 42,
-                  "label": "example",
-                  "handle": "example",
-                  "token": "example"
-                }
-              ],
-              "attachments": [
-                {
-                  "id": 45,
-                  "team_file_id": 101,
-                  "preview_url": "/api/v1/files/101/preview",
-                  "download_url": "/api/v1/files/101/download",
-                  "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-                  "file": {
-                    "id": 101,
-                    "display_name": "incident-timeline.png",
-                    "original_filename": "incident-timeline.png",
-                    "mime_type": "image/png",
-                    "size_bytes": 144220,
-                    "preview_kind": "image",
-                    "created_at": "2026-02-27T17:20:00Z",
-                    "updated_at": "2026-02-27T17:24:00Z"
-                  }
-                }
-              ],
-              "edited_at": "2026-02-22T17:21:00Z",
-              "created_at": "2026-02-22T17:21:00Z"
-            }
-          ],
-          "links": {
-            "first": "example",
-            "last": "example",
-            "prev": "example",
-            "next": "example"
-          },
-          "meta": {
-            "current_page": 1,
-            "from": 1,
-            "last_page": 1,
-            "links": [
-              {
-                "url": "https://agentmc.example.com/docs/incident-123",
-                "label": "example",
-                "active": true
-              }
-            ],
-            "path": "notes/daily-ops.md",
-            "per_page": 25,
-            "total": 0
-          }
-        }
+        "hasContent": false,
+        "example": null
       },
       {
-        "status": "401",
-        "mediaType": "application/json",
-        "description": "Missing or invalid credentials.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "403",
-        "mediaType": "application/json",
-        "description": "Forbidden.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "404",
-        "mediaType": "application/json",
-        "description": "Resource not found.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
+        "status": "default",
+        "mediaType": "none",
+        "description": "Error response.",
+        "hasContent": false,
+        "example": null
       }
     ]
   },
@@ -5791,172 +1581,23 @@ export const operations = [
         "SessionCookieAuth"
       ]
     ],
-    "parameters": [
-      {
-        "name": "board_id",
-        "in": "query",
-        "required": false,
-        "description": "Board identifier.",
-        "example": 42
-      },
-      {
-        "name": "archived",
-        "in": "query",
-        "required": false,
-        "description": "Filter tasks by archive state. Accepts true/false (and 1/0).",
-        "example": true
-      },
-      {
-        "name": "assigned_to_user_id",
-        "in": "query",
-        "required": false,
-        "description": "Identifier for assigned to user.",
-        "example": 42
-      },
-      {
-        "name": "assigned_to_agent",
-        "in": "query",
-        "required": false,
-        "description": "Assigned to agent.",
-        "example": 1
-      },
-      {
-        "name": "agent_id",
-        "in": "query",
-        "required": false,
-        "description": "Identifier for agent.",
-        "example": 42
-      },
-      {
-        "name": "due_from",
-        "in": "query",
-        "required": false,
-        "description": "Due from.",
-        "example": "2026-02-22T17:21:00Z"
-      },
-      {
-        "name": "due_to",
-        "in": "query",
-        "required": false,
-        "description": "Due to.",
-        "example": "2026-02-22T17:21:00Z"
-      },
-      {
-        "name": "per_page",
-        "in": "query",
-        "required": false,
-        "description": "Page size for paginated responses.",
-        "example": 25
-      }
-    ],
+    "parameters": [],
     "requestBodyRequired": false,
     "requestExamples": [],
     "responses": [
       {
         "status": "200",
-        "mediaType": "application/json",
+        "mediaType": "none",
         "description": "Task list returned.",
-        "hasContent": true,
-        "example": {
-          "data": [
-            {
-              "id": 42,
-              "team_id": 42,
-              "board_id": 42,
-              "column_id": 42,
-              "title": "Example Title",
-              "description": "Example description text.",
-              "archived_at": "2026-02-22T17:21:00Z",
-              "is_archived": true,
-              "position": 1,
-              "due_at": "2026-02-22T17:21:00Z",
-              "created_by_user_id": 42,
-              "assigned_to_user_id": 42,
-              "assigned_to_agent_id": 42,
-              "attachments": [
-                {
-                  "id": 45,
-                  "team_file_id": 101,
-                  "preview_url": "/api/v1/files/101/preview",
-                  "download_url": "/api/v1/files/101/download",
-                  "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-                  "file": {
-                    "id": 101,
-                    "display_name": "incident-timeline.png",
-                    "original_filename": "incident-timeline.png",
-                    "mime_type": "image/png",
-                    "size_bytes": 144220,
-                    "preview_kind": "image",
-                    "created_at": "2026-02-27T17:20:00Z",
-                    "updated_at": "2026-02-27T17:24:00Z"
-                  }
-                }
-              ],
-              "assignee_type": "human",
-              "created_at": "2026-02-22T17:21:00Z",
-              "updated_at": "2026-02-22T17:21:00Z"
-            }
-          ],
-          "links": {
-            "first": "example",
-            "last": "example",
-            "prev": "example",
-            "next": "example"
-          },
-          "meta": {
-            "current_page": 1,
-            "from": 1,
-            "last_page": 1,
-            "links": [
-              {
-                "url": "https://agentmc.example.com/docs/incident-123",
-                "label": "example",
-                "active": true
-              }
-            ],
-            "path": "notes/daily-ops.md",
-            "per_page": 25,
-            "total": 0
-          }
-        }
+        "hasContent": false,
+        "example": null
       },
       {
-        "status": "401",
-        "mediaType": "application/json",
-        "description": "Missing or invalid credentials.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "403",
-        "mediaType": "application/json",
-        "description": "Forbidden.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
+        "status": "default",
+        "mediaType": "none",
+        "description": "Error response.",
+        "hasContent": false,
+        "example": null
       }
     ]
   },
@@ -5977,101 +1618,23 @@ export const operations = [
         "SessionCookieAuth"
       ]
     ],
-    "parameters": [
-      {
-        "name": "per_page",
-        "in": "query",
-        "required": false,
-        "description": "Page size for paginated responses.",
-        "example": 25
-      },
-      {
-        "name": "search",
-        "in": "query",
-        "required": false,
-        "description": "Case-insensitive text search query.",
-        "example": "operations"
-      }
-    ],
+    "parameters": [],
     "requestBodyRequired": false,
     "requestExamples": [],
     "responses": [
       {
         "status": "200",
-        "mediaType": "application/json",
+        "mediaType": "none",
         "description": "Users returned.",
-        "hasContent": true,
-        "example": {
-          "data": [
-            {
-              "id": 42,
-              "name": "Example Name",
-              "email": "agent@example.com",
-              "assignee_type": "human",
-              "team_role": "example",
-              "is_owner": true
-            }
-          ],
-          "links": {
-            "first": "example",
-            "last": "example",
-            "prev": "example",
-            "next": "example"
-          },
-          "meta": {
-            "current_page": 1,
-            "from": 1,
-            "last_page": 1,
-            "links": [
-              {
-                "url": "https://agentmc.example.com/docs/incident-123",
-                "label": "example",
-                "active": true
-              }
-            ],
-            "path": "notes/daily-ops.md",
-            "per_page": 25,
-            "total": 0
-          }
-        }
+        "hasContent": false,
+        "example": null
       },
       {
-        "status": "401",
-        "mediaType": "application/json",
-        "description": "Missing or invalid credentials.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "403",
-        "mediaType": "application/json",
-        "description": "Forbidden.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
+        "status": "default",
+        "mediaType": "none",
+        "description": "Error response.",
+        "hasContent": false,
+        "example": null
       }
     ]
   },
@@ -6094,62 +1657,21 @@ export const operations = [
     ],
     "parameters": [],
     "requestBodyRequired": false,
-    "requestExamples": [
-      {
-        "mediaType": "application/json",
-        "example": {}
-      }
-    ],
+    "requestExamples": [],
     "responses": [
       {
         "status": "200",
-        "mediaType": "application/json",
+        "mediaType": "none",
         "description": "Notifications updated.",
-        "hasContent": true,
-        "example": {
-          "data": {
-            "updated": 4,
-            "unread_count": 0
-          }
-        }
+        "hasContent": false,
+        "example": null
       },
       {
-        "status": "401",
-        "mediaType": "application/json",
-        "description": "Missing or invalid credentials.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "403",
-        "mediaType": "application/json",
-        "description": "Forbidden.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
+        "status": "default",
+        "mediaType": "none",
+        "description": "Error response.",
+        "hasContent": false,
+        "example": null
       }
     ]
   },
@@ -6176,112 +1698,25 @@ export const operations = [
         "in": "path",
         "required": true,
         "description": "Notification UUID.",
-        "example": "11111111-1111-4111-8111-111111111111"
+        "example": "11111111-1111-1111-1111-111111111111"
       }
     ],
     "requestBodyRequired": false,
-    "requestExamples": [
-      {
-        "mediaType": "application/json",
-        "example": {}
-      }
-    ],
+    "requestExamples": [],
     "responses": [
       {
         "status": "200",
-        "mediaType": "application/json",
+        "mediaType": "none",
         "description": "Notification updated.",
-        "hasContent": true,
-        "example": {
-          "data": {
-            "id": "c084fc57-b2c6-466c-adcb-cf6f4efca42a",
-            "notification_type": "mention",
-            "source_type": "App\\Notifications\\MentionedInCommentNotification",
-            "team_id": 7,
-            "subject_type": "task",
-            "subject_id": 121,
-            "subject_label": "Prepare incident postmortem",
-            "actor_type": "user",
-            "actor_id": 3,
-            "actor_name": "Alex Morgan",
-            "assignee_type": null,
-            "assignee_id": null,
-            "mention_handle": "@tim",
-            "comment": "Can you own the timeline section before standup?",
-            "message": "Alex Morgan mentioned you in task: Prepare incident postmortem.",
-            "url": "/tasks/121?comment=998",
-            "comment_id": 998,
-            "response_action": {
-              "type": "post_comment_reply",
-              "method": "POST",
-              "path": "/tasks/121/comments",
-              "request_body": {
-                "body": "Thanks, I can own the timeline section."
-              }
-            },
-            "is_read": false,
-            "read_at": null,
-            "created_at": "2026-02-24T02:11:00Z",
-            "updated_at": "2026-02-24T02:11:00Z"
-          }
-        }
+        "hasContent": false,
+        "example": null
       },
       {
-        "status": "401",
-        "mediaType": "application/json",
-        "description": "Missing or invalid credentials.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "403",
-        "mediaType": "application/json",
-        "description": "Forbidden.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "404",
-        "mediaType": "application/json",
-        "description": "Resource not found.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
+        "status": "default",
+        "mediaType": "none",
+        "description": "Error response.",
+        "hasContent": false,
+        "example": null
       }
     ]
   },
@@ -6308,7 +1743,7 @@ export const operations = [
         "in": "path",
         "required": true,
         "description": "File identifier.",
-        "example": 42
+        "example": 1
       }
     ],
     "requestBodyRequired": false,
@@ -6317,104 +1752,16 @@ export const operations = [
       {
         "status": "302",
         "mediaType": "none",
-        "description": "Redirect to a short-lived signed inline preview URL.",
+        "description": "Redirect to signed preview URL.",
         "hasContent": false,
         "example": null
       },
       {
-        "status": "401",
-        "mediaType": "application/json",
-        "description": "Missing or invalid credentials.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "403",
-        "mediaType": "application/json",
-        "description": "Forbidden.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "404",
-        "mediaType": "application/json",
-        "description": "Resource not found.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "422",
-        "mediaType": "application/json",
-        "description": "Validation failed.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "503",
-        "mediaType": "application/json",
-        "description": "Service unavailable.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
+        "status": "default",
+        "mediaType": "none",
+        "description": "Error response.",
+        "hasContent": false,
+        "example": null
       }
     ]
   },
@@ -6441,7 +1788,7 @@ export const operations = [
         "in": "path",
         "required": true,
         "description": "Board identifier.",
-        "example": 42
+        "example": 1
       }
     ],
     "requestBodyRequired": false,
@@ -6449,79 +1796,17 @@ export const operations = [
     "responses": [
       {
         "status": "200",
-        "mediaType": "application/json",
+        "mediaType": "none",
         "description": "Board returned.",
-        "hasContent": true,
-        "example": {
-          "data": {
-            "id": 42,
-            "team_id": 42,
-            "name": "Example Name",
-            "description": "Example description text.",
-            "visibility": "team",
-            "personal_owner_user_id": 42,
-            "created_by_user_id": 42,
-            "created_at": "2026-02-22T17:21:00Z",
-            "updated_at": "2026-02-22T17:21:00Z"
-          }
-        }
+        "hasContent": false,
+        "example": null
       },
       {
-        "status": "401",
-        "mediaType": "application/json",
-        "description": "Missing or invalid credentials.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "403",
-        "mediaType": "application/json",
-        "description": "Forbidden.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "404",
-        "mediaType": "application/json",
-        "description": "Resource not found.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
+        "status": "default",
+        "mediaType": "none",
+        "description": "Error response.",
+        "hasContent": false,
+        "example": null
       }
     ]
   },
@@ -6556,119 +1841,17 @@ export const operations = [
     "responses": [
       {
         "status": "200",
-        "mediaType": "application/json",
+        "mediaType": "none",
         "description": "Calendar item returned.",
-        "hasContent": true,
-        "example": {
-          "data": {
-            "id": 42,
-            "team_id": 42,
-            "type": "event",
-            "title": "Example Title",
-            "description": "Example description text.",
-            "start_at": "2026-02-22T17:21:00Z",
-            "end_at": "2026-02-22T17:21:00Z",
-            "due_at": "2026-02-22T17:21:00Z",
-            "all_day": false,
-            "location": "example",
-            "timezone": "America/Los_Angeles",
-            "status": "todo",
-            "priority": "low",
-            "visibility": "team",
-            "created_by": 1,
-            "updated_by": 1,
-            "assignees": [
-              {
-                "id": 42,
-                "assignee_type": "user",
-                "assignee_id": 42,
-                "role": "owner",
-                "name": "Example Name",
-                "created_at": "2026-02-22T17:21:00Z"
-              }
-            ],
-            "attachments": [
-              {
-                "id": 45,
-                "team_file_id": 101,
-                "preview_url": "/api/v1/files/101/preview",
-                "download_url": "/api/v1/files/101/download",
-                "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-                "file": {
-                  "id": 101,
-                  "display_name": "incident-timeline.png",
-                  "original_filename": "incident-timeline.png",
-                  "mime_type": "image/png",
-                  "size_bytes": 144220,
-                  "preview_kind": "image",
-                  "created_at": "2026-02-27T17:20:00Z",
-                  "updated_at": "2026-02-27T17:24:00Z"
-                }
-              }
-            ],
-            "comments_count": 1,
-            "created_at": "2026-02-22T17:21:00Z",
-            "updated_at": "2026-02-22T17:21:00Z",
-            "deleted_at": "2026-02-22T17:21:00Z"
-          }
-        }
+        "hasContent": false,
+        "example": null
       },
       {
-        "status": "401",
-        "mediaType": "application/json",
-        "description": "Missing or invalid credentials.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "403",
-        "mediaType": "application/json",
-        "description": "Forbidden.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "404",
-        "mediaType": "application/json",
-        "description": "Resource not found.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
+        "status": "default",
+        "mediaType": "none",
+        "description": "Error response.",
+        "hasContent": false,
+        "example": null
       }
     ]
   },
@@ -6695,7 +1878,7 @@ export const operations = [
         "in": "path",
         "required": true,
         "description": "File identifier.",
-        "example": 42
+        "example": 1
       }
     ],
     "requestBodyRequired": false,
@@ -6703,94 +1886,17 @@ export const operations = [
     "responses": [
       {
         "status": "200",
-        "mediaType": "application/json",
+        "mediaType": "none",
         "description": "File returned.",
-        "hasContent": true,
-        "example": {
-          "data": {
-            "id": 101,
-            "team_id": 7,
-            "owner_agent_id": 42,
-            "folder_id": 12,
-            "display_name": "incident-timeline.md",
-            "original_filename": "incident-timeline.md",
-            "extension": "md",
-            "mime_type": "text/markdown",
-            "size_bytes": 14220,
-            "checksum_sha256": null,
-            "preview_kind": "markdown",
-            "uploaded_by_user_id": 8,
-            "uploaded_by_agent_id": null,
-            "created_at": "2026-02-27T17:20:00Z",
-            "updated_at": "2026-02-27T17:24:00Z",
-            "folder": {
-              "id": 12,
-              "team_id": 7,
-              "parent_id": null,
-              "name": "Runbooks",
-              "path_cache": "Runbooks",
-              "created_at": "2026-02-27T17:10:00Z",
-              "updated_at": "2026-02-27T17:10:00Z"
-            }
-          }
-        }
+        "hasContent": false,
+        "example": null
       },
       {
-        "status": "401",
-        "mediaType": "application/json",
-        "description": "Missing or invalid credentials.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "403",
-        "mediaType": "application/json",
-        "description": "Forbidden.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "404",
-        "mediaType": "application/json",
-        "description": "Resource not found.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
+        "status": "default",
+        "mediaType": "none",
+        "description": "Error response.",
+        "hasContent": false,
+        "example": null
       }
     ]
   },
@@ -6817,14 +1923,7 @@ export const operations = [
         "in": "path",
         "required": true,
         "description": "Host identifier.",
-        "example": 42
-      },
-      {
-        "name": "agents_per_page",
-        "in": "query",
-        "required": false,
-        "description": "Agents per page.",
-        "example": 25
+        "example": 1
       }
     ],
     "requestBodyRequired": false,
@@ -6832,115 +1931,17 @@ export const operations = [
     "responses": [
       {
         "status": "200",
-        "mediaType": "application/json",
+        "mediaType": "none",
         "description": "Host returned.",
-        "hasContent": true,
-        "example": {
-          "data": {
-            "id": 42,
-            "team_id": 42,
-            "name": "Example Name",
-            "fingerprint": "a3f56f330f311a2159f8c101eaf1439a29f1d57f007375d56aa79f304bc4f112",
-            "status": "online",
-            "last_seen_at": "2026-02-22T17:21:00Z",
-            "meta": {
-              "hostname": "worker-01",
-              "ip": "10.0.2.15",
-              "os": "Ubuntu",
-              "arch": "x86_64",
-              "cpu": "Intel Xeon",
-              "ram_gb": 32,
-              "runtime": {
-                "name": "openclaw",
-                "version": "1.14.2"
-              }
-            },
-            "created_by_user_id": 42,
-            "agents_total": 1,
-            "agents_online": 1,
-            "created_at": "2026-02-22T17:21:00Z",
-            "updated_at": "2026-02-22T17:21:00Z"
-          },
-          "agents": [
-            {
-              "id": 42,
-              "team_id": 42,
-              "host_id": 42,
-              "name": "Example Name",
-              "status": "online",
-              "meta": {
-                "key": "value"
-              },
-              "tasks_count": 0,
-              "last_seen_at": "2026-02-22T17:21:00Z",
-              "created_at": "2026-02-22T17:21:00Z",
-              "updated_at": "2026-02-22T17:21:00Z"
-            }
-          ],
-          "agents_meta": {
-            "current_page": 1,
-            "last_page": 1,
-            "per_page": 25,
-            "total": 0
-          }
-        }
+        "hasContent": false,
+        "example": null
       },
       {
-        "status": "401",
-        "mediaType": "application/json",
-        "description": "Missing or invalid credentials.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "403",
-        "mediaType": "application/json",
-        "description": "Forbidden.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "404",
-        "mediaType": "application/json",
-        "description": "Resource not found.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
+        "status": "default",
+        "mediaType": "none",
+        "description": "Error response.",
+        "hasContent": false,
+        "example": null
       }
     ]
   },
@@ -6975,105 +1976,17 @@ export const operations = [
     "responses": [
       {
         "status": "200",
-        "mediaType": "application/json",
+        "mediaType": "none",
         "description": "Task returned.",
-        "hasContent": true,
-        "example": {
-          "data": {
-            "id": 42,
-            "team_id": 42,
-            "board_id": 42,
-            "column_id": 42,
-            "title": "Example Title",
-            "description": "Example description text.",
-            "archived_at": "2026-02-22T17:21:00Z",
-            "is_archived": true,
-            "position": 1,
-            "due_at": "2026-02-22T17:21:00Z",
-            "created_by_user_id": 42,
-            "assigned_to_user_id": 42,
-            "assigned_to_agent_id": 42,
-            "attachments": [
-              {
-                "id": 45,
-                "team_file_id": 101,
-                "preview_url": "/api/v1/files/101/preview",
-                "download_url": "/api/v1/files/101/download",
-                "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-                "file": {
-                  "id": 101,
-                  "display_name": "incident-timeline.png",
-                  "original_filename": "incident-timeline.png",
-                  "mime_type": "image/png",
-                  "size_bytes": 144220,
-                  "preview_kind": "image",
-                  "created_at": "2026-02-27T17:20:00Z",
-                  "updated_at": "2026-02-27T17:24:00Z"
-                }
-              }
-            ],
-            "assignee_type": "human",
-            "created_at": "2026-02-22T17:21:00Z",
-            "updated_at": "2026-02-22T17:21:00Z"
-          }
-        }
+        "hasContent": false,
+        "example": null
       },
       {
-        "status": "401",
-        "mediaType": "application/json",
-        "description": "Missing or invalid credentials.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "403",
-        "mediaType": "application/json",
-        "description": "Forbidden.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "404",
-        "mediaType": "application/json",
-        "description": "Resource not found.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
+        "status": "default",
+        "mediaType": "none",
+        "description": "Error response.",
+        "hasContent": false,
+        "example": null
       }
     ]
   },
@@ -7100,220 +2013,25 @@ export const operations = [
         "in": "path",
         "required": true,
         "description": "Brief identifier.",
-        "example": 42
+        "example": 1
       }
     ],
-    "requestBodyRequired": true,
-    "requestExamples": [
-      {
-        "mediaType": "application/json",
-        "example": {
-          "brief": {
-            "name": "Daily Operations Brief",
-            "summary": "Operations handoff digest for the morning window.",
-            "timezone": "America/Los_Angeles",
-            "sections": [
-              {
-                "key": "incidents",
-                "label": "Incidents"
-              },
-              {
-                "key": "followups",
-                "label": "Follow-ups"
-              }
-            ],
-            "content_markdown": "## Updates\n- Incident queue cleared\n- Follow-up tasks assigned\n\n![timeline](/api/v1/files/102/preview)",
-            "meta": {
-              "external_source": "daily-ops-job",
-              "schedule": "0 7 * * *"
-            }
-          },
-          "source": {
-            "agent_id": 42,
-            "meta": {
-              "runtime": "codex"
-            }
-          }
-        }
-      }
-    ],
+    "requestBodyRequired": false,
+    "requestExamples": [],
     "responses": [
       {
         "status": "200",
-        "mediaType": "application/json",
+        "mediaType": "none",
         "description": "Brief record updated.",
-        "hasContent": true,
-        "example": {
-          "brief": {
-            "id": 42,
-            "team_id": 42,
-            "agent_id": 42,
-            "external_key": "daily-operations",
-            "external_id": "ops-brief-2026-02-22",
-            "name": "Example Name",
-            "timezone": "America/Los_Angeles",
-            "summary": "Morning operations handoff digest.",
-            "include_sections": [
-              {
-                "key": "value"
-              }
-            ],
-            "headline": "3 overdue tasks | 4 upcoming events",
-            "content_markdown": "## Highlights\n- Elevated API error rate",
-            "content_json": {
-              "key": "value"
-            },
-            "source_meta": {
-              "key": "value"
-            },
-            "attachments": [
-              {
-                "id": 45,
-                "team_file_id": 101,
-                "preview_url": "/api/v1/files/101/preview",
-                "download_url": "/api/v1/files/101/download",
-                "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-                "file": {
-                  "id": 101,
-                  "display_name": "incident-timeline.png",
-                  "original_filename": "incident-timeline.png",
-                  "mime_type": "image/png",
-                  "size_bytes": 144220,
-                  "preview_kind": "image",
-                  "created_at": "2026-02-27T17:20:00Z",
-                  "updated_at": "2026-02-27T17:24:00Z"
-                }
-              }
-            ],
-            "received_at": "2026-02-22T17:21:00Z",
-            "generated_at": "2026-02-22T17:21:00Z",
-            "read_by_user_id": 42,
-            "latest_entry_id": 42,
-            "entries_count": 0,
-            "latest_entry": {
-              "id": 42,
-              "agent_id": 42,
-              "external_id": "ops-brief-2026-02-22",
-              "name": "Example Name",
-              "timezone": "America/Los_Angeles",
-              "summary": "Morning operations handoff digest.",
-              "include_sections": [
-                {
-                  "key": "value"
-                }
-              ],
-              "headline": "3 overdue tasks | 4 upcoming events",
-              "content_markdown": "## Highlights\n- Elevated API error rate",
-              "content_json": {
-                "key": "value"
-              },
-              "source_meta": {
-                "key": "value"
-              },
-              "attachments": [
-                {
-                  "id": 45,
-                  "team_file_id": 101,
-                  "preview_url": "/api/v1/files/101/preview",
-                  "download_url": "/api/v1/files/101/download",
-                  "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-                  "file": {
-                    "id": 101,
-                    "display_name": "incident-timeline.png",
-                    "original_filename": "incident-timeline.png",
-                    "mime_type": "image/png",
-                    "size_bytes": 144220,
-                    "preview_kind": "image",
-                    "created_at": "2026-02-27T17:20:00Z",
-                    "updated_at": "2026-02-27T17:24:00Z"
-                  }
-                }
-              ],
-              "received_at": "2026-02-22T17:21:00Z",
-              "generated_at": "2026-02-22T17:21:00Z",
-              "created_at": "2026-02-22T17:21:00Z",
-              "updated_at": "2026-02-22T17:21:00Z"
-            },
-            "created_at": "2026-02-22T17:21:00Z",
-            "updated_at": "2026-02-22T17:21:00Z"
-          }
-        }
+        "hasContent": false,
+        "example": null
       },
       {
-        "status": "401",
-        "mediaType": "application/json",
-        "description": "Missing or invalid credentials.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "403",
-        "mediaType": "application/json",
-        "description": "Forbidden.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "404",
-        "mediaType": "application/json",
-        "description": "Resource not found.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "422",
-        "mediaType": "application/json",
-        "description": "Validation failed.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
+        "status": "default",
+        "mediaType": "none",
+        "description": "Error response.",
+        "hasContent": false,
+        "example": null
       }
     ]
   },
@@ -7340,116 +2058,25 @@ export const operations = [
         "in": "path",
         "required": true,
         "description": "Board identifier.",
-        "example": 42
+        "example": 1
       }
     ],
     "requestBodyRequired": false,
-    "requestExamples": [
-      {
-        "mediaType": "application/json",
-        "example": {
-          "name": "Incident Response",
-          "description": "Updated board description with escalation runbook links.",
-          "visibility": "personal",
-          "personal_owner_user_id": 8
-        }
-      }
-    ],
+    "requestExamples": [],
     "responses": [
       {
         "status": "200",
-        "mediaType": "application/json",
+        "mediaType": "none",
         "description": "Board updated.",
-        "hasContent": true,
-        "example": {
-          "data": {
-            "id": 42,
-            "team_id": 42,
-            "name": "Example Name",
-            "description": "Example description text.",
-            "visibility": "team",
-            "personal_owner_user_id": 42,
-            "created_by_user_id": 42,
-            "created_at": "2026-02-22T17:21:00Z",
-            "updated_at": "2026-02-22T17:21:00Z"
-          }
-        }
+        "hasContent": false,
+        "example": null
       },
       {
-        "status": "401",
-        "mediaType": "application/json",
-        "description": "Missing or invalid credentials.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "403",
-        "mediaType": "application/json",
-        "description": "Forbidden.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "404",
-        "mediaType": "application/json",
-        "description": "Resource not found.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "422",
-        "mediaType": "application/json",
-        "description": "Validation failed.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
+        "status": "default",
+        "mediaType": "none",
+        "description": "Error response.",
+        "hasContent": false,
+        "example": null
       }
     ]
   },
@@ -7480,109 +2107,21 @@ export const operations = [
       }
     ],
     "requestBodyRequired": false,
-    "requestExamples": [
-      {
-        "mediaType": "application/json",
-        "example": {
-          "column_id": 13,
-          "name": "Review",
-          "position": 3
-        }
-      }
-    ],
+    "requestExamples": [],
     "responses": [
       {
         "status": "200",
-        "mediaType": "application/json",
+        "mediaType": "none",
         "description": "Columns updated.",
-        "hasContent": true,
-        "example": {
-          "data": {
-            "id": 42,
-            "board_id": 42,
-            "team_id": 42,
-            "name": "Example Name",
-            "position": 1,
-            "created_at": "2026-02-22T17:21:00Z",
-            "updated_at": "2026-02-22T17:21:00Z"
-          }
-        }
+        "hasContent": false,
+        "example": null
       },
       {
-        "status": "401",
-        "mediaType": "application/json",
-        "description": "Missing or invalid credentials.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "403",
-        "mediaType": "application/json",
-        "description": "Forbidden.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "404",
-        "mediaType": "application/json",
-        "description": "Resource not found.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "422",
-        "mediaType": "application/json",
-        "description": "Validation failed.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
+        "status": "default",
+        "mediaType": "none",
+        "description": "Error response.",
+        "hasContent": false,
+        "example": null
       }
     ]
   },
@@ -7613,154 +2152,21 @@ export const operations = [
       }
     ],
     "requestBodyRequired": false,
-    "requestExamples": [
-      {
-        "mediaType": "application/json",
-        "example": {
-          "title": "Review outage timeline",
-          "description": "Add links to root-cause analysis notes.\n\n![rca-notes](/api/v1/files/102/preview)",
-          "due_at": "2026-02-24T11:00:00Z",
-          "status": "in_progress",
-          "priority": "urgent",
-          "visibility": "team"
-        }
-      }
-    ],
+    "requestExamples": [],
     "responses": [
       {
         "status": "200",
-        "mediaType": "application/json",
+        "mediaType": "none",
         "description": "Calendar item updated.",
-        "hasContent": true,
-        "example": {
-          "data": {
-            "id": 42,
-            "team_id": 42,
-            "type": "event",
-            "title": "Example Title",
-            "description": "Example description text.",
-            "start_at": "2026-02-22T17:21:00Z",
-            "end_at": "2026-02-22T17:21:00Z",
-            "due_at": "2026-02-22T17:21:00Z",
-            "all_day": false,
-            "location": "example",
-            "timezone": "America/Los_Angeles",
-            "status": "todo",
-            "priority": "low",
-            "visibility": "team",
-            "created_by": 1,
-            "updated_by": 1,
-            "assignees": [
-              {
-                "id": 42,
-                "assignee_type": "user",
-                "assignee_id": 42,
-                "role": "owner",
-                "name": "Example Name",
-                "created_at": "2026-02-22T17:21:00Z"
-              }
-            ],
-            "attachments": [
-              {
-                "id": 45,
-                "team_file_id": 101,
-                "preview_url": "/api/v1/files/101/preview",
-                "download_url": "/api/v1/files/101/download",
-                "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-                "file": {
-                  "id": 101,
-                  "display_name": "incident-timeline.png",
-                  "original_filename": "incident-timeline.png",
-                  "mime_type": "image/png",
-                  "size_bytes": 144220,
-                  "preview_kind": "image",
-                  "created_at": "2026-02-27T17:20:00Z",
-                  "updated_at": "2026-02-27T17:24:00Z"
-                }
-              }
-            ],
-            "comments_count": 1,
-            "created_at": "2026-02-22T17:21:00Z",
-            "updated_at": "2026-02-22T17:21:00Z",
-            "deleted_at": "2026-02-22T17:21:00Z"
-          }
-        }
+        "hasContent": false,
+        "example": null
       },
       {
-        "status": "401",
-        "mediaType": "application/json",
-        "description": "Missing or invalid credentials.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "403",
-        "mediaType": "application/json",
-        "description": "Forbidden.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "404",
-        "mediaType": "application/json",
-        "description": "Resource not found.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "422",
-        "mediaType": "application/json",
-        "description": "Validation failed.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
+        "status": "default",
+        "mediaType": "none",
+        "description": "Error response.",
+        "hasContent": false,
+        "example": null
       }
     ]
   },
@@ -7787,130 +2193,25 @@ export const operations = [
         "in": "path",
         "required": true,
         "description": "File identifier.",
-        "example": 42
+        "example": 1
       }
     ],
     "requestBodyRequired": false,
-    "requestExamples": [
-      {
-        "mediaType": "application/json",
-        "example": {
-          "display_name": "incident-timeline-v2.md",
-          "folder_id": 14,
-          "owner_agent_id": null
-        }
-      }
-    ],
+    "requestExamples": [],
     "responses": [
       {
         "status": "200",
-        "mediaType": "application/json",
+        "mediaType": "none",
         "description": "File updated.",
-        "hasContent": true,
-        "example": {
-          "data": {
-            "id": 101,
-            "team_id": 7,
-            "owner_agent_id": 42,
-            "folder_id": 12,
-            "display_name": "incident-timeline.md",
-            "original_filename": "incident-timeline.md",
-            "extension": "md",
-            "mime_type": "text/markdown",
-            "size_bytes": 14220,
-            "checksum_sha256": null,
-            "preview_kind": "markdown",
-            "uploaded_by_user_id": 8,
-            "uploaded_by_agent_id": null,
-            "created_at": "2026-02-27T17:20:00Z",
-            "updated_at": "2026-02-27T17:24:00Z",
-            "folder": {
-              "id": 12,
-              "team_id": 7,
-              "parent_id": null,
-              "name": "Runbooks",
-              "path_cache": "Runbooks",
-              "created_at": "2026-02-27T17:10:00Z",
-              "updated_at": "2026-02-27T17:10:00Z"
-            }
-          }
-        }
+        "hasContent": false,
+        "example": null
       },
       {
-        "status": "401",
-        "mediaType": "application/json",
-        "description": "Missing or invalid credentials.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "403",
-        "mediaType": "application/json",
-        "description": "Forbidden.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "404",
-        "mediaType": "application/json",
-        "description": "Resource not found.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "422",
-        "mediaType": "application/json",
-        "description": "Validation failed.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
+        "status": "default",
+        "mediaType": "none",
+        "description": "Error response.",
+        "hasContent": false,
+        "example": null
       }
     ]
   },
@@ -7937,112 +2238,25 @@ export const operations = [
         "in": "path",
         "required": true,
         "description": "Folder identifier.",
-        "example": 42
+        "example": 1
       }
     ],
     "requestBodyRequired": false,
-    "requestExamples": [
-      {
-        "mediaType": "application/json",
-        "example": {
-          "name": "Incident Runbooks",
-          "parent_id": null
-        }
-      }
-    ],
+    "requestExamples": [],
     "responses": [
       {
         "status": "200",
-        "mediaType": "application/json",
+        "mediaType": "none",
         "description": "Folder updated.",
-        "hasContent": true,
-        "example": {
-          "data": {
-            "id": 12,
-            "team_id": 7,
-            "parent_id": null,
-            "name": "Runbooks",
-            "path_cache": "Runbooks",
-            "created_at": "2026-02-27T17:10:00Z",
-            "updated_at": "2026-02-27T17:10:00Z"
-          }
-        }
+        "hasContent": false,
+        "example": null
       },
       {
-        "status": "401",
-        "mediaType": "application/json",
-        "description": "Missing or invalid credentials.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "403",
-        "mediaType": "application/json",
-        "description": "Forbidden.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "404",
-        "mediaType": "application/json",
-        "description": "Resource not found.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "422",
-        "mediaType": "application/json",
-        "description": "Validation failed.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
+        "status": "default",
+        "mediaType": "none",
+        "description": "Error response.",
+        "hasContent": false,
+        "example": null
       }
     ]
   },
@@ -8073,138 +2287,21 @@ export const operations = [
       }
     ],
     "requestBodyRequired": false,
-    "requestExamples": [
-      {
-        "mediaType": "application/json",
-        "example": {
-          "title": "Draft post-incident summary",
-          "archived_at": "2026-02-25T12:45:00Z",
-          "due_at": "2026-02-24T19:00:00Z",
-          "assigned_to_agent_id": 42
-        }
-      }
-    ],
+    "requestExamples": [],
     "responses": [
       {
         "status": "200",
-        "mediaType": "application/json",
+        "mediaType": "none",
         "description": "Task updated.",
-        "hasContent": true,
-        "example": {
-          "data": {
-            "id": 42,
-            "team_id": 42,
-            "board_id": 42,
-            "column_id": 42,
-            "title": "Example Title",
-            "description": "Example description text.",
-            "archived_at": "2026-02-22T17:21:00Z",
-            "is_archived": true,
-            "position": 1,
-            "due_at": "2026-02-22T17:21:00Z",
-            "created_by_user_id": 42,
-            "assigned_to_user_id": 42,
-            "assigned_to_agent_id": 42,
-            "attachments": [
-              {
-                "id": 45,
-                "team_file_id": 101,
-                "preview_url": "/api/v1/files/101/preview",
-                "download_url": "/api/v1/files/101/download",
-                "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-                "file": {
-                  "id": 101,
-                  "display_name": "incident-timeline.png",
-                  "original_filename": "incident-timeline.png",
-                  "mime_type": "image/png",
-                  "size_bytes": 144220,
-                  "preview_kind": "image",
-                  "created_at": "2026-02-27T17:20:00Z",
-                  "updated_at": "2026-02-27T17:24:00Z"
-                }
-              }
-            ],
-            "assignee_type": "human",
-            "created_at": "2026-02-22T17:21:00Z",
-            "updated_at": "2026-02-22T17:21:00Z"
-          }
-        }
+        "hasContent": false,
+        "example": null
       },
       {
-        "status": "401",
-        "mediaType": "application/json",
-        "description": "Missing or invalid credentials.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "403",
-        "mediaType": "application/json",
-        "description": "Forbidden.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "404",
-        "mediaType": "application/json",
-        "description": "Resource not found.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "422",
-        "mediaType": "application/json",
-        "description": "Validation failed.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
+        "status": "default",
+        "mediaType": "none",
+        "description": "Error response.",
+        "hasContent": false,
+        "example": null
       }
     ]
   },
@@ -8241,138 +2338,22 @@ export const operations = [
         "example": 1
       }
     ],
-    "requestBodyRequired": true,
-    "requestExamples": [
-      {
-        "mediaType": "application/json",
-        "example": {
-          "body": "Updated handoff note with the latest timeline and log links."
-        }
-      }
-    ],
+    "requestBodyRequired": false,
+    "requestExamples": [],
     "responses": [
       {
         "status": "200",
-        "mediaType": "application/json",
+        "mediaType": "none",
         "description": "Task comment updated.",
-        "hasContent": true,
-        "example": {
-          "data": {
-            "id": 42,
-            "task_id": 42,
-            "actor_type": "user",
-            "actor_id": 42,
-            "actor_name": "Example Name",
-            "body": "Example content.",
-            "mentions": [
-              {
-                "key": "example",
-                "type": "user",
-                "id": 42,
-                "label": "example",
-                "handle": "example",
-                "token": "example"
-              }
-            ],
-            "attachments": [
-              {
-                "id": 45,
-                "team_file_id": 101,
-                "preview_url": "/api/v1/files/101/preview",
-                "download_url": "/api/v1/files/101/download",
-                "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-                "file": {
-                  "id": 101,
-                  "display_name": "incident-timeline.png",
-                  "original_filename": "incident-timeline.png",
-                  "mime_type": "image/png",
-                  "size_bytes": 144220,
-                  "preview_kind": "image",
-                  "created_at": "2026-02-27T17:20:00Z",
-                  "updated_at": "2026-02-27T17:24:00Z"
-                }
-              }
-            ],
-            "edited_at": "2026-02-22T17:21:00Z",
-            "created_at": "2026-02-22T17:21:00Z"
-          }
-        }
+        "hasContent": false,
+        "example": null
       },
       {
-        "status": "401",
-        "mediaType": "application/json",
-        "description": "Missing or invalid credentials.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "403",
-        "mediaType": "application/json",
-        "description": "Forbidden.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "404",
-        "mediaType": "application/json",
-        "description": "Resource not found.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "status": "422",
-        "mediaType": "application/json",
-        "description": "Validation failed.",
-        "hasContent": true,
-        "example": {
-          "error": {
-            "code": "validation.failed",
-            "message": "Validation failed.",
-            "details": {
-              "fields": {
-                "title": [
-                  "The title field is required."
-                ]
-              }
-            }
-          }
-        }
+        "status": "default",
+        "mediaType": "none",
+        "description": "Error response.",
+        "hasContent": false,
+        "example": null
       }
     ]
   }

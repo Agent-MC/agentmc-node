@@ -9,11 +9,6 @@ const result = await client.operations.updateBoardColumn({
     "path": {
       "board": 1
     }
-  },
-  "body": {
-    "column_id": 13,
-    "name": "Review",
-    "position": 3
   }
 });
 

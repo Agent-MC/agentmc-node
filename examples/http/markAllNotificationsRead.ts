@@ -4,9 +4,7 @@ const client = new AgentMCApi({
   apiKey: process.env.AGENTMC_API_KEY
 });
 
-const result = await client.operations.markAllNotificationsRead({
-  "body": {}
-});
+const result = await client.operations.markAllNotificationsRead();
 
 if (result.error) {
   console.error(result.status, result.error);

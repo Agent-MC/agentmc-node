@@ -4,13 +4,7 @@ const client = new AgentMCApi({
   apiKey: process.env.AGENTMC_API_KEY
 });
 
-const result = await client.operations.listAgentRealtimeRequestedSessions({
-  "params": {
-    "query": {
-      "limit": 20
-    }
-  }
-});
+const result = await client.operations.listAgentRealtimeRequestedSessions();
 
 if (result.error) {
   console.error(result.status, result.error);

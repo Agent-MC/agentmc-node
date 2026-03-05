@@ -201,6 +201,87 @@ test("session claim failures do not force-close remote sessions", async () => {
   });
 });
 
+test("websocket startup failures recycle locally without force-closing the remote session", async () => {
+  await withFixture(async ({ dir, sessionsPath }) => {
+    const closeCalls = [];
+    const runtime = createRuntime(sessionsPath, dir, {
+      client: {
+        subscribeToRealtimeNotifications: async () => ({
+          session: { id: 912 },
+          ready: Promise.reject(new Error("socket unavailable")),
+          disconnect: async () => {}
+        }),
+        operations: {
+          closeAgentRealtimeSession: async (input = {}) => {
+            closeCalls.push({
+              session: input?.params?.path?.session ?? null,
+              body: input?.body ?? {}
+            });
+            return {
+              error: null,
+              status: 200,
+              data: {}
+            };
+          }
+        }
+      }
+    });
+
+    runtime.startSessionLoop(912);
+
+    for (let attempt = 0; attempt < 30 && closeCalls.length === 0; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+
+    assert.equal(closeCalls.length, 0);
+  });
+});
+
+test("self-heal on stale disconnected transport does not force-close the remote session", async () => {
+  await withFixture(async ({ dir, sessionsPath }) => {
+    const closeCalls = [];
+    const runtime = createRuntime(sessionsPath, dir, {
+      client: {
+        operations: {
+          closeAgentRealtimeSession: async (input = {}) => {
+            closeCalls.push({
+              session: input?.params?.path?.session ?? null,
+              body: input?.body ?? {}
+            });
+            return {
+              error: null,
+              status: 200,
+              data: {}
+            };
+          }
+        }
+      }
+    });
+
+    const staleMs = Date.now() - Math.max(
+      runtime.options.selfHealConnectionStaleMs,
+      runtime.options.selfHealMinSessionAgeMs
+    ) - 250;
+    const state = {
+      ...createSessionState(913),
+      createdAtMs: staleMs,
+      lastHealthActivityAtMs: staleMs,
+      lastConnectionStateChangeAtMs: staleMs,
+      connectionState: "disconnected",
+      subscription: {
+        ready: Promise.resolve(),
+        disconnect: async () => {}
+      }
+    };
+
+    runtime.sessions.set(913, state);
+    await runtime.maybeSelfHealSession(state, Date.now());
+
+    assert.equal(closeCalls.length, 0);
+    assert.equal(state.closed, true);
+  });
+});
+
 test("parses top-level keyed session map", async () => {
   await withFixture(async ({ dir, sessionsPath }) => {
     const sessionKey = "agent:main:agentmc:114";
