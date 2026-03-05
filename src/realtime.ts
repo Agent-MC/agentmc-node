@@ -43,6 +43,7 @@ interface PusherOptions {
 
 type PusherConstructor = new (key: string, options: PusherOptions) => PusherClient;
 let pusherConstructorPromise: Promise<PusherConstructor> | null = null;
+let pusherRuntimeWebSocketPatched = false;
 
 interface SharedPusherEntry {
   key: string;
@@ -52,6 +53,7 @@ interface SharedPusherEntry {
 }
 
 const sharedPusherEntries = new Map<string, SharedPusherEntry>();
+const sharedPusherOriginsByEndpoint = new Map<string, string>();
 
 const DEFAULT_REALTIME_SIGNAL_TYPE = "message";
 const DEFAULT_REALTIME_MAX_PAYLOAD_BYTES = 9_000;
@@ -449,13 +451,15 @@ export async function subscribeToRealtimeNotifications(
 
     const wsPath = normalizeWebsocketPath(valueAsString(connection.path));
     const cluster = valueAsString(connection.cluster)?.trim() || "mt1";
+    const realtimeOrigin = deriveRealtimeOrigin(client.getBaseUrl());
     sharedTransportKey = buildSharedTransportKey({
       appKey,
       host,
       resolvedPort,
       forceTLS,
       cluster,
-      wsPath
+      wsPath,
+      origin: realtimeOrigin
     });
     const transportKey = sharedTransportKey;
     if (!transportKey) {
@@ -498,6 +502,7 @@ export async function subscribeToRealtimeNotifications(
       forceTLS,
       cluster,
       wsPath,
+      origin: realtimeOrigin,
       channelName,
       authorize: authForChannel
     });
@@ -829,13 +834,15 @@ export async function subscribeToHostRealtimeSessionRequests(
 
     const wsPath = normalizeWebsocketPath(valueAsString(connection?.path));
     const cluster = valueAsString(connection?.cluster)?.trim() || "mt1";
+    const realtimeOrigin = deriveRealtimeOrigin(client.getBaseUrl());
     sharedTransportKey = buildSharedTransportKey({
       appKey,
       host,
       resolvedPort,
       forceTLS,
       cluster,
-      wsPath
+      wsPath,
+      origin: realtimeOrigin
     });
     const transportKey = sharedTransportKey;
     if (!transportKey) {
@@ -870,6 +877,7 @@ export async function subscribeToHostRealtimeSessionRequests(
       forceTLS,
       cluster,
       wsPath,
+      origin: realtimeOrigin,
       channelName,
       authorize: authForChannel
     });
@@ -1295,6 +1303,7 @@ function buildSharedTransportKey(input: {
   forceTLS: boolean;
   cluster: string;
   wsPath?: string;
+  origin?: string | null;
 }): string {
   return [
     input.appKey,
@@ -1302,7 +1311,8 @@ function buildSharedTransportKey(input: {
     String(input.resolvedPort),
     input.forceTLS ? "tls" : "plain",
     input.cluster,
-    input.wsPath ?? ""
+    input.wsPath ?? "",
+    input.origin ?? ""
   ].join("|");
 }
 
@@ -1314,9 +1324,14 @@ async function acquireSharedPusher(input: {
   forceTLS: boolean;
   cluster: string;
   wsPath?: string;
+  origin?: string | null;
   channelName: string;
   authorize: (socketId: string) => Promise<unknown>;
 }): Promise<PusherClient> {
+  const Pusher = await loadPusherConstructor();
+  ensurePusherRuntimeWebSocketOriginSupport(Pusher);
+  registerPusherWebSocketOrigin(input);
+
   const existing = sharedPusherEntries.get(input.key);
   if (existing) {
     existing.refCount += 1;
@@ -1324,7 +1339,6 @@ async function acquireSharedPusher(input: {
     return existing.pusher;
   }
 
-  const Pusher = await loadPusherConstructor();
   const channelAuthorizers = new Map<string, (socketId: string) => Promise<unknown>>();
   channelAuthorizers.set(input.channelName, input.authorize);
 
@@ -1432,6 +1446,134 @@ function maybePusherConstructor(moduleValue: unknown): PusherConstructor | null 
   const candidate = moduleObject?.default ?? moduleObject?.Pusher;
 
   return typeof candidate === "function" ? (candidate as PusherConstructor) : null;
+}
+
+function ensurePusherRuntimeWebSocketOriginSupport(Pusher: PusherConstructor): void {
+  if (pusherRuntimeWebSocketPatched) {
+    return;
+  }
+
+  const runtime = valueAsObject((Pusher as unknown as { Runtime?: unknown }).Runtime);
+  if (!runtime) {
+    return;
+  }
+
+  const createWebSocket = runtime?.createWebSocket;
+  const getWebSocketAPI = runtime?.getWebSocketAPI;
+
+  if (typeof createWebSocket !== "function" || typeof getWebSocketAPI !== "function") {
+    return;
+  }
+
+  const originalCreateWebSocket = createWebSocket.bind(runtime);
+  runtime.createWebSocket = (url: string) => {
+    const Constructor = getWebSocketAPI.call(runtime) as
+      | (new (url: string, protocols?: string | string[], options?: { headers?: Record<string, string> }) => unknown)
+      | null;
+    const origin = resolveRegisteredWebSocketOrigin(url);
+
+    if (!Constructor || !origin) {
+      return originalCreateWebSocket(url);
+    }
+
+    return new Constructor(url, undefined, {
+      headers: {
+        Origin: origin
+      }
+    });
+  };
+
+  pusherRuntimeWebSocketPatched = true;
+}
+
+function registerPusherWebSocketOrigin(input: {
+  appKey: string;
+  host: string;
+  resolvedPort: number;
+  forceTLS: boolean;
+  wsPath?: string;
+  origin?: string | null;
+}): void {
+  const origin = normalizeRealtimeOriginHeader(input.origin);
+  if (!origin) {
+    return;
+  }
+
+  const endpointKey = buildWebSocketEndpointKey({
+    appKey: input.appKey,
+    host: input.host,
+    resolvedPort: input.resolvedPort,
+    forceTLS: input.forceTLS,
+    wsPath: input.wsPath
+  });
+
+  if (endpointKey) {
+    sharedPusherOriginsByEndpoint.set(endpointKey, origin);
+  }
+}
+
+function resolveRegisteredWebSocketOrigin(url: string): string | null {
+  const endpointKey = buildWebSocketEndpointKeyFromUrl(url);
+
+  if (!endpointKey) {
+    return null;
+  }
+
+  return sharedPusherOriginsByEndpoint.get(endpointKey) ?? null;
+}
+
+function buildWebSocketEndpointKey(input: {
+  appKey: string;
+  host: string;
+  resolvedPort: number;
+  forceTLS: boolean;
+  wsPath?: string;
+}): string | null {
+  const protocol = input.forceTLS ? "wss:" : "ws:";
+  const pathPrefix = normalizeWebsocketPath(input.wsPath ?? null) ?? "";
+
+  return buildWebSocketEndpointKeyFromUrl(
+    `${protocol}//${input.host}:${input.resolvedPort}${pathPrefix}/app/${input.appKey}`
+  );
+}
+
+function buildWebSocketEndpointKeyFromUrl(value: string): string | null {
+  const trimmed = value.trim();
+  if (trimmed === "") {
+    return null;
+  }
+
+  try {
+    const url = new URL(trimmed);
+    const protocol = url.protocol === "wss:" ? "wss:" : "ws:";
+    const port = url.port || (protocol === "wss:" ? "443" : "80");
+
+    return `${protocol}//${url.hostname}:${port}${url.pathname}`;
+  } catch {
+    return null;
+  }
+}
+
+function deriveRealtimeOrigin(baseUrl: string): string | null {
+  return normalizeRealtimeOriginHeader(baseUrl);
+}
+
+function normalizeRealtimeOriginHeader(value: string | null | undefined): string | null {
+  const trimmed = typeof value === "string" ? value.trim() : "";
+  if (trimmed === "") {
+    return null;
+  }
+
+  try {
+    const url = new URL(trimmed);
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      return null;
+    }
+
+    return url.origin;
+  } catch {
+    return null;
+  }
 }
 
 function normalizeSignal(payload: unknown, fallbackSessionId: number): AgentRealtimeSignalMessage | null {
