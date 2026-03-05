@@ -2240,6 +2240,8 @@ export class OpenClawAgentRuntime {
     }
 
     let stopped = false;
+    let pulseTimer: ReturnType<typeof setInterval> | null = null;
+    let thinkingFrame = 0;
     const statusDeltaId = `agent-status-${requestId}`;
 
     const publishDelta = (delta: string): void => {
@@ -2259,10 +2261,28 @@ export class OpenClawAgentRuntime {
     };
 
     const dispatchTarget = resolveChatDispatchTargetLabel(this.options.runtimeSource, this.options.openclawCommand);
+    publishDelta(buildThinkingStatusDelta(this.options.thinkingText, thinkingFrame));
     publishDelta(buildDispatchStatusDelta(dispatchTarget));
+
+    pulseTimer = setInterval(() => {
+      if (stopped || state.closed || this.stopRequested) {
+        if (pulseTimer !== null) {
+          clearInterval(pulseTimer);
+          pulseTimer = null;
+        }
+        return;
+      }
+
+      thinkingFrame = (thinkingFrame + 1) % 4;
+      publishDelta(buildThinkingStatusDelta(this.options.thinkingText, thinkingFrame));
+    }, 2_500);
 
     return () => {
       stopped = true;
+      if (pulseTimer !== null) {
+        clearInterval(pulseTimer);
+        pulseTimer = null;
+      }
     };
   }
 
@@ -3739,6 +3759,14 @@ function buildDispatchStatusDelta(targetLabel: string): string {
   }
 
   return `Sent to ${normalizedTarget}. Waiting for response...`;
+}
+
+function buildThinkingStatusDelta(thinkingText: string, frameIndex: number): string {
+  const normalized = thinkingText.trim();
+  const base = normalized.replace(/\.+$/, "").trim() || "Thinking";
+  const frame = Math.max(0, Math.trunc(frameIndex));
+  const dots = (frame % 4) + 1;
+  return `${base}${".".repeat(dots)}`;
 }
 
 function shouldProcessInboundKey(state: SessionState, key: string, ttlMs: number): boolean {
