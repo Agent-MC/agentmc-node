@@ -2037,6 +2037,13 @@ export class OpenClawAgentRuntime {
       ...payload
     };
 
+    if (channelType === "chat.agent.done") {
+      const rawContent = typeof payloadWithRequestId.content === "string" ? payloadWithRequestId.content : "";
+      const normalizedContent = sanitizeAssistantOutputText(rawContent);
+      payloadWithRequestId.content =
+        normalizedContent === "" ? fallbackAssistantContentForStatus("ok") : normalizedContent;
+    }
+
     const maxAttempts = 3;
     let attempt = 0;
 
