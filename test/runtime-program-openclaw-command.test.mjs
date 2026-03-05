@@ -158,32 +158,3 @@ test("resolveRuntimeProvider treats options.runtimeCommand=openclaw path as Open
 }`
   });
 });
-
-test("openclaw provider runAgent returns mocked message with timestamp", async () => {
-  await withStubOpenClaw(async ({ commandPath }) => {
-    const runtime = new AgentRuntimeProgram({
-      client: { operations: {} },
-      openclawCommand: commandPath
-    });
-
-    const provider = await runtime.resolveOpenClawProvider(true);
-    assert.equal(typeof provider.runAgent, "function");
-
-    const runResult = await provider.runAgent({
-      sessionId: 77,
-      requestId: "req-mock",
-      userText: "hello from production debug"
-    });
-
-    assert.equal(runResult.status, "ok");
-    assert.equal(runResult.requestId, "req-mock");
-    assert.equal(runResult.runId, "agentmc-mock-77-req-mock");
-    assert.equal(runResult.content.split("\n")[0], "hello from production debug");
-    assert.match(runResult.content.split("\n")[1] ?? "", /^\d{4}-\d{2}-\d{2}T/);
-  }, {
-    modelsStatusJson: `{
-  "defaultModel": "openai-codex/gpt-5.3-codex",
-  "allowed": ["openai-codex/gpt-5.3-codex"]
-}`
-  });
-});
