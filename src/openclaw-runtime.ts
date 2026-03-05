@@ -34,6 +34,8 @@ const DEFAULT_SELF_HEAL_CONNECTION_STALE_MS = 45_000;
 const DEFAULT_SELF_HEAL_ACTIVITY_STALE_MS = 120_000;
 const DEFAULT_SELF_HEAL_MIN_SESSION_AGE_MS = 20_000;
 const DEFAULT_REALTIME_PUBLISH_TIMEOUT_MS = 10_000;
+const DEFAULT_REALTIME_SIGNAL_CATCHUP_LIMIT = 100;
+const DEFAULT_REALTIME_SIGNAL_CATCHUP_MAX_BATCHES = 5;
 const DEFAULT_AGENTMC_API_BASE_URL = "https://agentmc.ai/api/v1";
 
 const DEFAULT_OPENCLAW_DOC_IDS = [
@@ -293,6 +295,7 @@ interface SessionState {
   createdAtMs: number;
   lastHealthActivityAtMs: number;
   lastConnectionStateChangeAtMs: number;
+  catchupInFlight: boolean;
   chatSignalQueue: Promise<void>;
   processedInboundKeys: Map<string, number>;
   inboundChunkBuffers: Map<string, InboundChunkBuffer>;
@@ -626,6 +629,7 @@ export class OpenClawAgentRuntime {
       createdAtMs: nowMs,
       lastHealthActivityAtMs: nowMs,
       lastConnectionStateChangeAtMs: nowMs,
+      catchupInFlight: false,
       chatSignalQueue: Promise.resolve(),
       processedInboundKeys: new Map(),
       inboundChunkBuffers: new Map()
@@ -681,6 +685,11 @@ export class OpenClawAgentRuntime {
             if (nextState === "connected") {
               state.sawConnectedState = true;
               state.lastHealthActivityAtMs = nowMs;
+              if (previousState !== "connected") {
+                void this.catchUpSessionSignals(state, "connection_recovered").catch(async (error) => {
+                  await this.emitError(normalizeError(error));
+                });
+              }
             }
 
             await callOptionalHandler(
@@ -739,6 +748,8 @@ export class OpenClawAgentRuntime {
           );
           return;
         }
+
+        await this.catchUpSessionSignals(state, "session_ready");
 
         while (!this.stopRequested && !state.closed) {
           const nowMs = Date.now();
@@ -2408,6 +2419,102 @@ export class OpenClawAgentRuntime {
 
   private async emitError(error: Error): Promise<void> {
     await callErrorHandler(this.options.onError, error);
+  }
+
+  private async catchUpSessionSignals(
+    state: SessionState,
+    reason: "session_ready" | "connection_recovered"
+  ): Promise<void> {
+    if (state.closed || this.stopRequested || state.catchupInFlight) {
+      return;
+    }
+
+    state.catchupInFlight = true;
+    const startedAtMs = Date.now();
+
+    try {
+      let afterId = Math.max(0, state.lastSignalId);
+      let delivered = 0;
+
+      for (let batch = 0; batch < DEFAULT_REALTIME_SIGNAL_CATCHUP_MAX_BATCHES; batch += 1) {
+        if (state.closed || this.stopRequested) {
+          break;
+        }
+
+        const response = await this.options.client.operations.listAgentRealtimeSignals({
+          params: {
+            path: {
+              session: state.sessionId
+            },
+            query: {
+              after_id: afterId,
+              limit: DEFAULT_REALTIME_SIGNAL_CATCHUP_LIMIT
+            }
+          },
+          headers: {
+            "X-Agent-Id": String(this.options.agent)
+          }
+        });
+
+        if (response.error) {
+          throw createOperationError("listAgentRealtimeSignals", response.status, response.error);
+        }
+
+        const payload = valueAsObject(response.data) ?? (await readJsonResponseObject(response.response));
+        const rows = Array.isArray(payload?.data) ? payload.data : [];
+        if (rows.length === 0) {
+          break;
+        }
+
+        let highestSignalId = afterId;
+        let deliveredInBatch = 0;
+
+        for (const row of rows) {
+          const signal = normalizeApiSignalRecord(row, state.sessionId);
+          if (!signal) {
+            continue;
+          }
+
+          highestSignalId = Math.max(highestSignalId, signal.id);
+          if (signal.id <= state.lastSignalId) {
+            continue;
+          }
+
+          await this.handleSignal(state, signal, "api_poll");
+          delivered += 1;
+          deliveredInBatch += 1;
+        }
+
+        if (highestSignalId <= afterId) {
+          break;
+        }
+
+        afterId = highestSignalId;
+
+        if (rows.length < DEFAULT_REALTIME_SIGNAL_CATCHUP_LIMIT || deliveredInBatch === 0) {
+          break;
+        }
+      }
+
+      if (delivered > 0) {
+        await this.emitDebug("realtime.signal.catchup.delivered", {
+          session_id: state.sessionId,
+          reason,
+          delivered,
+          last_signal_id: state.lastSignalId,
+          duration_ms: Date.now() - startedAtMs
+        });
+      }
+    } catch (error) {
+      const normalized = normalizeError(error);
+      await this.emitError(
+        new Error(
+          `Realtime signal catch-up failed for session ${state.sessionId} (${reason}). ${normalized.message}`
+        )
+      );
+    } finally {
+      state.catchupInFlight = false;
+    }
   }
 
   private async emitDebug(event: string, details: JsonObject = {}): Promise<void> {
@@ -4164,6 +4271,29 @@ function valueAsObject(value: unknown): JsonObject | null {
 
 function valueAsString(value: unknown): string | null {
   return typeof value === "string" ? value : null;
+}
+
+function normalizeApiSignalRecord(value: unknown, fallbackSessionId: number): AgentRealtimeSignalMessage | null {
+  const objectValue = valueAsObject(value);
+  if (!objectValue) {
+    return null;
+  }
+
+  const id = toPositiveInteger(objectValue.id);
+  if (id < 1) {
+    return null;
+  }
+
+  const resolvedSessionId = toPositiveInteger(objectValue.session_id);
+
+  return {
+    id,
+    session_id: resolvedSessionId > 0 ? resolvedSessionId : fallbackSessionId,
+    sender: valueAsString(objectValue.sender) ?? "system",
+    type: valueAsString(objectValue.type) ?? "message",
+    payload: valueAsObject(objectValue.payload) ?? {},
+    created_at: valueAsString(objectValue.created_at) ?? null
+  };
 }
 
 function valueAsBoolean(value: unknown): boolean | null {
