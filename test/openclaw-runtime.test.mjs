@@ -282,6 +282,33 @@ test("self-heal on stale disconnected transport does not force-close the remote 
   });
 });
 
+test("self-heal does not recycle an idle connected session", async () => {
+  await withFixture(async ({ dir, sessionsPath }) => {
+    const runtime = createRuntime(sessionsPath, dir);
+    const staleMs = Date.now() - Math.max(
+      runtime.options.selfHealActivityStaleMs,
+      runtime.options.selfHealMinSessionAgeMs
+    ) - 250;
+    const state = {
+      ...createSessionState(914),
+      createdAtMs: staleMs,
+      lastHealthActivityAtMs: staleMs,
+      lastConnectionStateChangeAtMs: staleMs,
+      connectionState: "connected",
+      subscription: {
+        ready: Promise.resolve(),
+        disconnect: async () => {}
+      }
+    };
+
+    runtime.sessions.set(914, state);
+    await runtime.maybeSelfHealSession(state, Date.now());
+
+    assert.equal(state.closed, false);
+    assert.equal(state.closeReason, null);
+  });
+});
+
 test("parses top-level keyed session map", async () => {
   await withFixture(async ({ dir, sessionsPath }) => {
     const sessionKey = "agent:main:agentmc:114";

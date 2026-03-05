@@ -13185,6 +13185,12 @@
                   "notifications_realtime": true
                 }
               },
+              "usage_window_label": {
+                "type": "string",
+                "maxLength": 64,
+                "example": "5h",
+                "description": "Usage window label."
+              },
               "usage_window_percent_left": {
                 "type": "number",
                 "minimum": 0,
@@ -13197,6 +13203,12 @@
                 "maxLength": 120,
                 "example": "3h 4m",
                 "description": "Usage window time left."
+              },
+              "usage_day_label": {
+                "type": "string",
+                "maxLength": 64,
+                "example": "Week",
+                "description": "Usage day label."
               },
               "usage_day_percent_left": {
                 "type": "number",
@@ -13228,21 +13240,34 @@
                 "example": "agent:main:main",
                 "description": "Session."
               },
-              "queue": {
-                "type": "string",
-                "example": "collect",
-                "description": "Queue."
-              },
-              "queue_depth": {
-                "type": "integer",
-                "minimum": 0,
-                "example": 1,
-                "description": "Queue depth."
-              },
               "auth": {
                 "type": "string",
                 "example": "oauth (openai-codex:default)",
                 "description": "Auth."
+              },
+              "openclaw_models_status": {
+                "type": "object",
+                "description": "Normalized `openclaw models status --json` snapshot captured on heartbeat for current-model selection.",
+                "properties": {
+                  "default_model": {
+                    "type": "string",
+                    "maxLength": 255,
+                    "nullable": true,
+                    "example": "openai-codex/gpt-5.3-codex",
+                    "description": "Default model."
+                  },
+                  "resolved_default": {
+                    "type": "string",
+                    "maxLength": 255,
+                    "nullable": true,
+                    "example": "openai-codex/gpt-5.3-codex",
+                    "description": "Resolved default."
+                  }
+                },
+                "example": {
+                  "default_model": "openai-codex/gpt-5.3-codex",
+                  "resolved_default": "openai-codex/gpt-5.3-codex"
+                }
               }
             },
             "required": [
@@ -13294,7 +13319,30 @@
               "session": "agent:main:main",
               "queue": "collect",
               "queue_depth": 1,
-              "auth": "oauth (openai-codex:default)"
+              "auth": "oauth (openai-codex:default)",
+              "openclaw_models_status": {
+                "config_path": "/root/.openclaw/openclaw.json",
+                "agent_id": "main",
+                "agent_dir": "/root/.openclaw/agents/main/agent",
+                "default_model": "openai-codex/gpt-5.3-codex",
+                "resolved_default": "openai-codex/gpt-5.3-codex",
+                "fallbacks": [],
+                "model_config": {
+                  "default_source": "defaults",
+                  "fallbacks_source": "defaults"
+                },
+                "aliases_count": 0,
+                "aliases": [],
+                "allowed_count": 0,
+                "allowed": [],
+                "auth": {
+                  "summary": "oauth (openai-codex:default)",
+                  "store_path": "/root/.openclaw/agents/main/agent/auth-profiles.json",
+                  "providers_with_oauth": [
+                    "openai-codex (1)"
+                  ]
+                }
+              }
             }
           },
           "host": {
@@ -13721,6 +13769,18 @@
             "node_version": "v25.7.0",
             "agentmc_node_package_version": "0.14.2",
             "runtime_mode": "openclaw",
+            "usage_window_label": "5h",
+            "usage_window_percent_left": 97,
+            "usage_window_time_left": "2h 27m",
+            "usage_day_label": "Week",
+            "usage_day_percent_left": 98,
+            "usage_day_time_left": "5d 23h",
+            "auth": "oauth (openai-codex:default)",
+            "session": "agent:main:main",
+            "openclaw_models_status": {
+              "default_model": "openai-codex/gpt-5.3-codex",
+              "resolved_default": "openai-codex/gpt-5.3-codex"
+            },
             "tool_availability": {
               "chat_realtime": true,
               "files_realtime": true,

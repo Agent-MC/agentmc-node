@@ -56,6 +56,7 @@ const OPENCLAW_MODEL_PLACEHOLDER_TOKENS = new Set([
   "none",
   "null"
 ]);
+const MAX_OPENCLAW_STATUS_LABEL_LENGTH = 255;
 
 type JsonObject = Record<string, unknown>;
 
@@ -2926,6 +2927,31 @@ function extractHeartbeatTelemetryFromRuntimeSnapshot(snapshot: JsonObject): Jso
     telemetry.models = telemetryModels;
   }
 
+  const openClawModelsStatus = normalizeOpenClawModelsStatusTelemetry(snapshot);
+  if (openClawModelsStatus) {
+    telemetry.openclaw_models_status = openClawModelsStatus;
+
+    const derivedModels = normalizeHeartbeatModels([
+      openClawModelsStatus.resolved_default,
+      openClawModelsStatus.default_model,
+      ...collectOpenClawAccessibleModels(snapshot)
+    ]);
+    if (derivedModels.length > 0) {
+      telemetry.models = normalizeHeartbeatModels([
+        ...(Array.isArray(telemetry.models) ? telemetry.models : []),
+        ...derivedModels
+      ]);
+    }
+
+    const authSummary = resolveOpenClawAuthSummary(valueAsObject(snapshot.auth));
+    if (authSummary && !nonEmpty(telemetry.auth)) {
+      telemetry.auth = authSummary;
+    }
+  }
+
+  const usage = firstObjectFromLookup(lookup, ["usage"]);
+  applyStructuredUsageTelemetry(telemetry, usage);
+
   assignIntegerTelemetryField(telemetry, "tokens_in", lookup, ["tokens_in", "input_tokens", "prompt_tokens"]);
   assignIntegerTelemetryField(telemetry, "tokens_out", lookup, ["tokens_out", "output_tokens", "completion_tokens"]);
   assignIntegerTelemetryField(telemetry, "cache_tokens_cached", lookup, [
@@ -3098,6 +3124,103 @@ function pushLookupValue(lookup: Map<string, unknown[]>, key: string, value: unk
   lookup.set(key, [value]);
 }
 
+function normalizeOpenClawModelsStatusTelemetry(snapshot: JsonObject): JsonObject | null {
+  const hasOpenClawModelStatusShape =
+    nonEmpty(snapshot.defaultModel) !== null ||
+    nonEmpty(snapshot.resolvedDefault) !== null;
+
+  if (!hasOpenClawModelStatusShape) {
+    return null;
+  }
+
+  const normalized: JsonObject = {};
+  const defaultModel = limitHeartbeatText(snapshot.defaultModel, MAX_OPENCLAW_STATUS_LABEL_LENGTH);
+  const resolvedDefault = limitHeartbeatText(snapshot.resolvedDefault, MAX_OPENCLAW_STATUS_LABEL_LENGTH);
+
+  if (defaultModel) {
+    normalized.default_model = defaultModel;
+  }
+  if (resolvedDefault) {
+    normalized.resolved_default = resolvedDefault;
+  }
+
+  return Object.keys(normalized).length > 0 ? normalized : null;
+}
+
+function collectOpenClawAccessibleModels(snapshot: JsonObject): (string | JsonObject)[] {
+  const aliasTargets = valueAsObject(snapshot.aliases)
+    ? Object.values(valueAsObject(snapshot.aliases) ?? {})
+    : [];
+  const fallbacks = Array.isArray(snapshot.fallbacks) ? snapshot.fallbacks : [];
+  const imageFallbacks = Array.isArray(snapshot.imageFallbacks) ? snapshot.imageFallbacks : [];
+  const allowed = Array.isArray(snapshot.allowed) ? snapshot.allowed : [];
+
+  return normalizeHeartbeatModels([
+    snapshot.defaultModel,
+    snapshot.resolvedDefault,
+    ...fallbacks,
+    snapshot.imageModel,
+    ...imageFallbacks,
+    ...allowed,
+    ...aliasTargets
+  ]);
+}
+
+function resolveOpenClawAuthSummary(auth: JsonObject | null): string | null {
+  if (!auth) {
+    return null;
+  }
+
+  const oauth = valueAsObject(auth.oauth);
+  const oauthProfiles = Array.isArray(oauth?.profiles) ? oauth.profiles : [];
+  const firstOauthProfile = valueAsObject(oauthProfiles[0]);
+  const firstOauthLabel =
+    nonEmpty(firstOauthProfile?.label) ??
+    nonEmpty(firstOauthProfile?.profileId);
+
+  if (oauthProfiles.length === 1 && firstOauthLabel) {
+    return `oauth (${firstOauthLabel})`;
+  }
+  if (oauthProfiles.length > 1) {
+    return `oauth (${oauthProfiles.length} profiles)`;
+  }
+
+  const providers = Array.isArray(auth.providers) ? auth.providers : [];
+  const firstProvider = valueAsObject(providers[0]);
+  const firstProviderName = nonEmpty(firstProvider?.provider);
+  const profiles = valueAsObject(firstProvider?.profiles);
+  const oauthCount = integerFromUnknown(profiles?.oauth) ?? 0;
+  const tokenCount = integerFromUnknown(profiles?.token) ?? 0;
+  const apiKeyCount = integerFromUnknown(profiles?.apiKey) ?? 0;
+
+  if (oauthCount > 0) {
+    return firstProviderName ? `oauth (${firstProviderName})` : "oauth";
+  }
+  if (tokenCount > 0) {
+    return firstProviderName ? `token (${firstProviderName})` : "token";
+  }
+  if (apiKeyCount > 0) {
+    return firstProviderName ? `api key (${firstProviderName})` : "api key";
+  }
+
+  const providersWithOAuth = Array.isArray(auth.providersWithOAuth) ? auth.providersWithOAuth : [];
+  const firstProviderWithOauth = nonEmpty(providersWithOAuth[0]);
+  if (firstProviderWithOauth) {
+    return `oauth (${firstProviderWithOauth})`;
+  }
+
+  return null;
+}
+
+function limitHeartbeatText(value: unknown, maxLength: number): string | null {
+  const text = nonEmpty(value);
+  if (!text) {
+    return null;
+  }
+
+  return text.length <= maxLength ? text : text.slice(0, maxLength);
+}
+
 function extractBooleanMap(source: JsonObject): JsonObject {
   const map: JsonObject = {};
 
@@ -3148,31 +3271,7 @@ function applyTextTelemetryFallbacks(target: JsonObject, snapshot: JsonObject): 
       setTelemetryIfMissing(target, "context_compactions", parseIntegerToken(compactionsMatch[1] ?? ""));
     }
 
-    const windowPercentMatch = line.match(/\bwindow\b[^0-9]*([\d.]+)\s*%\s*left\b/i);
-    if (windowPercentMatch) {
-      setTelemetryIfMissing(target, "usage_window_percent_left", parseNumberToken(windowPercentMatch[1] ?? ""));
-    }
-
-    const dayPercentMatch = line.match(/\bday\b[^0-9]*([\d.]+)\s*%\s*left\b/i);
-    if (dayPercentMatch) {
-      setTelemetryIfMissing(target, "usage_day_percent_left", parseNumberToken(dayPercentMatch[1] ?? ""));
-    }
-
-    const windowTimeMatch = line.match(/\bwindow\b.*?@\s*(.+?)(?:\s+(?:\u00b7|\|)\s+|\s+\bday\b|$)/i);
-    if (windowTimeMatch) {
-      const value = nonEmpty(windowTimeMatch[1] ?? "");
-      if (value && value.toLowerCase() !== "unknown") {
-        setTelemetryIfMissing(target, "usage_window_time_left", value);
-      }
-    }
-
-    const dayTimeMatch = line.match(/\bday\b.*?@\s*(.+?)(?:\s+(?:\u00b7|\|)\s+|$)/i);
-    if (dayTimeMatch) {
-      const value = nonEmpty(dayTimeMatch[1] ?? "");
-      if (value && value.toLowerCase() !== "unknown") {
-        setTelemetryIfMissing(target, "usage_day_time_left", value);
-      }
-    }
+    applyUsageLineTelemetry(target, line);
 
     const queueDepthMatch = line.match(/\bqueue\s*depth\b\s*[:=]?\s*([\d,]+)/i);
     if (queueDepthMatch) {
@@ -3231,6 +3330,125 @@ function applyTextTelemetryFallbacks(target: JsonObject, snapshot: JsonObject): 
       }
     }
   }
+}
+
+function applyStructuredUsageTelemetry(target: JsonObject, usage: JsonObject | null): void {
+  if (!usage) {
+    return;
+  }
+
+  const window = valueAsObject(usage.window);
+  if (window) {
+    setTelemetryIfMissing(target, "usage_window_percent_left", numberFromUnknown(window.percent_left));
+    setTelemetryIfMissing(target, "usage_window_time_left", nonEmpty(window.time_left));
+    setTelemetryIfMissing(
+      target,
+      "usage_window_label",
+      nonEmpty(window.label) ?? nonEmpty(window.name) ?? nonEmpty(window.window)
+    );
+  }
+
+  const week = valueAsObject(usage.week);
+  const day = valueAsObject(usage.day);
+  const secondary = week ?? day;
+  if (!secondary) {
+    return;
+  }
+
+  setTelemetryIfMissing(
+    target,
+    "usage_day_percent_left",
+    numberFromUnknown(secondary.percent_left)
+  );
+  setTelemetryIfMissing(
+    target,
+    "usage_day_time_left",
+    nonEmpty(secondary.time_left)
+  );
+  setTelemetryIfMissing(
+    target,
+    "usage_day_label",
+    week ? "Week" : nonEmpty(secondary.label) ?? nonEmpty(secondary.name) ?? "Day"
+  );
+}
+
+function applyUsageLineTelemetry(target: JsonObject, line: string): void {
+  const normalized = line.replace(/^usage\s*:\s*/i, "").trim();
+  const segments = normalized
+    .split(/\s*(?:\u00b7|\|)\s*/)
+    .map((segment) => segment.trim())
+    .filter((segment) => segment !== "");
+
+  if (segments.length === 0) {
+    return;
+  }
+
+  const parsedSegments = segments
+    .map(parseUsageSegment)
+    .filter((segment): segment is { label: string | null; percent: number | null; time: string | null } => segment !== null);
+
+  const first = parsedSegments[0];
+  if (first) {
+    setTelemetryIfMissing(target, "usage_window_percent_left", first.percent);
+    setTelemetryIfMissing(target, "usage_window_time_left", first.time);
+    setTelemetryIfMissing(target, "usage_window_label", first.label);
+  }
+
+  const second = parsedSegments[1];
+  if (second) {
+    setTelemetryIfMissing(target, "usage_day_percent_left", second.percent);
+    setTelemetryIfMissing(target, "usage_day_time_left", second.time);
+    setTelemetryIfMissing(target, "usage_day_label", second.label);
+  }
+
+  const windowPercentMatch = line.match(/\bwindow\b[^0-9]*([\d.]+)\s*%\s*left\b/i);
+  if (windowPercentMatch) {
+    setTelemetryIfMissing(target, "usage_window_percent_left", parseNumberToken(windowPercentMatch[1] ?? ""));
+    setTelemetryIfMissing(target, "usage_window_label", "Window");
+  }
+
+  const dayOrWeekPercentMatch = line.match(/\b(day|week)\b[^0-9]*([\d.]+)\s*%\s*left\b/i);
+  if (dayOrWeekPercentMatch) {
+    setTelemetryIfMissing(target, "usage_day_percent_left", parseNumberToken(dayOrWeekPercentMatch[2] ?? ""));
+    setTelemetryIfMissing(target, "usage_day_label", nonEmpty(dayOrWeekPercentMatch[1] ?? ""));
+  }
+
+  const windowTimeMatch = line.match(/\bwindow\b.*?@\s*(.+?)(?:\s+(?:\u00b7|\|)\s+|\s+\b(?:day|week)\b|$)/i);
+  if (windowTimeMatch) {
+    const value = nonEmpty(windowTimeMatch[1] ?? "");
+    if (value && value.toLowerCase() !== "unknown") {
+      setTelemetryIfMissing(target, "usage_window_time_left", value);
+      setTelemetryIfMissing(target, "usage_window_label", "Window");
+    }
+  }
+
+  const dayOrWeekTimeMatch = line.match(/\b(day|week)\b.*?@\s*(.+?)(?:\s+(?:\u00b7|\|)\s+|$)/i);
+  if (dayOrWeekTimeMatch) {
+    const value = nonEmpty(dayOrWeekTimeMatch[2] ?? "");
+    if (value && value.toLowerCase() !== "unknown") {
+      setTelemetryIfMissing(target, "usage_day_time_left", value);
+      setTelemetryIfMissing(target, "usage_day_label", nonEmpty(dayOrWeekTimeMatch[1] ?? ""));
+    }
+  }
+}
+
+function parseUsageSegment(
+  segment: string
+): { label: string | null; percent: number | null; time: string | null } | null {
+  const match = segment.match(/^(.*?)\s*([\d.]+)\s*%\s*left(?:\s*@\s*(.+))?$/i);
+  if (!match) {
+    return null;
+  }
+
+  const rawLabel = nonEmpty(match[1] ?? "");
+  const label = rawLabel ? rawLabel.replace(/:$/, "").trim() : null;
+  const time = nonEmpty(match[3] ?? "");
+
+  return {
+    label,
+    percent: parseNumberToken(match[2] ?? ""),
+    time
+  };
 }
 
 const TOOL_FIELD_PAIRS: ReadonlyArray<readonly [string, string]> = [

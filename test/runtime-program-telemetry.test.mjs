@@ -62,10 +62,11 @@ test("buildHeartbeatBody extracts telemetry from nested runtime status objects",
       },
       usage: {
         window: {
+          label: "5h",
           percent_left: 86,
           time_left: "3h 4m"
         },
-        day: {
+        week: {
           percent_left: 24,
           time_left: "3d 16h"
         }
@@ -77,6 +78,12 @@ test("buildHeartbeatBody extracts telemetry from nested runtime status objects",
       auth: {
         mode: "oauth (openai-codex:default)"
       },
+      defaultModel: "openai-codex/gpt-5.3-codex",
+      resolvedDefault: "openai-codex/gpt-5.3-codex",
+      aliases: {
+        fast: "openai-codex/gpt-5.3-codex-mini"
+      },
+      allowed: ["anthropic/claude-sonnet-4"],
       thinking: {
         mode: "off"
       },
@@ -107,13 +114,25 @@ test("buildHeartbeatBody extracts telemetry from nested runtime status objects",
   assert.equal(meta.context_percent_used, 28);
   assert.equal(meta.context_compactions, 0);
   assert.equal(meta.usage_window_percent_left, 86);
+  assert.equal(meta.usage_window_label, "5h");
   assert.equal(meta.usage_window_time_left, "3h 4m");
   assert.equal(meta.usage_day_percent_left, 24);
+  assert.equal(meta.usage_day_label, "Week");
   assert.equal(meta.usage_day_time_left, "3d 16h");
   assert.equal(meta.session, "agent:main:main");
   assert.equal(meta.queue, "collect");
   assert.equal(meta.queue_depth, 1);
   assert.equal(meta.auth, "oauth (openai-codex:default)");
+  assert.deepEqual(meta.openclaw_models_status, {
+    default_model: "openai-codex/gpt-5.3-codex",
+    resolved_default: "openai-codex/gpt-5.3-codex"
+  });
+  assert.deepEqual(meta.models, [
+    "openai/gpt-5.3-codex",
+    "openai-codex/gpt-5.3-codex",
+    "anthropic/claude-sonnet-4",
+    "openai-codex/gpt-5.3-codex-mini"
+  ]);
   assert.equal(meta.thinking_mode, false);
   assert.equal(meta.browser_tool_available, true);
   assert.equal(meta.exec_tool_available, true);
@@ -129,7 +148,7 @@ test("buildHeartbeatBody extracts telemetry from status-style text fragments", a
       status: {
         model: "Model: openai-codex/gpt-5.3-codex",
         cache: "Cache: 89% hit, 600000 cached, 0 new",
-        usage: "Usage: Window 86% left @3h 4m | Day 24% left @3d 16h",
+        usage: "Usage: 5h 86% left @3h 4m | Week 24% left @3d 16h",
         runtime: "Runtime: openclaw | Think: off",
         tools: "Tools: Browser on | Exec on | Nodes on | Messaging on | Sessions on | Memory on",
         tokens: "Tokens: 77000 in / 1800 out",
@@ -155,8 +174,10 @@ test("buildHeartbeatBody extracts telemetry from status-style text fragments", a
   assert.equal(meta.context_percent_used, 28);
   assert.equal(meta.context_compactions, 0);
   assert.equal(meta.usage_window_percent_left, 86);
+  assert.equal(meta.usage_window_label, "5h");
   assert.equal(meta.usage_window_time_left, "3h 4m");
   assert.equal(meta.usage_day_percent_left, 24);
+  assert.equal(meta.usage_day_label, "Week");
   assert.equal(meta.usage_day_time_left, "3d 16h");
   assert.equal(meta.runtime_mode, "openclaw");
   assert.equal(meta.thinking_mode, "off");

@@ -2300,6 +2300,10 @@ export class OpenClawAgentRuntime {
       }
     }
 
+    if (state.connectionState === "connected") {
+      return;
+    }
+
     const inactivityMs = nowMs - state.lastHealthActivityAtMs;
     if (inactivityMs < this.options.selfHealActivityStaleMs) {
       return;

@@ -235,6 +235,7 @@ Keep heartbeat telemetry up to date on every send (do not hardcode stale values)
 -   Runtime behavior flags/modes when available: `meta.thinking_mode`, tool availability fields.
 -   Usage and token/context telemetry when available: token counters, cache metrics, context usage, and usage-window/day remaining fields.
 -   OpenClaw-specific metadata when available: `meta.openclaw_version`, `meta.openclaw_build`.
+-   OpenClaw current-model pointer when available: `meta.openclaw_models_status.default_model`, `meta.openclaw_models_status.resolved_default`.
 -   The runtime supervisor pulls these values from OpenClaw status commands (`openclaw status --json --usage`, fallback `openclaw status --json`, plus `openclaw models status --json`) before each heartbeat.
 
 ## Host Install Script (Systemd)

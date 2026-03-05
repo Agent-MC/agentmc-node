@@ -7346,6 +7346,18 @@ export interface components {
          *         "node_version": "v25.7.0",
          *         "agentmc_node_package_version": "0.14.2",
          *         "runtime_mode": "openclaw",
+         *         "usage_window_label": "5h",
+         *         "usage_window_percent_left": 97,
+         *         "usage_window_time_left": "2h 27m",
+         *         "usage_day_label": "Week",
+         *         "usage_day_percent_left": 98,
+         *         "usage_day_time_left": "5d 23h",
+         *         "auth": "oauth (openai-codex:default)",
+         *         "session": "agent:main:main",
+         *         "openclaw_models_status": {
+         *           "default_model": "openai-codex/gpt-5.3-codex",
+         *           "resolved_default": "openai-codex/gpt-5.3-codex"
+         *         },
          *         "tool_availability": {
          *           "chat_realtime": true,
          *           "files_realtime": true,
@@ -7438,7 +7450,30 @@ export interface components {
              *       "session": "agent:main:main",
              *       "queue": "collect",
              *       "queue_depth": 1,
-             *       "auth": "oauth (openai-codex:default)"
+             *       "auth": "oauth (openai-codex:default)",
+             *       "openclaw_models_status": {
+             *         "config_path": "/root/.openclaw/openclaw.json",
+             *         "agent_id": "main",
+             *         "agent_dir": "/root/.openclaw/agents/main/agent",
+             *         "default_model": "openai-codex/gpt-5.3-codex",
+             *         "resolved_default": "openai-codex/gpt-5.3-codex",
+             *         "fallbacks": [],
+             *         "model_config": {
+             *           "default_source": "defaults",
+             *           "fallbacks_source": "defaults"
+             *         },
+             *         "aliases_count": 0,
+             *         "aliases": [],
+             *         "allowed_count": 0,
+             *         "allowed": [],
+             *         "auth": {
+             *           "summary": "oauth (openai-codex:default)",
+             *           "store_path": "/root/.openclaw/agents/main/agent/auth-profiles.json",
+             *           "providers_with_oauth": [
+             *             "openai-codex (1)"
+             *           ]
+             *         }
+             *       }
              *     }
              */
             meta: {
@@ -7589,6 +7624,11 @@ export interface components {
                     [key: string]: boolean;
                 };
                 /**
+                 * @description Usage window label.
+                 * @example 5h
+                 */
+                usage_window_label?: string;
+                /**
                  * @description Usage window percent left.
                  * @example 86
                  */
@@ -7598,6 +7638,11 @@ export interface components {
                  * @example 3h 4m
                  */
                 usage_window_time_left?: string;
+                /**
+                 * @description Usage day label.
+                 * @example Week
+                 */
+                usage_day_label?: string;
                 /**
                  * @description Usage day percent left.
                  * @example 24
@@ -7624,20 +7669,29 @@ export interface components {
                  */
                 session?: string;
                 /**
-                 * @description Queue.
-                 * @example collect
-                 */
-                queue?: string;
-                /**
-                 * @description Queue depth.
-                 * @example 1
-                 */
-                queue_depth?: number;
-                /**
                  * @description Auth.
                  * @example oauth (openai-codex:default)
                  */
                 auth?: string;
+                /**
+                 * @description Normalized `openclaw models status --json` snapshot captured on heartbeat for current-model selection.
+                 * @example {
+                 *       "default_model": "openai-codex/gpt-5.3-codex",
+                 *       "resolved_default": "openai-codex/gpt-5.3-codex"
+                 *     }
+                 */
+                openclaw_models_status?: {
+                    /**
+                     * @description Default model.
+                     * @example openai-codex/gpt-5.3-codex
+                     */
+                    default_model?: string | null;
+                    /**
+                     * @description Resolved default.
+                     * @example openai-codex/gpt-5.3-codex
+                     */
+                    resolved_default?: string | null;
+                };
             } & {
                 [key: string]: unknown;
             };
