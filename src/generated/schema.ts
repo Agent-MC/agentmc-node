@@ -24,26 +24,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/agents/instructions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Fetch the AgentMC instruction bundle for the authenticated agent.
-         * @description Returns managed runtime files and bundle metadata. Send current_bundle_version to fetch files only when the bundle has changed.
-         */
-        get: operations["getAgentInstructions"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/hosts": {
         parameters: {
             query?: never;
@@ -10365,57 +10345,6 @@ export interface operations {
             402: components["responses"]["ApiError402"];
             403: components["responses"]["ApiError403"];
             404: components["responses"]["ApiError404"];
-            422: components["responses"]["ApiError422"];
-        };
-    };
-    getAgentInstructions: {
-        parameters: {
-            query?: {
-                /**
-                 * @description Current bundle version.
-                 * @example example
-                 */
-                current_bundle_version?: string | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Instruction bundle returned. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    /**
-                     * @example {
-                     *       "ok": true,
-                     *       "changed": true,
-                     *       "bundle_version": "bundle_2fa07fcadd6575cc",
-                     *       "generated_at": "2026-02-25T14:10:00Z",
-                     *       "defaults": {
-                     *         "heartbeat_interval_seconds": 60
-                     *       },
-                     *       "agent": {
-                     *         "id": 42
-                     *       },
-                     *       "files": [
-                     *         {
-                     *           "id": "skill.md",
-                     *           "path": ".agentmc/skills/skill.md",
-                     *           "content": "# AgentMC Skill\n",
-                     *           "sha256": "f96c95bd27dc9f3415cc0f4d817b5ec6f14185b6fcb5db9f6b6f14f648f8e9e4"
-                     *         }
-                     *       ]
-                     *     }
-                     */
-                    "application/json": components["schemas"]["AgentInstructionsResponse"];
-                };
-            };
-            401: components["responses"]["ApiError401"];
-            403: components["responses"]["ApiError403"];
             422: components["responses"]["ApiError422"];
         };
     };

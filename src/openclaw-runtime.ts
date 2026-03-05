@@ -28,8 +28,6 @@ const DEFAULT_OPENCLAW_WAIT_TIMEOUT_MS = 180_000;
 const DEFAULT_OPENCLAW_PROFILE_UPDATE_TIMEOUT_MS = 15_000;
 const DEFAULT_OPENCLAW_MAX_BUFFER_BYTES = 10 * 1024 * 1024;
 const DEFAULT_OPENCLAW_FORCE_KILL_GRACE_MS = 2_000;
-const DEFAULT_CHAT_STATUS_DELTA_INTERVAL_MS = 20_000;
-const DEFAULT_THINKING_ANIMATION_INTERVAL_MS = 800;
 const DEFAULT_SELF_HEAL_CONNECTION_STALE_MS = 45_000;
 const DEFAULT_SELF_HEAL_ACTIVITY_STALE_MS = 120_000;
 const DEFAULT_SELF_HEAL_MIN_SESSION_AGE_MS = 20_000;
@@ -47,31 +45,6 @@ const DEFAULT_OPENCLAW_DOC_IDS = [
   "BOOTSTRAP.md",
   "MEMORY.md"
 ] as const;
-
-const IN_PROGRESS_STATUS_MESSAGES = [
-  "Putting the final touches together...",
-  "Gathering the right pieces...",
-  "Almost ready...",
-  "Just a moment while we prepare this...",
-  "Making sure everything lines up...",
-  "Checking a few last details...",
-  "Preparing your results...",
-  "Getting everything ready for you...",
-  "One quick moment...",
-  "Finalizing things behind the scenes...",
-  "Making sure it's just right...",
-  "Getting the details in order...",
-  "Wrapping things up...",
-  "Setting everything into place...",
-  "Bringing it all together...",
-  "Just a second while we finish up...",
-  "Getting things ready on our side...",
-  "Almost there - preparing the results...",
-  "Working through the final steps...",
-  "Thanks for your patience - nearly done..."
-] as const;
-
-const THINKING_STATUS_FRAMES = ["Thinking.", "Thinking..", "Thinking...", "Thinking...."] as const;
 
 type JsonObject = Record<string, unknown>;
 type MaybePromise = void | Promise<void>;
@@ -2260,7 +2233,6 @@ export class OpenClawAgentRuntime {
     }
 
     let stopped = false;
-    let thinkingFrameIndex = 0;
     const statusDeltaId = `agent-status-${requestId}`;
 
     const publishDelta = (delta: string): void => {
@@ -2282,56 +2254,8 @@ export class OpenClawAgentRuntime {
     const dispatchTarget = resolveChatDispatchTargetLabel(this.options.runtimeSource, this.options.openclawCommand);
     publishDelta(buildDispatchStatusDelta(dispatchTarget));
 
-    let thinkingTimer: ReturnType<typeof setInterval> | null = null;
-    let staticThinkingTimer: ReturnType<typeof setTimeout> | null = null;
-    if (shouldAnimateThinkingStatus(this.options.thinkingText)) {
-      thinkingTimer = setInterval(() => {
-        if (stopped || state.closed || this.stopRequested) {
-          if (thinkingTimer) {
-            clearInterval(thinkingTimer);
-            thinkingTimer = null;
-          }
-          return;
-        }
-        thinkingFrameIndex = (thinkingFrameIndex + 1) % THINKING_STATUS_FRAMES.length;
-        publishDelta(THINKING_STATUS_FRAMES[thinkingFrameIndex] ?? this.options.thinkingText);
-      }, DEFAULT_THINKING_ANIMATION_INTERVAL_MS);
-      thinkingTimer.unref?.();
-    } else {
-      const staticThinkingText = this.options.thinkingText.trim();
-      if (staticThinkingText !== "") {
-        staticThinkingTimer = setTimeout(() => {
-          if (stopped || state.closed || this.stopRequested) {
-            return;
-          }
-          publishDelta(staticThinkingText);
-        }, 1200);
-        staticThinkingTimer.unref?.();
-      }
-    }
-
-    const inProgressTimer = setInterval(() => {
-      if (stopped || state.closed || this.stopRequested) {
-        clearInterval(inProgressTimer);
-        return;
-      }
-      if (thinkingTimer) {
-        clearInterval(thinkingTimer);
-        thinkingTimer = null;
-      }
-      publishDelta(buildInProgressStatusDelta());
-    }, DEFAULT_CHAT_STATUS_DELTA_INTERVAL_MS);
-    inProgressTimer.unref?.();
-
     return () => {
       stopped = true;
-      if (thinkingTimer) {
-        clearInterval(thinkingTimer);
-      }
-      if (staticThinkingTimer) {
-        clearTimeout(staticThinkingTimer);
-      }
-      clearInterval(inProgressTimer);
     };
   }
 
@@ -3787,16 +3711,18 @@ function isPlaceholderAssistantOutput(value: string): boolean {
   return normalized === "undefined" || normalized === "null" || normalized === "[object object]";
 }
 
-function buildInProgressStatusDelta(): string {
-  const messageIndex = Math.floor(Math.random() * IN_PROGRESS_STATUS_MESSAGES.length);
-  const message = IN_PROGRESS_STATUS_MESSAGES[messageIndex] ?? "Still working...";
-  return message;
-}
-
 function resolveChatDispatchTargetLabel(runtimeSource: string, openclawCommand: string): string {
-  void runtimeSource;
-  void openclawCommand;
-  return "agent";
+  const normalizedCommand = openclawCommand.trim().toLowerCase();
+  if (normalizedCommand.includes("openclaw")) {
+    return "OpenClaw CLI";
+  }
+
+  const normalizedRuntimeSource = runtimeSource.trim().toLowerCase();
+  if (normalizedRuntimeSource.includes("openclaw")) {
+    return "OpenClaw runtime";
+  }
+
+  return "agent runtime";
 }
 
 function buildDispatchStatusDelta(targetLabel: string): string {
@@ -3806,19 +3732,6 @@ function buildDispatchStatusDelta(targetLabel: string): string {
   }
 
   return `Sent to ${normalizedTarget}. Waiting for response...`;
-}
-
-function shouldAnimateThinkingStatus(thinkingText: string): boolean {
-  const normalized = thinkingText.trim().toLowerCase().replace(/\.+$/g, "");
-  return normalized === "thinking";
-}
-
-function buildThinkingStatusDelta(frameIndex: number, thinkingText: string): string {
-  if (!shouldAnimateThinkingStatus(thinkingText)) {
-    return thinkingText;
-  }
-  const normalizedIndex = Math.max(0, Math.floor(frameIndex)) % THINKING_STATUS_FRAMES.length;
-  return THINKING_STATUS_FRAMES[normalizedIndex] ?? thinkingText;
 }
 
 function shouldProcessInboundKey(state: SessionState, key: string, ttlMs: number): boolean {
