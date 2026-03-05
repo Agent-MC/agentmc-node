@@ -59,13 +59,8 @@ const DEFAULT_REALTIME_CHUNK_ENCODING = "base64json";
 const DEFAULT_REALTIME_READY_TIMEOUT_MS = 45_000;
 const DEFAULT_RESUBSCRIBE_BACKOFF_MS = 1_000;
 const MAX_RESUBSCRIBE_BACKOFF_MS = 12_000;
-const DEFAULT_RECONNECT_CATCHUP_LIMIT = 100;
-const MAX_RECONNECT_CATCHUP_BATCHES = 20;
-const DEFAULT_RECONNECT_CATCHUP_INTERVAL_MS = 7_500;
 const DEFAULT_SENDER_FOR_ENVELOPE_ESTIMATE = "agent";
 const DEFAULT_ENVELOPE_TIMESTAMP = "2026-01-01T00:00:00Z";
-const DEFAULT_HTTP_USER_AGENT =
-  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36";
 const TEXT_ENCODER = new TextEncoder();
 
 export interface AgentRealtimeSessionRecord {
@@ -432,6 +427,7 @@ export async function subscribeToRealtimeNotifications(
     }
 
     const eventName = valueAsString(socket.event)?.trim() || "agent.realtime.signal";
+    const signalEventNames = [eventName];
     const appKey = valueAsString(connection.key)?.trim();
     const host = valueAsString(connection.host)?.trim();
     const scheme = normalizeScheme(valueAsString(connection.scheme));
@@ -509,13 +505,10 @@ export async function subscribeToRealtimeNotifications(
     let boundChannel: PusherChannel | null = null;
     let resubscribeTimerHandle: ReturnType<typeof setTimeout> | null = null;
     let readyTimeoutHandle: ReturnType<typeof setTimeout> | null = null;
-    let catchupTimerHandle: ReturnType<typeof setInterval> | null = null;
-    let catchupInFlight = false;
     let resubscribeAttempt = 0;
     let eventQueue: Promise<void> = Promise.resolve();
     let hasSubscriptionReady = false;
     let lastDeliveredSignalId = 0;
-    const catchupPollingEnabled = canUseCatchupPolling(client);
 
     const clearResubscribeTimer = (): void => {
       if (resubscribeTimerHandle !== null) {
@@ -528,13 +521,6 @@ export async function subscribeToRealtimeNotifications(
       if (readyTimeoutHandle !== null) {
         clearTimeout(readyTimeoutHandle);
         readyTimeoutHandle = null;
-      }
-    };
-
-    const clearCatchupTimer = (): void => {
-      if (catchupTimerHandle !== null) {
-        clearInterval(catchupTimerHandle);
-        catchupTimerHandle = null;
       }
     };
 
@@ -586,78 +572,6 @@ export async function subscribeToRealtimeNotifications(
       }
     };
 
-    const replayMissedSignals = async (): Promise<void> => {
-      let cursor = Math.max(0, lastDeliveredSignalId);
-
-      for (let batch = 0; batch < MAX_RECONNECT_CATCHUP_BATCHES; batch += 1) {
-        if (disconnected) {
-          return;
-        }
-
-        const signals = await listRealtimeSignalsForCatchup(client, {
-          agentId: options.agent,
-          sessionId: claimedSession.id,
-          afterId: cursor,
-          limit: DEFAULT_RECONNECT_CATCHUP_LIMIT
-        });
-
-        if (signals.length === 0) {
-          return;
-        }
-
-        for (const signal of signals) {
-          await processSignal(signal);
-        }
-
-        const nextCursor = signals.reduce((maxId, signal) => Math.max(maxId, signal.id), cursor);
-        if (nextCursor <= cursor) {
-          return;
-        }
-        cursor = nextCursor;
-
-        if (signals.length < DEFAULT_RECONNECT_CATCHUP_LIMIT) {
-          return;
-        }
-      }
-
-      await callErrorHandler(
-        options.onError,
-        new Error(
-          `Realtime reconnect catch-up reached ${MAX_RECONNECT_CATCHUP_BATCHES} batches for session ${claimedSession.id}.`
-        )
-      );
-    };
-
-    const maybeReplayMissedSignals = async (): Promise<void> => {
-      if (disconnected || catchupInFlight) {
-        return;
-      }
-
-      catchupInFlight = true;
-      try {
-        await replayMissedSignals();
-      } finally {
-        catchupInFlight = false;
-      }
-    };
-
-    const startCatchupTimer = (): void => {
-      if (!catchupPollingEnabled || catchupTimerHandle !== null) {
-        return;
-      }
-
-      catchupTimerHandle = setInterval(() => {
-        enqueueEvent(async () => {
-          try {
-            await maybeReplayMissedSignals();
-          } catch (error) {
-            await callErrorHandler(options.onError, normalizeError(error));
-          }
-        });
-      }, DEFAULT_RECONNECT_CATCHUP_INTERVAL_MS);
-      catchupTimerHandle.unref?.();
-    };
-
     const onConnectionStateEvent = (statePayload: unknown): void => {
       const state = valueAsObject(statePayload);
       const current = valueAsString(state?.current)?.toLowerCase();
@@ -674,15 +588,6 @@ export async function subscribeToRealtimeNotifications(
         if (current === "connected") {
           clearResubscribeTimer();
           resubscribeAttempt = 0;
-          if (hasSubscriptionReady) {
-            enqueueEvent(async () => {
-              try {
-                await maybeReplayMissedSignals();
-              } catch (error) {
-                await callErrorHandler(options.onError, normalizeError(error));
-              }
-            });
-          }
         }
       }
     };
@@ -720,12 +625,11 @@ export async function subscribeToRealtimeNotifications(
         disconnected = true;
         clearReadyTimeout();
         clearResubscribeTimer();
-        clearCatchupTimer();
         unbindConnectionHandlers();
         if (boundChannel) {
           unbindChannel(
             boundChannel,
-            eventName,
+            signalEventNames,
             onSubscriptionSucceeded,
             onSubscriptionError,
             onSignalEvent
@@ -755,17 +659,7 @@ export async function subscribeToRealtimeNotifications(
         clearReadyTimeout();
         clearResubscribeTimer();
         resubscribeAttempt = 0;
-
-        if (hasSubscriptionReady) {
-          try {
-            await replayMissedSignals();
-          } catch (error) {
-            await callErrorHandler(options.onError, normalizeError(error));
-          }
-        }
-
         hasSubscriptionReady = true;
-        startCatchupTimer();
         subscription.markReady();
         await callOptionalHandler(options.onReady, claimedSession, options.onError);
       });
@@ -782,7 +676,6 @@ export async function subscribeToRealtimeNotifications(
       if (!isRetryableSubscriptionError(payload)) {
         clearReadyTimeout();
         clearResubscribeTimer();
-        clearCatchupTimer();
         subscription.markReadyError(error);
         currentConnectionState = "failed";
         if (options.onConnectionStateChange) {
@@ -797,7 +690,6 @@ export async function subscribeToRealtimeNotifications(
       const backoffMs = resolveResubscribeBackoffMs(resubscribeAttempt);
       resubscribeAttempt += 1;
       clearResubscribeTimer();
-      clearCatchupTimer();
       if (currentConnectionState !== "connecting") {
         currentConnectionState = "connecting";
         if (options.onConnectionStateChange) {
@@ -813,7 +705,7 @@ export async function subscribeToRealtimeNotifications(
           if (boundChannel) {
             unbindChannel(
               boundChannel,
-              eventName,
+              signalEventNames,
               onSubscriptionSucceeded,
               onSubscriptionError,
               onSignalEvent
@@ -829,7 +721,7 @@ export async function subscribeToRealtimeNotifications(
         boundChannel = subscribeAndBindChannel(
           pusher,
           channelName,
-          eventName,
+          signalEventNames,
           onSubscriptionSucceeded,
           onSubscriptionError,
           onSignalEvent
@@ -840,7 +732,7 @@ export async function subscribeToRealtimeNotifications(
     boundChannel = subscribeAndBindChannel(
       pusher,
       channelName,
-      eventName,
+      signalEventNames,
       onSubscriptionSucceeded,
       onSubscriptionError,
       onSignalEvent
@@ -1031,7 +923,7 @@ export async function subscribeToHostRealtimeSessionRequests(
         if (boundChannel) {
           unbindChannel(
             boundChannel,
-            eventName,
+            [eventName],
             onSubscriptionSucceeded,
             onSubscriptionError,
             onSessionRequestedEvent
@@ -1148,7 +1040,7 @@ export async function subscribeToHostRealtimeSessionRequests(
           if (boundChannel) {
             unbindChannel(
               boundChannel,
-              eventName,
+              [eventName],
               onSubscriptionSucceeded,
               onSubscriptionError,
               onSessionRequestedEvent
@@ -1164,7 +1056,7 @@ export async function subscribeToHostRealtimeSessionRequests(
         boundChannel = subscribeAndBindChannel(
           pusher,
           channelName,
-          eventName,
+          [eventName],
           onSubscriptionSucceeded,
           onSubscriptionError,
           onSessionRequestedEvent
@@ -1175,7 +1067,7 @@ export async function subscribeToHostRealtimeSessionRequests(
     boundChannel = subscribeAndBindChannel(
       pusher,
       channelName,
-      eventName,
+      [eventName],
       onSubscriptionSucceeded,
       onSubscriptionError,
       onSessionRequestedEvent
@@ -1388,64 +1280,6 @@ async function resolveAndClaimSession(
   }
 
   throw new Error(`No claimable realtime sessions are available for agent ${options.agent}.`);
-}
-
-async function listRealtimeSignalsForCatchup(
-  client: AgentMCApi,
-  options: {
-    agentId: number;
-    sessionId: number;
-    afterId: number;
-    limit: number;
-  }
-): Promise<AgentRealtimeSignalMessage[]> {
-  const baseUrl = valueAsString(client.getBaseUrl())?.trim();
-  const apiKey = valueAsString(client.getConfiguredApiKey())?.trim();
-  if (!baseUrl || !apiKey) {
-    throw new Error("Realtime catch-up requires configured base URL and API key.");
-  }
-
-  const path = `hosts/realtime/sessions/${options.sessionId}/signals`;
-  const url = new URL(path, `${baseUrl.replace(/\/+$/, "")}/`);
-  url.searchParams.set("after_id", String(Math.max(0, options.afterId)));
-  url.searchParams.set("limit", String(Math.max(1, options.limit)));
-
-  const response = await fetch(url.toString(), {
-    method: "GET",
-    headers: {
-      Accept: "application/json",
-      "X-Api-Key": apiKey,
-      "X-Agent-Id": String(options.agentId),
-      "User-Agent": DEFAULT_HTTP_USER_AGENT
-    }
-  });
-
-  if (response.status === 404) {
-    // Backward compatibility for older API deployments without replay endpoint.
-    return [];
-  }
-
-  if (!response.ok) {
-    throw new Error(`listAgentRealtimeSignals failed with status ${response.status}`);
-  }
-
-  const payload = valueAsObject(await response.json()) ?? {};
-  const rows = Array.isArray(payload.data) ? payload.data : [];
-
-  return rows
-    .map((row) => normalizeSignal(row, options.sessionId))
-    .filter((row): row is AgentRealtimeSignalMessage => row !== null)
-    .sort((left, right) => left.id - right.id);
-}
-
-function canUseCatchupPolling(client: AgentMCApi): boolean {
-  try {
-    const baseUrl = valueAsString(client.getBaseUrl())?.trim();
-    const apiKey = valueAsString(client.getConfiguredApiKey())?.trim();
-    return Boolean(baseUrl && apiKey);
-  } catch {
-    return false;
-  }
 }
 
 function buildSharedTransportKey(input: {
@@ -1730,7 +1564,7 @@ function normalizeScheme(value: string | null): "http" | "https" {
 function subscribeAndBindChannel(
   pusher: PusherClient,
   channelName: string,
-  eventName: string,
+  eventNames: string[],
   onSubscriptionSucceeded: () => void,
   onSubscriptionError: (payload: unknown) => void,
   onSignalEvent: (payload: unknown) => void
@@ -1738,13 +1572,15 @@ function subscribeAndBindChannel(
   const channel = pusher.subscribe(channelName);
   channel.bind("pusher:subscription_succeeded", onSubscriptionSucceeded);
   channel.bind("pusher:subscription_error", onSubscriptionError);
-  channel.bind(eventName, onSignalEvent);
+  for (const eventName of eventNames) {
+    channel.bind(eventName, onSignalEvent);
+  }
   return channel;
 }
 
 function unbindChannel(
   channel: PusherChannel,
-  eventName: string,
+  eventNames: string[],
   onSubscriptionSucceeded: () => void,
   onSubscriptionError: (payload: unknown) => void,
   onSignalEvent: (payload: unknown) => void
@@ -1755,7 +1591,9 @@ function unbindChannel(
 
   channel.unbind("pusher:subscription_succeeded", onSubscriptionSucceeded);
   channel.unbind("pusher:subscription_error", onSubscriptionError);
-  channel.unbind(eventName, onSignalEvent);
+  for (const eventName of eventNames) {
+    channel.unbind(eventName, onSignalEvent);
+  }
 }
 
 function resolveResubscribeBackoffMs(attempt: number): number {
