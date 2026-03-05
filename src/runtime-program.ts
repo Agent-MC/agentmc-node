@@ -1005,6 +1005,7 @@ export class AgentRuntimeProgram {
       sessionPollingEnabled: this.options.realtimeSessionPollingEnabled !== false,
       runtimeDocsDirectory,
       runtimeWorkingDirectory: this.workspaceDir,
+      includeMissingRuntimeDocs: true,
       openclawCommand: this.options.openclawCommand,
       openclawAgent: this.options.openclawAgent,
       openclawSessionsPath: this.options.openclawSessionsPath,

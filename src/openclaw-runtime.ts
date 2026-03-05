@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { access, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, resolve } from "node:path";
@@ -1592,7 +1592,6 @@ export class OpenClawAgentRuntime {
     }
 
     const baseHash = valueAsString(payload.base_hash)?.trim() || "";
-    const title = valueAsString(payload.title)?.trim() || fileId;
     const bodyMarkdown = valueAsString(payload.body_markdown) ?? "";
 
     try {
@@ -1629,7 +1628,7 @@ export class OpenClawAgentRuntime {
         ...buildFileIdPayload(fileId),
         doc: {
           id: fileId,
-          title: title || next.title,
+          title: next.title,
           body_markdown: next.body_markdown,
           base_hash: next.base_hash
         }
@@ -1690,47 +1689,11 @@ export class OpenClawAgentRuntime {
       return;
     }
 
-    try {
-      const current = await this.readRuntimeDoc(fileId);
-      if (!current) {
-        await this.publishChannelMessage(state.sessionId, "file.delete.error", requestId, {
-          ...buildFileIdPayload(fileId),
-          code: "not_found",
-          error: "file not found"
-        });
-        return;
-      }
-
-      const baseHash = valueAsString(payload.base_hash)?.trim() || "";
-      if (baseHash !== current.base_hash) {
-        await this.publishChannelMessage(state.sessionId, "file.delete.error", requestId, {
-          ...buildFileIdPayload(fileId),
-          code: "conflict",
-          error: "base_hash mismatch",
-          current_hash: current.base_hash
-        });
-        return;
-      }
-
-      await rm(this.resolveRuntimeDocPath(fileId), { force: false });
-
-      await this.publishChannelMessage(state.sessionId, "file.delete.ok", requestId, {
-        ...buildFileIdPayload(fileId)
-      });
-    } catch (error) {
-      const normalized = normalizeError(error);
-      await this.emitError(normalized);
-
-      try {
-        await this.publishChannelMessage(state.sessionId, "file.delete.error", requestId, {
-          ...buildFileIdPayload(fileId),
-          code: "delete_failed",
-          error: "failed to delete file"
-        });
-      } catch (publishError) {
-        await this.emitError(normalizeError(publishError));
-      }
-    }
+    await this.publishChannelMessage(state.sessionId, "file.delete.error", requestId, {
+      ...buildFileIdPayload(fileId),
+      code: "unsupported_operation",
+      error: "managed runtime files cannot be deleted"
+    });
   }
 
   private async handleAgentProfileUpdate(
