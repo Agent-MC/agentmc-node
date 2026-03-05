@@ -10,6 +10,9 @@ const result = await client.operations.updateTaskComment({
       "task": 1,
       "comment": 1
     }
+  },
+  "body": {
+    "body": "Updated handoff note with the latest timeline and log links."
   }
 });
 

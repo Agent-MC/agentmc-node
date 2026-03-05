@@ -4,15 +4,11 @@ const client = new AgentMCApi({
   apiKey: process.env.AGENTMC_API_KEY
 });
 
-const result = await client.operations.createBoardColumn({
+const result = await client.operations.listDueRecurringTaskRuns({
   "params": {
-    "path": {
-      "board": 1
+    "query": {
+      "limit": 20
     }
-  },
-  "body": {
-    "name": "In Progress",
-    "position": 2
   }
 });
 

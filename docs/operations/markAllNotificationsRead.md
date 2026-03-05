@@ -15,25 +15,64 @@ None.
 
 ## Request Example
 
-None.
+### application/json
+```json
+{}
+```
 
 ## Success Responses
 
-### 200 (none)
+### 200 (application/json)
 Notifications updated.
 
-```text
-No response body.
+```json
+{
+  "data": {
+    "updated": 4,
+    "unread_count": 0
+  }
+}
 ```
 
 
 ## Error Responses
 
-### default (none)
-Error response.
+### 401 (application/json)
+Missing or invalid credentials.
 
-```text
-No response body.
+```json
+{
+  "error": {
+    "code": "validation.failed",
+    "message": "Validation failed.",
+    "details": {
+      "fields": {
+        "title": [
+          "The title field is required."
+        ]
+      }
+    }
+  }
+}
+```
+
+### 403 (application/json)
+Forbidden.
+
+```json
+{
+  "error": {
+    "code": "validation.failed",
+    "message": "Validation failed.",
+    "details": {
+      "fields": {
+        "title": [
+          "The title field is required."
+        ]
+      }
+    }
+  }
+}
 ```
 
 
@@ -46,7 +85,9 @@ const client = new AgentMCApi({
   apiKey: process.env.AGENTMC_API_KEY
 });
 
-const result = await client.operations.markAllNotificationsRead();
+const result = await client.operations.markAllNotificationsRead({
+  "body": {}
+});
 
 if (result.error) {
   console.error(result.status, result.error);

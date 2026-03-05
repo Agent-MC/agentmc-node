@@ -13,7 +13,7 @@ No additional description.
 
 | Name | In | Required | Description | Example |
 | --- | --- | --- | --- | --- |
-| id | path | yes | File identifier. | 1 |
+| id | path | yes | File identifier. | 42 |
 
 ## Request Example
 
@@ -22,7 +22,7 @@ None.
 ## Success Responses
 
 ### 302 (none)
-Redirect to signed download URL.
+Redirect to a short-lived signed download URL.
 
 ```text
 No response body.
@@ -31,11 +31,80 @@ No response body.
 
 ## Error Responses
 
-### default (none)
-Error response.
+### 401 (application/json)
+Missing or invalid credentials.
 
-```text
-No response body.
+```json
+{
+  "error": {
+    "code": "validation.failed",
+    "message": "Validation failed.",
+    "details": {
+      "fields": {
+        "title": [
+          "The title field is required."
+        ]
+      }
+    }
+  }
+}
+```
+
+### 403 (application/json)
+Forbidden.
+
+```json
+{
+  "error": {
+    "code": "validation.failed",
+    "message": "Validation failed.",
+    "details": {
+      "fields": {
+        "title": [
+          "The title field is required."
+        ]
+      }
+    }
+  }
+}
+```
+
+### 404 (application/json)
+Resource not found.
+
+```json
+{
+  "error": {
+    "code": "validation.failed",
+    "message": "Validation failed.",
+    "details": {
+      "fields": {
+        "title": [
+          "The title field is required."
+        ]
+      }
+    }
+  }
+}
+```
+
+### 503 (application/json)
+Service unavailable.
+
+```json
+{
+  "error": {
+    "code": "validation.failed",
+    "message": "Validation failed.",
+    "details": {
+      "fields": {
+        "title": [
+          "The title field is required."
+        ]
+      }
+    }
+  }
+}
 ```
 
 
@@ -51,7 +120,7 @@ const client = new AgentMCApi({
 const result = await client.operations.downloadFile({
   "params": {
     "path": {
-      "id": 1
+      "id": 42
     }
   }
 });

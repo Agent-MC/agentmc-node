@@ -15,25 +15,121 @@ None.
 
 ## Request Example
 
-None.
+### application/json
+```json
+{
+  "socket_id": "1234.567890",
+  "channel_name": "private-agent-realtime-host.12"
+}
+```
 
 ## Success Responses
 
-### 200 (none)
+### 200 (application/json)
 Host socket subscription authorized.
 
-```text
-No response body.
+```json
+{
+  "auth": "example"
+}
 ```
 
 
 ## Error Responses
 
-### default (none)
-Error response.
+### 401 (application/json)
+Missing or invalid credentials.
 
-```text
-No response body.
+```json
+{
+  "error": {
+    "code": "validation.failed",
+    "message": "Validation failed.",
+    "details": {
+      "fields": {
+        "title": [
+          "The title field is required."
+        ]
+      }
+    }
+  }
+}
+```
+
+### 403 (application/json)
+Forbidden.
+
+```json
+{
+  "error": {
+    "code": "validation.failed",
+    "message": "Validation failed.",
+    "details": {
+      "fields": {
+        "title": [
+          "The title field is required."
+        ]
+      }
+    }
+  }
+}
+```
+
+### 404 (application/json)
+Resource not found.
+
+```json
+{
+  "error": {
+    "code": "validation.failed",
+    "message": "Validation failed.",
+    "details": {
+      "fields": {
+        "title": [
+          "The title field is required."
+        ]
+      }
+    }
+  }
+}
+```
+
+### 409 (application/json)
+Conflict.
+
+```json
+{
+  "error": {
+    "code": "validation.failed",
+    "message": "Validation failed.",
+    "details": {
+      "fields": {
+        "title": [
+          "The title field is required."
+        ]
+      }
+    }
+  }
+}
+```
+
+### 422 (application/json)
+Validation failed.
+
+```json
+{
+  "error": {
+    "code": "validation.failed",
+    "message": "Validation failed.",
+    "details": {
+      "fields": {
+        "title": [
+          "The title field is required."
+        ]
+      }
+    }
+  }
+}
 ```
 
 
@@ -46,7 +142,12 @@ const client = new AgentMCApi({
   apiKey: process.env.AGENTMC_API_KEY
 });
 
-const result = await client.operations.authenticateHostRealtimeSocket();
+const result = await client.operations.authenticateHostRealtimeSocket({
+  "body": {
+    "socket_id": "1234.567890",
+    "channel_name": "private-agent-realtime-host.12"
+  }
+});
 
 if (result.error) {
   console.error(result.status, result.error);

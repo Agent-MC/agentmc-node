@@ -7,7 +7,7 @@ const client = new AgentMCApi({
 const result = await client.operations.showBoard({
   "params": {
     "path": {
-      "id": 1
+      "id": 42
     }
   }
 });

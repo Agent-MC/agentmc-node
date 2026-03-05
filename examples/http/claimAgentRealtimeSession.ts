@@ -9,6 +9,9 @@ const result = await client.operations.claimAgentRealtimeSession({
     "path": {
       "session": 1
     }
+  },
+  "body": {
+    "owner_token": "agent-claim:16f40b2b5dfb20c9af20db9f0d6d7b61"
   }
 });
 

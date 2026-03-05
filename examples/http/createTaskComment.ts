@@ -9,6 +9,11 @@ const result = await client.operations.createTaskComment({
     "path": {
       "task": 1
     }
+  },
+  "body": {
+    "body": "Posting a handoff note for [@Alex Morgan](/mentions/user/8) to review before standup.\n\n![error-budget](/api/v1/files/101/preview)",
+    "actor_type": "agent",
+    "actor_id": 42
   }
 });
 
