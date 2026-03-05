@@ -15,6 +15,7 @@ No additional description.
 | --- | --- | --- | --- | --- |
 | unread | query | no | Filter unread notifications only. Accepts true/false (and 1/0). | true |
 | per_page | query | no | Page size for paginated responses. | 25 |
+| page | query | no | Page. | 1 |
 
 ## Request Example
 
@@ -158,7 +159,8 @@ const result = await client.operations.listNotifications({
   "params": {
     "query": {
       "unread": true,
-      "per_page": 25
+      "per_page": 25,
+      "page": 1
     }
   }
 });

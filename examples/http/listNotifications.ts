@@ -8,7 +8,8 @@ const result = await client.operations.listNotifications({
   "params": {
     "query": {
       "unread": true,
-      "per_page": 25
+      "per_page": 25,
+      "page": 1
     }
   }
 });

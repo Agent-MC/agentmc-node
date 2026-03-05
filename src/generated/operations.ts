@@ -571,11 +571,13 @@ export const operations = [
         "example": 1
       }
     ],
-    "requestBodyRequired": false,
+    "requestBodyRequired": true,
     "requestExamples": [
       {
         "mediaType": "application/json",
-        "example": {}
+        "example": {
+          "owner_token": "agent-claim:16f40b2b5dfb20c9af20db9f0d6d7b61"
+        }
       }
     ],
     "responses": [
@@ -666,6 +668,25 @@ export const operations = [
         "status": "409",
         "mediaType": "application/json",
         "description": "Conflict.",
+        "hasContent": true,
+        "example": {
+          "error": {
+            "code": "validation.failed",
+            "message": "Validation failed.",
+            "details": {
+              "fields": {
+                "title": [
+                  "The title field is required."
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": "422",
+        "mediaType": "application/json",
+        "description": "Validation failed.",
         "hasContent": true,
         "example": {
           "error": {
@@ -5455,6 +5476,13 @@ export const operations = [
         "required": false,
         "description": "Page size for paginated responses.",
         "example": 25
+      },
+      {
+        "name": "page",
+        "in": "query",
+        "required": false,
+        "description": "Page.",
+        "example": 1
       }
     ],
     "requestBodyRequired": false,

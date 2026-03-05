@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import type { AgentMCApi } from "./client";
 
 type MaybePromise = void | Promise<void>;
@@ -109,6 +111,7 @@ export interface AgentRealtimeNotificationEvent {
 export interface AgentRealtimeNotificationsOptions {
   agent: number;
   session?: number;
+  claimOwnerToken?: string;
   requestedSessionLimit?: number;
   readyTimeoutMs?: number;
   autoCloseSession?: boolean;
@@ -1236,6 +1239,7 @@ async function resolveAndClaimSession(
 
   let lastClaimError: Error | null = null;
   const explicitSessionRequested = options.session !== undefined;
+  const ownerToken = resolveClaimOwnerToken(client, options);
 
   for (const sessionId of candidateSessionIds) {
     const claimResult = await invokeOperation(client, "claimAgentRealtimeSession", {
@@ -1247,7 +1251,9 @@ async function resolveAndClaimSession(
       headers: {
         "X-Agent-Id": String(options.agent)
       },
-      body: {}
+      body: {
+        owner_token: ownerToken
+      }
     });
 
     if (claimResult.error) {
@@ -1702,6 +1708,21 @@ function normalizeReadyTimeoutMs(value: number | undefined): number {
   }
 
   return DEFAULT_REALTIME_READY_TIMEOUT_MS;
+}
+
+function resolveClaimOwnerToken(client: AgentMCApi, options: AgentRealtimeNotificationsOptions): string {
+  const provided = valueAsString(options.claimOwnerToken)?.trim();
+  if (provided) {
+    return provided;
+  }
+
+  const baseUrl = client.getBaseUrl().trim().toLowerCase();
+  const apiKey = client.getConfiguredApiKey()?.trim() || "no-api-key";
+  const digest = createHash("sha256")
+    .update(`agent:${options.agent}|base:${baseUrl}|key:${apiKey}`)
+    .digest("hex");
+
+  return `agent-claim:${digest.slice(0, 48)}`;
 }
 
 async function closeClaimedSessionOnSubscribeFailure(

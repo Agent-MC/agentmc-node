@@ -19,7 +19,9 @@ Accepts host API key context by session ownership. X-Agent-Id remains optional f
 
 ### application/json
 ```json
-{}
+{
+  "owner_token": "agent-claim:16f40b2b5dfb20c9af20db9f0d6d7b61"
+}
 ```
 
 ## Success Responses
@@ -129,6 +131,25 @@ Conflict.
 }
 ```
 
+### 422 (application/json)
+Validation failed.
+
+```json
+{
+  "error": {
+    "code": "validation.failed",
+    "message": "Validation failed.",
+    "details": {
+      "fields": {
+        "title": [
+          "The title field is required."
+        ]
+      }
+    }
+  }
+}
+```
+
 
 ## SDK Example
 
@@ -145,7 +166,9 @@ const result = await client.operations.claimAgentRealtimeSession({
       "session": 1
     }
   },
-  "body": {}
+  "body": {
+    "owner_token": "agent-claim:16f40b2b5dfb20c9af20db9f0d6d7b61"
+  }
 });
 
 if (result.error) {

@@ -28,6 +28,7 @@ const OPENCLAW_AGENT_DISCOVERY_TIMEOUT_MS = 10_000;
 const DEFAULT_AGENTMC_API_BASE_URL = "https://agentmc.ai/api/v1";
 const DEFAULT_HEARTBEAT_INTERVAL_SECONDS = 60;
 const DEFAULT_HEARTBEAT_NOTIFICATION_CATCHUP_PER_PAGE = 50;
+const DEFAULT_HEARTBEAT_NOTIFICATION_CATCHUP_MAX_PAGES = 100;
 const DEFAULT_RECURRING_TASK_POLL_INTERVAL_SECONDS = 30;
 const DEFAULT_RECURRING_TASK_POLL_LIMIT = 5;
 const DEFAULT_RECURRING_TASK_WAIT_TIMEOUT_MS = 600_000;
@@ -1412,36 +1413,62 @@ export class AgentRuntimeProgram {
     }
 
     try {
-      const response = await listNotifications({
-        params: {
-          query: {
-            unread: true,
-            per_page: DEFAULT_HEARTBEAT_NOTIFICATION_CATCHUP_PER_PAGE
+      let page = 1;
+      let totalReceived = 0;
+      let processed = 0;
+      let skipped = 0;
+      let sessionId: number | null = null;
+
+      while (!this.stopRequested && page <= DEFAULT_HEARTBEAT_NOTIFICATION_CATCHUP_MAX_PAGES) {
+        const response = await listNotifications({
+          params: {
+            query: {
+              unread: true,
+              per_page: DEFAULT_HEARTBEAT_NOTIFICATION_CATCHUP_PER_PAGE,
+              page
+            }
+          },
+          headers: {
+            "X-Agent-Id": String(agentId)
           }
-        },
-        headers: {
-          "X-Agent-Id": String(agentId)
+        });
+
+        if (response.error) {
+          throw createOperationFailureError("listNotifications", response);
         }
-      });
 
-      if (response.error) {
-        throw createOperationFailureError("listNotifications", response);
+        const payload = valueAsObject(response.data) ?? (await readJsonResponseObject(response.response)) ?? {};
+        const rows = Array.isArray(payload.data) ? payload.data : [];
+        if (rows.length === 0) {
+          break;
+        }
+
+        const ingestResult = await runtime.ingestNotificationsFromApi(rows, { source: "api_poll" });
+        totalReceived += ingestResult.totalReceived;
+        processed += ingestResult.processed;
+        skipped += ingestResult.skipped;
+        sessionId = ingestResult.sessionId ?? sessionId;
+
+        const meta = valueAsObject(payload.meta);
+        const currentPage = toPositiveInt(meta?.current_page) ?? 0;
+        const lastPage = toPositiveInt(meta?.last_page) ?? 0;
+        if (
+          (currentPage > 0 && lastPage > 0 && currentPage >= lastPage) ||
+          (currentPage === 0 && rows.length < DEFAULT_HEARTBEAT_NOTIFICATION_CATCHUP_PER_PAGE)
+        ) {
+          break;
+        }
+
+        page += 1;
       }
 
-      const payload = valueAsObject(response.data) ?? (await readJsonResponseObject(response.response)) ?? {};
-      const rows = Array.isArray(payload.data) ? payload.data : [];
-      if (rows.length === 0) {
-        return;
-      }
-
-      const ingestResult = await runtime.ingestNotificationsFromApi(rows, { source: "api_poll" });
-      if (ingestResult.processed > 0) {
+      if (processed > 0) {
         this.emitInfo("Heartbeat notification catch-up processed notifications", {
-          source: ingestResult.source,
-          session_id: ingestResult.sessionId,
-          total_received: ingestResult.totalReceived,
-          processed: ingestResult.processed,
-          skipped: ingestResult.skipped
+          source: "api_poll",
+          session_id: sessionId,
+          total_received: totalReceived,
+          processed,
+          skipped
         });
       }
     } catch (error) {

@@ -560,11 +560,22 @@ export class OpenClawAgentRuntime {
     const orderedSessions = [...sessions].sort(
       (left, right) => toPositiveInteger(right?.id) - toPositiveInteger(left?.id)
     );
-    const limitedSessions = orderedSessions.slice(0, Math.max(1, this.options.requestedSessionLimit));
+    const browserSessions = orderedSessions.filter((session) => toPositiveInteger(session?.requested_by_user_id) >= 1);
+    const systemSessions = orderedSessions.filter((session) => toPositiveInteger(session?.requested_by_user_id) < 1);
 
-    const preferredSessions = limitedSessions.filter((session) => toPositiveInteger(session?.requested_by_user_id) >= 1);
-    const fallbackSessions = limitedSessions.filter((session) => toPositiveInteger(session?.requested_by_user_id) < 1);
-    const nextSessionId = [...preferredSessions, ...fallbackSessions]
+    if (!this.hasTrackedRequestedSession(systemSessions)) {
+      const nextSystemSessionId = systemSessions
+        .map((session) => toPositiveInteger(session?.id))
+        .find((sessionId) => sessionId > 0 && !this.sessions.has(sessionId));
+
+      if (typeof nextSystemSessionId === "number") {
+        this.startSessionLoop(nextSystemSessionId);
+        return;
+      }
+    }
+
+    const limitedBrowserSessions = browserSessions.slice(0, Math.max(1, this.options.requestedSessionLimit));
+    const nextSessionId = limitedBrowserSessions
       .map((session) => toPositiveInteger(session?.id))
       .find((sessionId) => sessionId > 0 && !this.sessions.has(sessionId));
 
@@ -1056,7 +1067,7 @@ export class OpenClawAgentRuntime {
     notification: JsonObject,
     runResult: OpenClawRunResult
   ): Promise<void> {
-    if (runResult.status !== "ok" || runResult.textSource !== "wait") {
+    if (runResult.status !== "ok") {
       return;
     }
 
@@ -2518,6 +2529,13 @@ export class OpenClawAgentRuntime {
 
   private shouldProcessNotificationKey(key: string): boolean {
     return shouldProcessCacheKey(this.processedNotificationKeys, key, this.options.duplicateTtlMs);
+  }
+
+  private hasTrackedRequestedSession(sessions: readonly unknown[]): boolean {
+    return sessions.some((session) => {
+      const sessionId = toPositiveInteger(valueAsObject(session)?.id);
+      return sessionId > 0 && this.sessions.has(sessionId);
+    });
   }
 
   private resolveNotificationSessionState(

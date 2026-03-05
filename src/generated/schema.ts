@@ -7196,6 +7196,19 @@ export interface components {
             channel_name: string;
         };
         /**
+         * @description Claim Agent Realtime Session Api Request request schema.
+         * @example {
+         *       "owner_token": "agent-claim:16f40b2b5dfb20c9af20db9f0d6d7b61"
+         *     }
+         */
+        ClaimAgentRealtimeSessionApiRequest: {
+            /**
+             * @description Owner token.
+             * @example agent-claim:16f40b2b5dfb20c9af20db9f0d6d7b61
+             */
+            owner_token: string;
+        };
+        /**
          * @description Close Agent Realtime Session Api Request request schema.
          * @example {
          *       "reason": "example",
@@ -9859,6 +9872,16 @@ export interface components {
                 "application/json": components["schemas"]["AuthenticateHostRealtimeSocketApiRequest"];
             };
         };
+        ClaimAgentRealtimeSessionApiRequest: {
+            content: {
+                /**
+                 * @example {
+                 *       "owner_token": "agent-claim:16f40b2b5dfb20c9af20db9f0d6d7b61"
+                 *     }
+                 */
+                "application/json": components["schemas"]["ClaimAgentRealtimeSessionApiRequest"];
+            };
+        };
         CloseAgentRealtimeSessionApiRequest: {
             content: {
                 /**
@@ -11040,12 +11063,7 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: {
-            content: {
-                /** @example {} */
-                "application/json": components["schemas"]["EmptyRequest"];
-            };
-        };
+        requestBody: components["requestBodies"]["ClaimAgentRealtimeSessionApiRequest"];
         responses: {
             /** @description Realtime session claimed. */
             200: {
@@ -11082,6 +11100,7 @@ export interface operations {
             403: components["responses"]["ApiError403"];
             404: components["responses"]["ApiError404"];
             409: components["responses"]["ApiError409"];
+            422: components["responses"]["ApiError422"];
         };
     };
     listAgentRealtimeSignals: {
@@ -13261,6 +13280,11 @@ export interface operations {
                  * @example 25
                  */
                 per_page?: number | null;
+                /**
+                 * @description Page.
+                 * @example 1
+                 */
+                page?: number | null;
             };
             header?: never;
             path?: never;

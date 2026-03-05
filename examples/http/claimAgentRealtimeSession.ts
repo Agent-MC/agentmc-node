@@ -10,7 +10,9 @@ const result = await client.operations.claimAgentRealtimeSession({
       "session": 1
     }
   },
-  "body": {}
+  "body": {
+    "owner_token": "agent-claim:16f40b2b5dfb20c9af20db9f0d6d7b61"
+  }
 });
 
 if (result.error) {

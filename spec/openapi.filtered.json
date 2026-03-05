@@ -1053,6 +1053,9 @@
           },
           "409": {
             "$ref": "#/components/responses/ApiError409"
+          },
+          "422": {
+            "$ref": "#/components/responses/ApiError422"
           }
         },
         "security": [
@@ -1061,15 +1064,7 @@
           }
         ],
         "requestBody": {
-          "required": false,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/EmptyRequest"
-              },
-              "example": {}
-            }
-          }
+          "$ref": "#/components/requestBodies/ClaimAgentRealtimeSessionApiRequest"
         }
       }
     },
@@ -4289,6 +4284,18 @@
               "maximum": 100
             },
             "example": 25
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "Page.",
+            "schema": {
+              "nullable": true,
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 1
           }
         ]
       }
@@ -12786,6 +12793,26 @@
           "channel_name": "private-agent-realtime.7.42"
         }
       },
+      "ClaimAgentRealtimeSessionApiRequest": {
+        "type": "object",
+        "properties": {
+          "owner_token": {
+            "type": "string",
+            "minLength": 16,
+            "maxLength": 128,
+            "pattern": "/^[a-z0-9:_-]+$/i",
+            "description": "Owner token.",
+            "example": "agent-claim:16f40b2b5dfb20c9af20db9f0d6d7b61"
+          }
+        },
+        "required": [
+          "owner_token"
+        ],
+        "description": "Claim Agent Realtime Session Api Request request schema.",
+        "example": {
+          "owner_token": "agent-claim:16f40b2b5dfb20c9af20db9f0d6d7b61"
+        }
+      },
       "CloseAgentRealtimeSessionApiRequest": {
         "type": "object",
         "properties": {
@@ -15012,6 +15039,19 @@
             "example": {
               "socket_id": "1234.567890",
               "channel_name": "private-agent-realtime-host.12"
+            }
+          }
+        }
+      },
+      "ClaimAgentRealtimeSessionApiRequest": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ClaimAgentRealtimeSessionApiRequest"
+            },
+            "example": {
+              "owner_token": "agent-claim:16f40b2b5dfb20c9af20db9f0d6d7b61"
             }
           }
         }
