@@ -7,10 +7,7 @@ const client = new AgentMCApi({
 const result = await client.operations.showHost({
   "params": {
     "path": {
-      "id": 42
-    },
-    "query": {
-      "agents_per_page": 25
+      "id": 1
     }
   }
 });

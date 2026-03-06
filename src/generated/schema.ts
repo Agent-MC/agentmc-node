@@ -15,7 +15,7 @@ export interface paths {
         put?: never;
         /**
          * Record host heartbeat and runtime telemetry.
-         * @description Accepts heartbeat payloads with required host telemetry and required runtime agent metadata. Runtime clients should include `meta.models` and `meta.agentmc_node_package_version` on every heartbeat.
+         * @description Accepts heartbeat pings with required host telemetry payload and required runtime agent metadata.
          */
         post: operations["agentHeartbeat"];
         delete?: never;
@@ -71,15 +71,12 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * List brief parents for the current team.
-         * @description Lists briefs for the current team. Host/team API key callers should send X-Agent-Id (or agent_id query) when acting as a specific agent.
-         */
+        /** List brief parents for the current team. */
         get: operations["listAgentBriefs"];
         put?: never;
         /**
          * Upsert a brief parent by key and append one child entry.
-         * @description Creates or appends a brief for one agent. When using host/team API keys, provide X-Agent-Id (or agent_id query) or send source.agent_id in the request body.
+         * @description On first sync for a key, AgentMC creates a parent brief and this first child. On later syncs for the same key, AgentMC reuses the parent and appends a new child entry.
          */
         post: operations["createAgentBrief"];
         delete?: never;
@@ -98,16 +95,13 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /**
-         * Delete one saved brief.
-         * @description Deletes one brief for the acting agent context. Host/team API key callers must provide X-Agent-Id (or agent_id query) unless the credential is already scoped to one agent.
-         */
+        /** Delete one saved brief. */
         delete: operations["deleteAgentBrief"];
         options?: never;
         head?: never;
         /**
          * Edit one brief parent.
-         * @description Updates one brief for the acting agent context. When using host/team API keys, provide X-Agent-Id (or agent_id query) or send source.agent_id in the request body.
+         * @description Updates one saved parent brief by id and appends a child entry when entry fields are provided.
          */
         patch: operations["updateAgentBrief"];
         trace?: never;
@@ -121,7 +115,7 @@ export interface paths {
         };
         /**
          * List claimable realtime sessions for one agent or a host.
-         * @description With no agent context, host API keys can recover requested sessions across all agents assigned to the host. Provide X-Agent-Id (or agent_id query) to scope the response to one agent.
+         * @description When X-Agent-Id (or agent_id query) is provided, returns open system realtime sessions (requested, claimed, or active) for that agent. With a host API key and no agent context, returns open system sessions across all agents assigned to that host so runtimes can recover existing sessions after restarts.
          */
         get: operations["listAgentRealtimeRequestedSessions"];
         put?: never;
@@ -161,7 +155,7 @@ export interface paths {
         };
         /**
          * List realtime signals for one claimed session (host or agent context).
-         * @description Lists persisted realtime signals for one claimed session. Host API keys may use host-scoped ownership or provide X-Agent-Id for explicit single-agent routing.
+         * @description Returns persisted signals ordered by id so websocket clients can catch up missed events after reconnect.
          */
         get: operations["listAgentRealtimeSignals"];
         put?: never;
@@ -299,16 +293,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * List board tasks.
-         * @description Lists visible tasks. Host/team API key callers should send X-Agent-Id (or agent_id query) when acting as a specific agent so AgentMC can resolve private-board access correctly.
-         */
+        /** List board tasks. */
         get: operations["listTasks"];
         put?: never;
-        /**
-         * Create a task.
-         * @description Creates one task. Host/team API key callers should send X-Agent-Id (or agent_id query) so actor attribution and private-board access resolve to the acting agent.
-         */
+        /** Create a task. */
         post: operations["createTask"];
         delete?: never;
         options?: never;
@@ -323,24 +311,15 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * Show one task.
-         * @description Shows one task. Host/team API key callers should send X-Agent-Id (or agent_id query) when access depends on agent-private board visibility.
-         */
+        /** Show one task. */
         get: operations["showTask"];
         put?: never;
         post?: never;
-        /**
-         * Delete a task.
-         * @description Deletes one task. Host/team API key callers should send X-Agent-Id (or agent_id query) so deletion is attributed to the acting agent.
-         */
+        /** Delete a task. */
         delete: operations["deleteTask"];
         options?: never;
         head?: never;
-        /**
-         * Update a task.
-         * @description Updates one task. Host/team API key callers should send X-Agent-Id (or agent_id query) so actor attribution and notifications resolve to the acting agent.
-         */
+        /** Update a task. */
         patch: operations["updateTask"];
         trace?: never;
     };
@@ -447,16 +426,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * List managed team files.
-         * @description Lists team files. Host/team API key callers should send X-Agent-Id (or agent_id query) when file scope or owner defaults should resolve to a specific agent.
-         */
+        /** List managed team files. */
         get: operations["listFiles"];
         put?: never;
-        /**
-         * Finalize an uploaded object into a managed file record.
-         * @description Finalizes one uploaded file. Host/team API key callers should send X-Agent-Id (or agent_id query) so agent home-folder scope and owner defaults resolve correctly.
-         */
+        /** Finalize an uploaded object into a managed file record. */
         post: operations["createFile"];
         delete?: never;
         options?: never;
@@ -473,10 +446,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /**
-         * Create a presigned upload ticket for a managed file.
-         * @description Creates one upload ticket. Host/team API key callers should send X-Agent-Id (or agent_id query) so upload scope resolves to the acting agent home folder.
-         */
+        /** Create a presigned upload ticket for a managed file. */
         post: operations["createFileUpload"];
         delete?: never;
         options?: never;
@@ -491,24 +461,15 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * Show one managed file.
-         * @description Shows one file. Host/team API key callers should send X-Agent-Id (or agent_id query) when access is agent-scoped.
-         */
+        /** Show one managed file. */
         get: operations["showFile"];
         put?: never;
         post?: never;
-        /**
-         * Delete a managed file.
-         * @description Deletes one file. Host/team API key callers should send X-Agent-Id (or agent_id query) when deletion is agent-scoped.
-         */
+        /** Delete a managed file. */
         delete: operations["deleteFile"];
         options?: never;
         head?: never;
-        /**
-         * Update managed file metadata.
-         * @description Updates one file. Host/team API key callers should send X-Agent-Id (or agent_id query) so file scope and owner validation resolve to the acting agent.
-         */
+        /** Update managed file metadata. */
         patch: operations["updateFile"];
         trace?: never;
     };
@@ -519,10 +480,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * Get a short-lived download redirect for one managed file.
-         * @description Returns a temporary redirect for file download. Host/team API key callers should send X-Agent-Id (or agent_id query) when download access is agent-scoped.
-         */
+        /** Get a short-lived download redirect for one managed file. */
         get: operations["downloadFile"];
         put?: never;
         post?: never;
@@ -539,10 +497,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * Get a short-lived preview redirect for one managed file.
-         * @description Returns a temporary redirect for file preview. Host/team API key callers should send X-Agent-Id (or agent_id query) when preview access is agent-scoped.
-         */
+        /** Get a short-lived preview redirect for one managed file. */
         get: operations["previewFile"];
         put?: never;
         post?: never;
@@ -559,16 +514,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * List managed file folders for the team.
-         * @description Lists folders for the current team or resolved agent file scope. Host/team API key callers should send X-Agent-Id (or agent_id query) when folder scope is agent-specific.
-         */
+        /** List managed file folders for the team. */
         get: operations["listFileFolders"];
         put?: never;
-        /**
-         * Create a managed file folder.
-         * @description Creates one folder. Host/team API key callers should send X-Agent-Id (or agent_id query) so folder scope resolves to the acting agent home folder when applicable.
-         */
+        /** Create a managed file folder. */
         post: operations["createFileFolder"];
         delete?: never;
         options?: never;
@@ -588,15 +537,12 @@ export interface paths {
         post?: never;
         /**
          * Delete a managed file folder.
-         * @description Deletes one folder. Host/team API key callers should send X-Agent-Id (or agent_id query) when folder scope is agent-specific.
+         * @description Deletes one folder node and permanently deletes all nested files and subfolders in that folder subtree.
          */
         delete: operations["deleteFileFolder"];
         options?: never;
         head?: never;
-        /**
-         * Update a managed file folder.
-         * @description Updates one folder. Host/team API key callers should send X-Agent-Id (or agent_id query) so folder scope resolves to the acting agent home folder when applicable.
-         */
+        /** Update a managed file folder. */
         patch: operations["updateFileFolder"];
         trace?: never;
     };
@@ -607,10 +553,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * List team notifications (mentions, assignments, and comment activity) for the authenticated principal.
-         * @description Lists notifications for the current user or resolved agent inbox. Host/team API key callers must provide X-Agent-Id (or agent_id query) to read an agent’s notifications.
-         */
+        /** List team notifications (mentions, assignments, and comment activity) for the authenticated principal. */
         get: operations["listNotifications"];
         put?: never;
         post?: never;
@@ -633,10 +576,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /**
-         * Mark one team notification as read.
-         * @description Marks one notification as read for the current user or resolved agent inbox. Host/team API key callers must provide X-Agent-Id (or agent_id query) to act on an agent notification.
-         */
+        /** Mark one team notification as read. */
         patch: operations["markNotificationRead"];
         trace?: never;
     };
@@ -649,10 +589,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /**
-         * Mark all unread team notifications as read for the current team.
-         * @description Marks all notifications as read for the current user or resolved agent inbox. Host/team API key callers must provide X-Agent-Id (or agent_id query) to act on an agent inbox.
-         */
+        /** Mark all unread team notifications as read for the current team. */
         post: operations["markAllNotificationsRead"];
         delete?: never;
         options?: never;
@@ -667,10 +604,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * List calendar items.
-         * @description Lists calendar items. Host/team API key callers should send X-Agent-Id (or agent_id query) when acting as a specific agent so scoped access and ownership views resolve correctly.
-         */
+        /** List calendar items. */
         get: operations["listCalendar"];
         put?: never;
         post?: never;
@@ -689,10 +623,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /**
-         * Create a calendar item.
-         * @description Creates one calendar item. Host/team API key callers should send X-Agent-Id (or agent_id query) so actor attribution resolves to the acting agent.
-         */
+        /** Create a calendar item. */
         post: operations["createCalendarItem"];
         delete?: never;
         options?: never;
@@ -707,21 +638,12 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * Show one calendar item.
-         * @description Shows one calendar item. Host/team API key callers should send X-Agent-Id (or agent_id query) when access or ownership is agent-scoped.
-         */
+        /** Show one calendar item. */
         get: operations["showCalendarItem"];
-        /**
-         * Update a calendar item.
-         * @description Updates one calendar item. Host/team API key callers should send X-Agent-Id (or agent_id query) so actor attribution resolves to the acting agent.
-         */
+        /** Update a calendar item. */
         put: operations["updateCalendarItem"];
         post?: never;
-        /**
-         * Delete a calendar item.
-         * @description Deletes one calendar item. Host/team API key callers should send X-Agent-Id (or agent_id query) so deletion is attributed to the acting agent.
-         */
+        /** Delete a calendar item. */
         delete: operations["deleteCalendarItem"];
         options?: never;
         head?: never;
@@ -748,9839 +670,12 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/agents/instructions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Fetch the instruction bundle for one agent.
-         * @description Agent context is required when using host/team API keys. Provide X-Agent-Id (or agent_id query) so AgentMC returns the correct bundle for the acting agent.
-         */
-        get: {
-            parameters: {
-                query?: {
-                    /**
-                     * @description Current bundle version.
-                     * @example example
-                     */
-                    current_bundle_version?: string | null;
-                    /**
-                     * @description Alternate acting agent identifier. Required when using host/team API keys without a scoped agent credential.
-                     * @example 42
-                     */
-                    agent_id?: number;
-                };
-                header?: {
-                    /**
-                     * @description Acting agent identifier for host/team API key requests. Required when the runtime is acting as a specific agent.
-                     * @example 1
-                     */
-                    "X-Agent-Id"?: number;
-                };
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Successful response. */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        /**
-                         * @example {
-                         *       "ok": true,
-                         *       "changed": true,
-                         *       "bundle_version": "bundle_2fa07fcadd6575cc",
-                         *       "generated_at": "2026-02-25T14:10:00Z",
-                         *       "defaults": {
-                         *         "heartbeat_interval_seconds": 60
-                         *       },
-                         *       "agent": {
-                         *         "id": 42
-                         *       },
-                         *       "files": [
-                         *         {
-                         *           "id": "skill.md",
-                         *           "path": ".agentmc/skills/skill.md",
-                         *           "content": "# AgentMC Skill\n",
-                         *           "sha256": "f96c95bd27dc9f3415cc0f4d817b5ec6f14185b6fcb5db9f6b6f14f648f8e9e4"
-                         *         }
-                         *       ]
-                         *     }
-                         */
-                        "application/json": components["schemas"]["AgentInstructionsResponse"];
-                    };
-                };
-                401: components["responses"]["ApiError401"];
-                403: components["responses"]["ApiError403"];
-                404: components["responses"]["ApiError404"];
-                422: components["responses"]["ApiError422"];
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/agents/recurring-task-runs/due": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** @description Returns due recurring task runs for one resolved agent. Host/team API key callers must provide X-Agent-Id (or agent_id query) unless the credential is already scoped to a single agent. */
-        get: {
-            parameters: {
-                query?: {
-                    /**
-                     * @description Maximum number of records to return.
-                     * @example 20
-                     */
-                    limit?: number | null;
-                    /**
-                     * @description Alternate acting agent identifier for host/team API key requests when claiming due runs.
-                     * @example 42
-                     */
-                    agent_id?: number;
-                };
-                header?: {
-                    /**
-                     * @description Acting agent identifier for host/team API key requests. Required when claiming due runs for a specific agent.
-                     * @example 1
-                     */
-                    "X-Agent-Id"?: number;
-                };
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Successful response. */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        /**
-                         * @example {
-                         *       "data": [
-                         *         {
-                         *           "run_id": 42,
-                         *           "task_id": 42,
-                         *           "prompt": "example",
-                         *           "scheduled_for": "2026-02-22T17:21:00Z",
-                         *           "claim_token": "example",
-                         *           "agent_id": 42
-                         *         }
-                         *       ]
-                         *     }
-                         */
-                        "application/json": components["schemas"]["AgentRecurringTaskDueRunsResponse"];
-                    };
-                };
-                401: components["responses"]["ApiError401"];
-                403: components["responses"]["ApiError403"];
-                404: components["responses"]["ApiError404"];
-                422: components["responses"]["ApiError422"];
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/agents/recurring-task-runs/{run}/complete": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** @description Completes one recurring task run for the resolved acting agent. Host/team API key callers must provide X-Agent-Id (or agent_id query) unless the credential is already scoped to a single agent. */
-        post: {
-            parameters: {
-                query?: {
-                    /**
-                     * @description Alternate acting agent identifier for host/team API key requests when completing a recurring run.
-                     * @example 42
-                     */
-                    agent_id?: number;
-                };
-                header?: {
-                    /**
-                     * @description Acting agent identifier for host/team API key requests. Required when completing a recurring run for a specific agent.
-                     * @example 1
-                     */
-                    "X-Agent-Id"?: number;
-                };
-                path: {
-                    /**
-                     * @description Run.
-                     * @example 1
-                     */
-                    run: number;
-                };
-                cookie?: never;
-            };
-            requestBody: components["requestBodies"]["CompleteAgentRecurringTaskRunApiRequest"];
-            responses: {
-                /** @description Successful response. */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        /**
-                         * @example {
-                         *       "data": {
-                         *         "id": 42,
-                         *         "team_id": 42,
-                         *         "agent_id": 42,
-                         *         "agent_recurring_task_id": 42,
-                         *         "scheduled_for": "2026-02-22T17:21:00Z",
-                         *         "status": "running",
-                         *         "claim_token": "example",
-                         *         "prompt_snapshot": "example",
-                         *         "schedule_snapshot": {
-                         *           "key": "value"
-                         *         },
-                         *         "started_at": "2026-02-22T17:21:00Z",
-                         *         "finished_at": "2026-02-22T17:21:00Z",
-                         *         "summary": "Morning operations handoff digest.",
-                         *         "error_message": "example",
-                         *         "runtime_meta": {
-                         *           "key": "value"
-                         *         },
-                         *         "created_at": "2026-02-22T17:21:00Z",
-                         *         "updated_at": "2026-02-22T17:21:00Z"
-                         *       }
-                         *     }
-                         */
-                        "application/json": components["schemas"]["AgentRecurringTaskRunResponse"];
-                    };
-                };
-                401: components["responses"]["ApiError401"];
-                403: components["responses"]["ApiError403"];
-                404: components["responses"]["ApiError404"];
-                409: components["responses"]["ApiError409"];
-                422: components["responses"]["ApiError422"];
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
 }
 export interface components {
-    schemas: {
-        /**
-         * @description Standard API error envelope returned for non-2xx responses.
-         * @example {
-         *       "error": {
-         *         "code": "validation.failed",
-         *         "message": "Validation failed.",
-         *         "details": {
-         *           "fields": {
-         *             "title": [
-         *               "The title field is required."
-         *             ]
-         *           }
-         *         }
-         *       }
-         *     }
-         */
-        ApiError: {
-            /**
-             * @description Error.
-             * @example {
-             *       "code": "example",
-             *       "message": "example",
-             *       "details": {
-             *         "key": "value"
-             *       }
-             *     }
-             */
-            error: {
-                /**
-                 * @description Code.
-                 * @example example
-                 */
-                code: string;
-                /**
-                 * @description Message.
-                 * @example example
-                 */
-                message: string;
-                /**
-                 * @description Details.
-                 * @example {
-                 *       "key": "value"
-                 *     }
-                 */
-                details?: {
-                    [key: string]: unknown;
-                } | null;
-            };
-        };
-        /**
-         * @description Generic Data Response response schema.
-         * @example {
-         *       "data": {
-         *         "key": "value"
-         *       }
-         *     }
-         */
-        GenericDataResponse: {
-            /**
-             * @description Data.
-             * @example {
-             *       "key": "value"
-             *     }
-             */
-            data: {
-                [key: string]: unknown;
-            };
-        };
-        /**
-         * @description Generic List Response response schema.
-         * @example {
-         *       "data": [
-         *         {
-         *           "key": "value"
-         *         }
-         *       ]
-         *     }
-         */
-        GenericListResponse: {
-            /**
-             * @description Data.
-             * @example [
-             *       {
-             *         "key": "value"
-             *       }
-             *     ]
-             */
-            data: {
-                [key: string]: unknown;
-            }[];
-        };
-        /**
-         * @description Team File Folder schema.
-         * @example {
-         *       "id": 12,
-         *       "team_id": 7,
-         *       "parent_id": null,
-         *       "name": "Runbooks",
-         *       "path_cache": "Runbooks",
-         *       "created_at": "2026-02-27T17:10:00Z",
-         *       "updated_at": "2026-02-27T17:10:00Z"
-         *     }
-         */
-        TeamFileFolder: {
-            /**
-             * @description Unique identifier for this record.
-             * @example 42
-             */
-            id: number;
-            /**
-             * @description Team identifier that owns this record.
-             * @example 42
-             */
-            team_id: number;
-            /**
-             * @description Identifier for parent.
-             * @example 42
-             */
-            parent_id: number | null;
-            /**
-             * @description Human-readable name.
-             * @example Example Name
-             */
-            name: string;
-            /**
-             * @description Path cache.
-             * @example example
-             */
-            path_cache: string;
-            /**
-             * Format: date-time
-             * @description ISO-8601 timestamp when this record was created.
-             * @example 2026-02-22T17:21:00Z
-             */
-            created_at: string | null;
-            /**
-             * Format: date-time
-             * @description ISO-8601 timestamp when this record was last updated.
-             * @example 2026-02-22T17:21:00Z
-             */
-            updated_at: string | null;
-        };
-        /**
-         * @description Team File schema.
-         * @example {
-         *       "id": 101,
-         *       "team_id": 7,
-         *       "owner_agent_id": 42,
-         *       "folder_id": 12,
-         *       "display_name": "incident-timeline.md",
-         *       "original_filename": "incident-timeline.md",
-         *       "extension": "md",
-         *       "mime_type": "text/markdown",
-         *       "size_bytes": 14220,
-         *       "checksum_sha256": null,
-         *       "preview_kind": "markdown",
-         *       "uploaded_by_user_id": 8,
-         *       "uploaded_by_agent_id": null,
-         *       "created_at": "2026-02-27T17:20:00Z",
-         *       "updated_at": "2026-02-27T17:24:00Z",
-         *       "folder": {
-         *         "id": 12,
-         *         "team_id": 7,
-         *         "parent_id": null,
-         *         "name": "Runbooks",
-         *         "path_cache": "Runbooks",
-         *         "created_at": "2026-02-27T17:10:00Z",
-         *         "updated_at": "2026-02-27T17:10:00Z"
-         *       }
-         *     }
-         */
-        TeamFile: {
-            /**
-             * @description Unique identifier for this record.
-             * @example 42
-             */
-            id: number;
-            /**
-             * @description Team identifier that owns this record.
-             * @example 42
-             */
-            team_id: number;
-            /**
-             * @description Identifier for owner agent.
-             * @example 42
-             */
-            owner_agent_id: number | null;
-            /**
-             * @description Identifier for folder.
-             * @example 42
-             */
-            folder_id: number | null;
-            /**
-             * @description Display name.
-             * @example Example Name
-             */
-            display_name: string;
-            /**
-             * @description Original filename.
-             * @example Example Name
-             */
-            original_filename: string;
-            /**
-             * @description Extension.
-             * @example example
-             */
-            extension: string | null;
-            /**
-             * @description Mime type.
-             * @example example
-             */
-            mime_type: string;
-            /**
-             * @description Size bytes.
-             * @example 0
-             */
-            size_bytes: number;
-            /**
-             * @description Checksum sha256.
-             * @example example
-             */
-            checksum_sha256: string | null;
-            /**
-             * @description Allowed values: markdown, text, image, pdf, other.
-             * @example markdown
-             * @enum {string}
-             */
-            preview_kind: "markdown" | "text" | "image" | "pdf" | "other";
-            /**
-             * @description Identifier for uploaded by user.
-             * @example 42
-             */
-            uploaded_by_user_id: number | null;
-            /**
-             * @description Identifier for uploaded by agent.
-             * @example 42
-             */
-            uploaded_by_agent_id: number | null;
-            /**
-             * Format: date-time
-             * @description ISO-8601 timestamp when this record was created.
-             * @example 2026-02-22T17:21:00Z
-             */
-            created_at: string | null;
-            /**
-             * Format: date-time
-             * @description ISO-8601 timestamp when this record was last updated.
-             * @example 2026-02-22T17:21:00Z
-             */
-            updated_at: string | null;
-            /**
-             * @description Folder.
-             * @example {
-             *       "id": 12,
-             *       "team_id": 7,
-             *       "parent_id": null,
-             *       "name": "Runbooks",
-             *       "path_cache": "Runbooks",
-             *       "created_at": "2026-02-27T17:10:00Z",
-             *       "updated_at": "2026-02-27T17:10:00Z"
-             *     }
-             */
-            folder: components["schemas"]["TeamFileFolder"] | null;
-        };
-        /**
-         * @description Team File Attachment File Summary schema.
-         * @example {
-         *       "id": 42,
-         *       "display_name": "Example Name",
-         *       "original_filename": "Example Name",
-         *       "mime_type": "example",
-         *       "size_bytes": 0,
-         *       "preview_kind": "markdown",
-         *       "created_at": "2026-02-22T17:21:00Z",
-         *       "updated_at": "2026-02-22T17:21:00Z"
-         *     }
-         */
-        TeamFileAttachmentFileSummary: {
-            /**
-             * @description Unique identifier for this record.
-             * @example 42
-             */
-            id: number;
-            /**
-             * @description Display name.
-             * @example Example Name
-             */
-            display_name: string;
-            /**
-             * @description Original filename.
-             * @example Example Name
-             */
-            original_filename: string;
-            /**
-             * @description Mime type.
-             * @example example
-             */
-            mime_type: string;
-            /**
-             * @description Size bytes.
-             * @example 0
-             */
-            size_bytes: number;
-            /**
-             * @description Allowed values: markdown, text, image, pdf, other.
-             * @example markdown
-             * @enum {string}
-             */
-            preview_kind: "markdown" | "text" | "image" | "pdf" | "other";
-            /**
-             * Format: date-time
-             * @description ISO-8601 timestamp when this record was created.
-             * @example 2026-02-22T17:21:00Z
-             */
-            created_at: string | null;
-            /**
-             * Format: date-time
-             * @description ISO-8601 timestamp when this record was last updated.
-             * @example 2026-02-22T17:21:00Z
-             */
-            updated_at: string | null;
-        };
-        /**
-         * @description Team File Attachment schema.
-         * @example {
-         *       "id": 45,
-         *       "team_file_id": 101,
-         *       "preview_url": "/api/v1/files/101/preview",
-         *       "download_url": "/api/v1/files/101/download",
-         *       "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-         *       "file": {
-         *         "id": 101,
-         *         "display_name": "incident-timeline.png",
-         *         "original_filename": "incident-timeline.png",
-         *         "mime_type": "image/png",
-         *         "size_bytes": 144220,
-         *         "preview_kind": "image",
-         *         "created_at": "2026-02-27T17:20:00Z",
-         *         "updated_at": "2026-02-27T17:24:00Z"
-         *       }
-         *     }
-         */
-        TeamFileAttachment: {
-            /**
-             * @description Unique identifier for this record.
-             * @example 42
-             */
-            id: number;
-            /**
-             * @description Identifier of the attached team file.
-             * @example 42
-             */
-            team_file_id: number;
-            /**
-             * @description Relative API URL that renders the file inline (short-lived redirect).
-             * @example example
-             */
-            preview_url: string | null;
-            /**
-             * @description Relative API URL that downloads the file (short-lived redirect).
-             * @example example
-             */
-            download_url: string | null;
-            /**
-             * @description Markdown image/embed snippet that references this file preview endpoint.
-             * @example example
-             */
-            markdown_embed: string | null;
-            /**
-             * @description File.
-             * @example {
-             *       "id": 42,
-             *       "display_name": "Example Name",
-             *       "original_filename": "Example Name",
-             *       "mime_type": "example",
-             *       "size_bytes": 0,
-             *       "preview_kind": "markdown",
-             *       "created_at": "2026-02-22T17:21:00Z",
-             *       "updated_at": "2026-02-22T17:21:00Z"
-             *     }
-             */
-            file: components["schemas"]["TeamFileAttachmentFileSummary"] | null;
-        };
-        /**
-         * @description Team File Upload Ticket schema.
-         * @example {
-         *       "upload_id": "tup_8f4f7f3f836d43d28c4f7311a48258f5",
-         *       "object_key": "teams/7/files/2026/02/27/tup_8f4f7f3f836d43d28c4f7311a48258f5.md",
-         *       "upload_url": "https://storage.example.com/bucket/teams/7/files/2026/02/27/tup_8f4f7f3f836d43d28c4f7311a48258f5.md?...",
-         *       "upload_method": "PUT",
-         *       "upload_headers": {
-         *         "Content-Type": "text/markdown"
-         *       },
-         *       "expires_at": "2026-02-27T17:30:00Z"
-         *     }
-         */
-        TeamFileUploadTicket: {
-            /**
-             * @description Identifier for upload.
-             * @example example
-             */
-            upload_id: string;
-            /**
-             * @description Object key.
-             * @example example
-             */
-            object_key: string;
-            /**
-             * Format: uri
-             * @description URL value for upload url.
-             * @example https://agentmc.example.com/resource
-             */
-            upload_url: string;
-            /**
-             * @description Allowed values: PUT.
-             * @example PUT
-             * @enum {string}
-             */
-            upload_method: "PUT";
-            /**
-             * @description Upload headers.
-             * @example {
-             *       "key": "value"
-             *     }
-             */
-            upload_headers: {
-                [key: string]: unknown;
-            };
-            /**
-             * Format: date-time
-             * @description ISO-8601 expiration timestamp.
-             * @example 2026-02-22T17:21:00Z
-             */
-            expires_at: string;
-        };
-        /**
-         * @description Paginated Team File Response response schema.
-         * @example {
-         *       "data": [
-         *         {
-         *           "id": 101,
-         *           "team_id": 7,
-         *           "owner_agent_id": 42,
-         *           "folder_id": 12,
-         *           "display_name": "incident-timeline.md",
-         *           "original_filename": "incident-timeline.md",
-         *           "extension": "md",
-         *           "mime_type": "text/markdown",
-         *           "size_bytes": 14220,
-         *           "checksum_sha256": null,
-         *           "preview_kind": "markdown",
-         *           "uploaded_by_user_id": 8,
-         *           "uploaded_by_agent_id": null,
-         *           "created_at": "2026-02-27T17:20:00Z",
-         *           "updated_at": "2026-02-27T17:24:00Z",
-         *           "folder": {
-         *             "id": 12,
-         *             "team_id": 7,
-         *             "parent_id": null,
-         *             "name": "Runbooks",
-         *             "path_cache": "Runbooks",
-         *             "created_at": "2026-02-27T17:10:00Z",
-         *             "updated_at": "2026-02-27T17:10:00Z"
-         *           }
-         *         }
-         *       ],
-         *       "links": {
-         *         "first": "example",
-         *         "last": "example",
-         *         "prev": "example",
-         *         "next": "example"
-         *       },
-         *       "meta": {
-         *         "current_page": 1,
-         *         "from": 1,
-         *         "last_page": 1,
-         *         "links": [
-         *           {
-         *             "url": "https://agentmc.example.com/docs/incident-123",
-         *             "label": "example",
-         *             "active": true
-         *           }
-         *         ],
-         *         "path": "notes/daily-ops.md",
-         *         "per_page": 25,
-         *         "total": 0
-         *       }
-         *     }
-         */
-        PaginatedTeamFileResponse: {
-            /**
-             * @description Data.
-             * @example [
-             *       {
-             *         "id": 101,
-             *         "team_id": 7,
-             *         "owner_agent_id": 42,
-             *         "folder_id": 12,
-             *         "display_name": "incident-timeline.md",
-             *         "original_filename": "incident-timeline.md",
-             *         "extension": "md",
-             *         "mime_type": "text/markdown",
-             *         "size_bytes": 14220,
-             *         "checksum_sha256": null,
-             *         "preview_kind": "markdown",
-             *         "uploaded_by_user_id": 8,
-             *         "uploaded_by_agent_id": null,
-             *         "created_at": "2026-02-27T17:20:00Z",
-             *         "updated_at": "2026-02-27T17:24:00Z",
-             *         "folder": {
-             *           "id": 12,
-             *           "team_id": 7,
-             *           "parent_id": null,
-             *           "name": "Runbooks",
-             *           "path_cache": "Runbooks",
-             *           "created_at": "2026-02-27T17:10:00Z",
-             *           "updated_at": "2026-02-27T17:10:00Z"
-             *         }
-             *       }
-             *     ]
-             */
-            data: components["schemas"]["TeamFile"][];
-            /**
-             * @description Links.
-             * @example {
-             *       "first": "example",
-             *       "last": "example",
-             *       "prev": "example",
-             *       "next": "example"
-             *     }
-             */
-            links: components["schemas"]["PaginationLinks"];
-            /**
-             * @description Arbitrary JSON metadata object.
-             * @example {
-             *       "current_page": 1,
-             *       "from": 1,
-             *       "last_page": 1,
-             *       "links": [
-             *         {
-             *           "url": "https://agentmc.example.com/docs/incident-123",
-             *           "label": "example",
-             *           "active": true
-             *         }
-             *       ],
-             *       "path": "notes/daily-ops.md",
-             *       "per_page": 25,
-             *       "total": 0
-             *     }
-             */
-            meta: components["schemas"]["PaginationMeta"];
-        };
-        /**
-         * @description Team File Response response schema.
-         * @example {
-         *       "data": {
-         *         "id": 101,
-         *         "team_id": 7,
-         *         "owner_agent_id": 42,
-         *         "folder_id": 12,
-         *         "display_name": "incident-timeline.md",
-         *         "original_filename": "incident-timeline.md",
-         *         "extension": "md",
-         *         "mime_type": "text/markdown",
-         *         "size_bytes": 14220,
-         *         "checksum_sha256": null,
-         *         "preview_kind": "markdown",
-         *         "uploaded_by_user_id": 8,
-         *         "uploaded_by_agent_id": null,
-         *         "created_at": "2026-02-27T17:20:00Z",
-         *         "updated_at": "2026-02-27T17:24:00Z",
-         *         "folder": {
-         *           "id": 12,
-         *           "team_id": 7,
-         *           "parent_id": null,
-         *           "name": "Runbooks",
-         *           "path_cache": "Runbooks",
-         *           "created_at": "2026-02-27T17:10:00Z",
-         *           "updated_at": "2026-02-27T17:10:00Z"
-         *         }
-         *       }
-         *     }
-         */
-        TeamFileResponse: {
-            /**
-             * @description Data.
-             * @example {
-             *       "id": 101,
-             *       "team_id": 7,
-             *       "owner_agent_id": 42,
-             *       "folder_id": 12,
-             *       "display_name": "incident-timeline.md",
-             *       "original_filename": "incident-timeline.md",
-             *       "extension": "md",
-             *       "mime_type": "text/markdown",
-             *       "size_bytes": 14220,
-             *       "checksum_sha256": null,
-             *       "preview_kind": "markdown",
-             *       "uploaded_by_user_id": 8,
-             *       "uploaded_by_agent_id": null,
-             *       "created_at": "2026-02-27T17:20:00Z",
-             *       "updated_at": "2026-02-27T17:24:00Z",
-             *       "folder": {
-             *         "id": 12,
-             *         "team_id": 7,
-             *         "parent_id": null,
-             *         "name": "Runbooks",
-             *         "path_cache": "Runbooks",
-             *         "created_at": "2026-02-27T17:10:00Z",
-             *         "updated_at": "2026-02-27T17:10:00Z"
-             *       }
-             *     }
-             */
-            data: components["schemas"]["TeamFile"];
-        };
-        /**
-         * @description Team File Upload Ticket Response response schema.
-         * @example {
-         *       "data": {
-         *         "upload_id": "tup_8f4f7f3f836d43d28c4f7311a48258f5",
-         *         "object_key": "teams/7/files/2026/02/27/tup_8f4f7f3f836d43d28c4f7311a48258f5.md",
-         *         "upload_url": "https://storage.example.com/bucket/teams/7/files/2026/02/27/tup_8f4f7f3f836d43d28c4f7311a48258f5.md?...",
-         *         "upload_method": "PUT",
-         *         "upload_headers": {
-         *           "Content-Type": "text/markdown"
-         *         },
-         *         "expires_at": "2026-02-27T17:30:00Z"
-         *       }
-         *     }
-         */
-        TeamFileUploadTicketResponse: {
-            /**
-             * @description Data.
-             * @example {
-             *       "upload_id": "tup_8f4f7f3f836d43d28c4f7311a48258f5",
-             *       "object_key": "teams/7/files/2026/02/27/tup_8f4f7f3f836d43d28c4f7311a48258f5.md",
-             *       "upload_url": "https://storage.example.com/bucket/teams/7/files/2026/02/27/tup_8f4f7f3f836d43d28c4f7311a48258f5.md?...",
-             *       "upload_method": "PUT",
-             *       "upload_headers": {
-             *         "Content-Type": "text/markdown"
-             *       },
-             *       "expires_at": "2026-02-27T17:30:00Z"
-             *     }
-             */
-            data: components["schemas"]["TeamFileUploadTicket"];
-        };
-        /**
-         * @description Team File Folder Response response schema.
-         * @example {
-         *       "data": {
-         *         "id": 12,
-         *         "team_id": 7,
-         *         "parent_id": null,
-         *         "name": "Runbooks",
-         *         "path_cache": "Runbooks",
-         *         "created_at": "2026-02-27T17:10:00Z",
-         *         "updated_at": "2026-02-27T17:10:00Z"
-         *       }
-         *     }
-         */
-        TeamFileFolderResponse: {
-            /**
-             * @description Data.
-             * @example {
-             *       "id": 12,
-             *       "team_id": 7,
-             *       "parent_id": null,
-             *       "name": "Runbooks",
-             *       "path_cache": "Runbooks",
-             *       "created_at": "2026-02-27T17:10:00Z",
-             *       "updated_at": "2026-02-27T17:10:00Z"
-             *     }
-             */
-            data: components["schemas"]["TeamFileFolder"];
-        };
-        /**
-         * @description Team File Folder List Response response schema.
-         * @example {
-         *       "data": [
-         *         {
-         *           "id": 12,
-         *           "team_id": 7,
-         *           "parent_id": null,
-         *           "name": "Runbooks",
-         *           "path_cache": "Runbooks",
-         *           "created_at": "2026-02-27T17:10:00Z",
-         *           "updated_at": "2026-02-27T17:10:00Z"
-         *         }
-         *       ],
-         *       "tree": [
-         *         {
-         *           "key": "value"
-         *         }
-         *       ]
-         *     }
-         */
-        TeamFileFolderListResponse: {
-            /**
-             * @description Data.
-             * @example [
-             *       {
-             *         "id": 12,
-             *         "team_id": 7,
-             *         "parent_id": null,
-             *         "name": "Runbooks",
-             *         "path_cache": "Runbooks",
-             *         "created_at": "2026-02-27T17:10:00Z",
-             *         "updated_at": "2026-02-27T17:10:00Z"
-             *       }
-             *     ]
-             */
-            data: components["schemas"]["TeamFileFolder"][];
-            /**
-             * @description Tree.
-             * @example [
-             *       {
-             *         "key": "value"
-             *       }
-             *     ]
-             */
-            tree: {
-                [key: string]: unknown;
-            }[];
-        };
-        /**
-         * @description Empty Request request schema.
-         * @example {}
-         */
-        EmptyRequest: {
-            [key: string]: unknown;
-        };
-        /**
-         * @description Pagination Links schema.
-         * @example {
-         *       "first": "example",
-         *       "last": "example",
-         *       "prev": "example",
-         *       "next": "example"
-         *     }
-         */
-        PaginationLinks: {
-            /**
-             * @description First.
-             * @example example
-             */
-            first: string | null;
-            /**
-             * @description Last.
-             * @example example
-             */
-            last: string | null;
-            /**
-             * @description Prev.
-             * @example example
-             */
-            prev: string | null;
-            /**
-             * @description Next.
-             * @example example
-             */
-            next: string | null;
-        };
-        /**
-         * @description Pagination Meta Link schema.
-         * @example {
-         *       "url": "https://agentmc.example.com/docs/incident-123",
-         *       "label": "example",
-         *       "active": true
-         *     }
-         */
-        PaginationMetaLink: {
-            /**
-             * @description URL value for url.
-             * @example https://agentmc.example.com/docs/incident-123
-             */
-            url: string | null;
-            /**
-             * @description Display label for this mention target.
-             * @example example
-             */
-            label: string;
-            /**
-             * @description Boolean flag for active.
-             * @example true
-             */
-            active: boolean;
-        };
-        /**
-         * @description Pagination Meta schema.
-         * @example {
-         *       "current_page": 1,
-         *       "from": 1,
-         *       "last_page": 1,
-         *       "links": [
-         *         {
-         *           "url": "https://agentmc.example.com/docs/incident-123",
-         *           "label": "example",
-         *           "active": true
-         *         }
-         *       ],
-         *       "path": "notes/daily-ops.md",
-         *       "per_page": 25,
-         *       "total": 0
-         *     }
-         */
-        PaginationMeta: {
-            /**
-             * @description Current page.
-             * @example 1
-             */
-            current_page: number;
-            /**
-             * @description From.
-             * @example 1
-             */
-            from?: number | null;
-            /**
-             * @description Last page.
-             * @example 1
-             */
-            last_page: number;
-            /**
-             * @description Links.
-             * @example [
-             *       {
-             *         "url": "https://agentmc.example.com/docs/incident-123",
-             *         "label": "example",
-             *         "active": true
-             *       }
-             *     ]
-             */
-            links?: components["schemas"]["PaginationMetaLink"][];
-            /**
-             * @description Local filesystem path where this file should be written.
-             * @example notes/daily-ops.md
-             */
-            path: string;
-            /**
-             * @description Page size for paginated responses.
-             * @example 25
-             */
-            per_page: number;
-            /**
-             * @description To.
-             * @example 1
-             */
-            to?: number | null;
-            /**
-             * @description Total.
-             * @example 0
-             */
-            total: number;
-        };
-        /**
-         * @description Host Agents Meta schema.
-         * @example {
-         *       "current_page": 1,
-         *       "last_page": 1,
-         *       "per_page": 25,
-         *       "total": 0
-         *     }
-         */
-        HostAgentsMeta: {
-            /**
-             * @description Current page.
-             * @example 1
-             */
-            current_page: number;
-            /**
-             * @description Last page.
-             * @example 1
-             */
-            last_page: number;
-            /**
-             * @description Page size for paginated responses.
-             * @example 25
-             */
-            per_page: number;
-            /**
-             * @description Total.
-             * @example 0
-             */
-            total: number;
-        };
-        /**
-         * @description Team Summary schema.
-         * @example {
-         *       "id": 42,
-         *       "name": "Example Name"
-         *     }
-         */
-        TeamSummary: {
-            /**
-             * @description Unique identifier for this record.
-             * @example 42
-             */
-            id: number;
-            /**
-             * @description Human-readable name.
-             * @example Example Name
-             */
-            name: string;
-        };
-        /**
-         * @description Team Member schema.
-         * @example {
-         *       "id": 42,
-         *       "name": "Example Name",
-         *       "email": "agent@example.com",
-         *       "assignee_type": "human",
-         *       "team_role": "example",
-         *       "is_owner": true
-         *     }
-         */
-        TeamMember: {
-            /**
-             * @description Unique identifier for this record.
-             * @example 42
-             */
-            id: number;
-            /**
-             * @description Human-readable name.
-             * @example Example Name
-             */
-            name: string;
-            /**
-             * Format: email
-             * @description Email address value.
-             * @example agent@example.com
-             */
-            email: string;
-            /**
-             * @description Assignee type when this notification is assignment-related. Allowed values: human.
-             * @example human
-             * @enum {string}
-             */
-            assignee_type: "human";
-            /**
-             * @description Team role.
-             * @example example
-             */
-            team_role: string;
-            /**
-             * @description Boolean flag for is owner.
-             * @example true
-             */
-            is_owner: boolean;
-        };
-        /**
-         * @description Paginated Team Member Response response schema.
-         * @example {
-         *       "data": [
-         *         {
-         *           "id": 42,
-         *           "name": "Example Name",
-         *           "email": "agent@example.com",
-         *           "assignee_type": "human",
-         *           "team_role": "example",
-         *           "is_owner": true
-         *         }
-         *       ],
-         *       "links": {
-         *         "first": "example",
-         *         "last": "example",
-         *         "prev": "example",
-         *         "next": "example"
-         *       },
-         *       "meta": {
-         *         "current_page": 1,
-         *         "from": 1,
-         *         "last_page": 1,
-         *         "links": [
-         *           {
-         *             "url": "https://agentmc.example.com/docs/incident-123",
-         *             "label": "example",
-         *             "active": true
-         *           }
-         *         ],
-         *         "path": "notes/daily-ops.md",
-         *         "per_page": 25,
-         *         "total": 0
-         *       }
-         *     }
-         */
-        PaginatedTeamMemberResponse: {
-            /**
-             * @description Data.
-             * @example [
-             *       {
-             *         "id": 42,
-             *         "name": "Example Name",
-             *         "email": "agent@example.com",
-             *         "assignee_type": "human",
-             *         "team_role": "example",
-             *         "is_owner": true
-             *       }
-             *     ]
-             */
-            data: components["schemas"]["TeamMember"][];
-            /**
-             * @description Links.
-             * @example {
-             *       "first": "example",
-             *       "last": "example",
-             *       "prev": "example",
-             *       "next": "example"
-             *     }
-             */
-            links: components["schemas"]["PaginationLinks"];
-            /**
-             * @description Arbitrary JSON metadata object.
-             * @example {
-             *       "current_page": 1,
-             *       "from": 1,
-             *       "last_page": 1,
-             *       "links": [
-             *         {
-             *           "url": "https://agentmc.example.com/docs/incident-123",
-             *           "label": "example",
-             *           "active": true
-             *         }
-             *       ],
-             *       "path": "notes/daily-ops.md",
-             *       "per_page": 25,
-             *       "total": 0
-             *     }
-             */
-            meta: components["schemas"]["PaginationMeta"];
-        };
-        /**
-         * @description Team Agent Host Summary schema.
-         * @example {
-         *       "id": 42,
-         *       "name": "Example Name"
-         *     }
-         */
-        TeamAgentHostSummary: {
-            /**
-             * @description Unique identifier for this record.
-             * @example 42
-             */
-            id: number;
-            /**
-             * @description Human-readable name.
-             * @example Example Name
-             */
-            name: string | null;
-        };
-        /**
-         * @description Team Agent schema.
-         * @example {
-         *       "id": 42,
-         *       "team_id": 7,
-         *       "host_id": 11,
-         *       "host": {
-         *         "id": 11,
-         *         "name": "worker-01"
-         *       },
-         *       "name": "codex-runtime-prod",
-         *       "type": "openclaw",
-         *       "status": "online",
-         *       "meta": {
-         *         "runtime_host": "worker-01",
-         *         "runtime_version": "2026.02.1",
-         *         "runtime": "codex",
-         *         "models": [
-         *           {
-         *             "model_id": "openai/gpt-5-codex",
-         *             "provider": "openai"
-         *           }
-         *         ]
-         *       },
-         *       "last_seen_at": "2026-02-24T02:11:00Z",
-         *       "tasks_count": 3,
-         *       "created_at": "2026-02-24T01:56:00Z",
-         *       "updated_at": "2026-02-24T02:11:00Z"
-         *     }
-         */
-        TeamAgent: {
-            /**
-             * @description Unique identifier for this record.
-             * @example 42
-             */
-            id: number;
-            /**
-             * @description Team identifier that owns this record.
-             * @example 42
-             */
-            team_id: number;
-            /**
-             * @description Identifier for host.
-             * @example 42
-             */
-            host_id: number | null;
-            /**
-             * @description Host.
-             * @example {
-             *       "id": 42,
-             *       "name": "Example Name"
-             *     }
-             */
-            host: components["schemas"]["TeamAgentHostSummary"] | null;
-            /**
-             * @description Human-readable name.
-             * @example Example Name
-             */
-            name: string;
-            /**
-             * @description Type discriminator for this record. Allowed values: openclaw.
-             * @example openclaw
-             * @enum {string}
-             */
-            type: "openclaw";
-            /**
-             * @description Current lifecycle status for this record. Allowed values: online, offline.
-             * @example online
-             * @enum {string}
-             */
-            status: "online" | "offline";
-            /**
-             * @description Arbitrary JSON metadata object.
-             * @example {
-             *       "key": "value"
-             *     }
-             */
-            meta: {
-                [key: string]: unknown;
-            } | null;
-            /**
-             * Format: date-time
-             * @description ISO-8601 timestamp for most recent heartbeat.
-             * @example 2026-02-22T17:21:00Z
-             */
-            last_seen_at: string | null;
-            /**
-             * @description Count of tasks currently assigned to this agent.
-             * @example 0
-             */
-            tasks_count: number;
-            /**
-             * Format: date-time
-             * @description ISO-8601 timestamp when this record was created.
-             * @example 2026-02-22T17:21:00Z
-             */
-            created_at: string | null;
-            /**
-             * Format: date-time
-             * @description ISO-8601 timestamp when this record was last updated.
-             * @example 2026-02-22T17:21:00Z
-             */
-            updated_at: string | null;
-        };
-        /**
-         * @description Paginated Team Agent Response response schema.
-         * @example {
-         *       "data": [
-         *         {
-         *           "id": 42,
-         *           "team_id": 7,
-         *           "host_id": 11,
-         *           "host": {
-         *             "id": 11,
-         *             "name": "worker-01"
-         *           },
-         *           "name": "codex-runtime-prod",
-         *           "type": "openclaw",
-         *           "status": "online",
-         *           "meta": {
-         *             "runtime_host": "worker-01",
-         *             "runtime_version": "2026.02.1",
-         *             "runtime": "codex",
-         *             "models": [
-         *               {
-         *                 "model_id": "openai/gpt-5-codex",
-         *                 "provider": "openai"
-         *               }
-         *             ]
-         *           },
-         *           "last_seen_at": "2026-02-24T02:11:00Z",
-         *           "tasks_count": 3,
-         *           "created_at": "2026-02-24T01:56:00Z",
-         *           "updated_at": "2026-02-24T02:11:00Z"
-         *         }
-         *       ],
-         *       "links": {
-         *         "first": "example",
-         *         "last": "example",
-         *         "prev": "example",
-         *         "next": "example"
-         *       },
-         *       "meta": {
-         *         "current_page": 1,
-         *         "from": 1,
-         *         "last_page": 1,
-         *         "links": [
-         *           {
-         *             "url": "https://agentmc.example.com/docs/incident-123",
-         *             "label": "example",
-         *             "active": true
-         *           }
-         *         ],
-         *         "path": "notes/daily-ops.md",
-         *         "per_page": 25,
-         *         "total": 0
-         *       }
-         *     }
-         */
-        PaginatedTeamAgentResponse: {
-            /**
-             * @description Data.
-             * @example [
-             *       {
-             *         "id": 42,
-             *         "team_id": 7,
-             *         "host_id": 11,
-             *         "host": {
-             *           "id": 11,
-             *           "name": "worker-01"
-             *         },
-             *         "name": "codex-runtime-prod",
-             *         "type": "openclaw",
-             *         "status": "online",
-             *         "meta": {
-             *           "runtime_host": "worker-01",
-             *           "runtime_version": "2026.02.1",
-             *           "runtime": "codex",
-             *           "models": [
-             *             {
-             *               "model_id": "openai/gpt-5-codex",
-             *               "provider": "openai"
-             *             }
-             *           ]
-             *         },
-             *         "last_seen_at": "2026-02-24T02:11:00Z",
-             *         "tasks_count": 3,
-             *         "created_at": "2026-02-24T01:56:00Z",
-             *         "updated_at": "2026-02-24T02:11:00Z"
-             *       }
-             *     ]
-             */
-            data: components["schemas"]["TeamAgent"][];
-            /**
-             * @description Links.
-             * @example {
-             *       "first": "example",
-             *       "last": "example",
-             *       "prev": "example",
-             *       "next": "example"
-             *     }
-             */
-            links: components["schemas"]["PaginationLinks"];
-            /**
-             * @description Arbitrary JSON metadata object.
-             * @example {
-             *       "current_page": 1,
-             *       "from": 1,
-             *       "last_page": 1,
-             *       "links": [
-             *         {
-             *           "url": "https://agentmc.example.com/docs/incident-123",
-             *           "label": "example",
-             *           "active": true
-             *         }
-             *       ],
-             *       "path": "notes/daily-ops.md",
-             *       "per_page": 25,
-             *       "total": 0
-             *     }
-             */
-            meta: components["schemas"]["PaginationMeta"];
-        };
-        /**
-         * @description Plan Summary schema.
-         * @example {
-         *       "key": "example",
-         *       "label": "example",
-         *       "rate_limit_per_minute": 1,
-         *       "activity_retention_days": 1,
-         *       "chat_retention_days": 1,
-         *       "features": {
-         *         "key": "value"
-         *       },
-         *       "limits": {
-         *         "key": "value"
-         *       }
-         *     }
-         */
-        PlanSummary: {
-            /**
-             * @description Stable mention key composed from mention type and identifier.
-             * @example example
-             */
-            key: string;
-            /**
-             * @description Display label for this mention target.
-             * @example example
-             */
-            label: string;
-            /**
-             * @description Rate limit per minute.
-             * @example 1
-             */
-            rate_limit_per_minute: number;
-            /**
-             * @description Activity retention days.
-             * @example 1
-             */
-            activity_retention_days: number;
-            /**
-             * @description Chat retention days.
-             * @example 1
-             */
-            chat_retention_days: number;
-            /**
-             * @description Features.
-             * @example {
-             *       "key": "value"
-             *     }
-             */
-            features: {
-                [key: string]: unknown;
-            };
-            /**
-             * @description Limits.
-             * @example {
-             *       "key": "value"
-             *     }
-             */
-            limits: {
-                [key: string]: unknown;
-            };
-        };
-        /**
-         * @description Heartbeat acknowledgement with resolved host and agent records from runtime telemetry.
-         * @example {
-         *       "ok": true,
-         *       "server_time": "2026-02-22T17:21:02Z",
-         *       "host": {
-         *         "id": 12,
-         *         "team_id": 7,
-         *         "name": "worker-01",
-         *         "fingerprint": "a3f56f330f311a2159f8c101eaf1439a29f1d57f007375d56aa79f304bc4f112",
-         *         "status": "online",
-         *         "last_seen_at": "2026-02-22T17:21:02Z",
-         *         "meta": {
-         *           "hostname": "worker-01",
-         *           "os": "Ubuntu",
-         *           "arch": "x86_64",
-         *           "runtime": {
-         *             "name": "codex",
-         *             "version": "2026.02.1"
-         *           }
-         *         },
-         *         "created_by_user_id": 1,
-         *         "agents_total": 1,
-         *         "agents_online": 1,
-         *         "created_at": "2026-02-22T17:21:02Z",
-         *         "updated_at": "2026-02-22T17:21:02Z"
-         *       },
-         *       "host_realtime": {
-         *         "connection": {
-         *           "driver": "reverb",
-         *           "key": "local-app-key",
-         *           "cluster": "mt1",
-         *           "host": "agentmc.ai",
-         *           "port": 443,
-         *           "scheme": "https",
-         *           "path": ""
-         *         },
-         *         "channel": "private-agent-realtime-host.12",
-         *         "event": "agent.realtime.host.session.requested",
-         *         "auth_endpoint": "https://agentmc.ai/api/v1/hosts/realtime/socket-auth"
-         *       },
-         *       "agent": {
-         *         "id": 42,
-         *         "name": "Solomon",
-         *         "type": "openclaw"
-         *       }
-         *     }
-         */
-        AgentHeartbeatResponse: {
-            /**
-             * @description Boolean flag for ok.
-             * @example true
-             */
-            ok: boolean;
-            /**
-             * Format: date-time
-             * @description Current server timestamp.
-             * @example 2026-02-22T17:21:00Z
-             */
-            server_time: string;
-            /**
-             * @description Resolved host snapshot after heartbeat processing.
-             * @example {
-             *       "id": 42,
-             *       "team_id": 42,
-             *       "name": "Example Name",
-             *       "fingerprint": "a3f56f330f311a2159f8c101eaf1439a29f1d57f007375d56aa79f304bc4f112",
-             *       "status": "online",
-             *       "last_seen_at": "2026-02-22T17:21:00Z",
-             *       "meta": {
-             *         "hostname": "worker-01",
-             *         "ip": "10.0.2.15",
-             *         "os": "Ubuntu",
-             *         "arch": "x86_64",
-             *         "cpu": "Intel Xeon",
-             *         "ram_gb": 32,
-             *         "runtime": {
-             *           "name": "openclaw",
-             *           "version": "1.14.2"
-             *         }
-             *       },
-             *       "created_by_user_id": 42,
-             *       "agents_total": 1,
-             *       "agents_online": 1,
-             *       "created_at": "2026-02-22T17:21:00Z",
-             *       "updated_at": "2026-02-22T17:21:00Z"
-             *     }
-             */
-            host?: components["schemas"]["Host"] | null;
-            /**
-             * @description Host websocket watch channel metadata for push-first session availability routing.
-             * @example {
-             *       "connection": {
-             *         "driver": "example",
-             *         "key": "example",
-             *         "cluster": "example",
-             *         "host": "ip-10-0-3-42",
-             *         "port": 1,
-             *         "scheme": "example",
-             *         "path": "notes/daily-ops.md"
-             *       },
-             *       "channel": "example",
-             *       "event": "example",
-             *       "auth_endpoint": "example"
-             *     }
-             */
-            host_realtime?: components["schemas"]["HostRealtimeSocketPayload"] | null;
-            /**
-             * @description Resolved agent snapshot after heartbeat processing (auto-created when needed).
-             * @example {
-             *       "id": 42,
-             *       "name": "Example Name",
-             *       "type": "openclaw"
-             *     }
-             */
-            agent?: {
-                /**
-                 * @description Unique identifier for this record.
-                 * @example 42
-                 */
-                id: number;
-                /**
-                 * @description Human-readable name.
-                 * @example Example Name
-                 */
-                name: string;
-                /**
-                 * @description Type discriminator for this record. Allowed values: openclaw.
-                 * @example openclaw
-                 * @enum {string}
-                 */
-                type: "openclaw";
-            } | null;
-        };
-        /**
-         * @description Agent Instruction Bundle File schema.
-         * @example {
-         *       "id": "skill.md",
-         *       "path": ".agentmc/skills/skill.md",
-         *       "content": "# AgentMC Skill\n",
-         *       "sha256": "f96c95bd27dc9f3415cc0f4d817b5ec6f14185b6fcb5db9f6b6f14f648f8e9e4"
-         *     }
-         */
-        AgentInstructionBundleFile: {
-            /**
-             * @description Unique identifier for this record.
-             * @example example
-             */
-            id: string;
-            /**
-             * @description Local filesystem path where this file should be written.
-             * @example notes/daily-ops.md
-             */
-            path: string;
-            /**
-             * @description Content.
-             * @example Example content.
-             */
-            content: string;
-            /**
-             * @description SHA-256 checksum for file content.
-             * @example f96c95bd27dc9f3415cc0f4d817b5ec6f14185b6fcb5db9f6b6f14f648f8e9e4
-             */
-            sha256: string;
-        };
-        /**
-         * @description Agent Instructions Response response schema.
-         * @example {
-         *       "ok": true,
-         *       "changed": true,
-         *       "bundle_version": "bundle_2fa07fcadd6575cc",
-         *       "generated_at": "2026-02-25T14:10:00Z",
-         *       "defaults": {
-         *         "heartbeat_interval_seconds": 60
-         *       },
-         *       "agent": {
-         *         "id": 42
-         *       },
-         *       "files": [
-         *         {
-         *           "id": "skill.md",
-         *           "path": ".agentmc/skills/skill.md",
-         *           "content": "# AgentMC Skill\n",
-         *           "sha256": "f96c95bd27dc9f3415cc0f4d817b5ec6f14185b6fcb5db9f6b6f14f648f8e9e4"
-         *         }
-         *       ]
-         *     }
-         */
-        AgentInstructionsResponse: {
-            /**
-             * @description Boolean flag for ok.
-             * @example true
-             */
-            ok: boolean;
-            /**
-             * @description True when the runtime should rewrite local managed files from this response.
-             * @example true
-             */
-            changed: boolean;
-            /**
-             * @description Bundle version.
-             * @example example
-             */
-            bundle_version: string;
-            /**
-             * Format: date-time
-             * @description ISO-8601 generation timestamp.
-             * @example 2026-02-22T17:21:00Z
-             */
-            generated_at: string;
-            /**
-             * @description Defaults.
-             * @example {
-             *       "heartbeat_interval_seconds": 1
-             *     }
-             */
-            defaults: {
-                /**
-                 * @description Heartbeat interval seconds.
-                 * @example 1
-                 */
-                heartbeat_interval_seconds: number;
-            };
-            /**
-             * @description Agent.
-             * @example {
-             *       "id": 42
-             *     }
-             */
-            agent: {
-                /**
-                 * @description Unique identifier for this record.
-                 * @example 42
-                 */
-                id: number;
-            };
-            /**
-             * @description Managed files to write locally.
-             * @example [
-             *       {
-             *         "id": "skill.md",
-             *         "path": ".agentmc/skills/skill.md",
-             *         "content": "# AgentMC Skill\n",
-             *         "sha256": "f96c95bd27dc9f3415cc0f4d817b5ec6f14185b6fcb5db9f6b6f14f648f8e9e4"
-             *       }
-             *     ]
-             */
-            files: components["schemas"]["AgentInstructionBundleFile"][];
-        };
-        /**
-         * @description Agent Recurring Task Due Run schema.
-         * @example {
-         *       "run_id": 42,
-         *       "task_id": 42,
-         *       "prompt": "example",
-         *       "scheduled_for": "2026-02-22T17:21:00Z",
-         *       "claim_token": "example",
-         *       "agent_id": 42
-         *     }
-         */
-        AgentRecurringTaskDueRun: {
-            /**
-             * @description Identifier for run.
-             * @example 42
-             */
-            run_id: number;
-            /**
-             * @description Task identifier.
-             * @example 42
-             */
-            task_id: number;
-            /**
-             * @description Prompt.
-             * @example example
-             */
-            prompt: string;
-            /**
-             * Format: date-time
-             * @description Scheduled for.
-             * @example 2026-02-22T17:21:00Z
-             */
-            scheduled_for: string;
-            /**
-             * @description Claim token.
-             * @example example
-             */
-            claim_token: string;
-            /**
-             * @description Identifier for agent.
-             * @example 42
-             */
-            agent_id: number;
-        };
-        /**
-         * @description Agent Recurring Task Due Runs Response response schema.
-         * @example {
-         *       "data": [
-         *         {
-         *           "run_id": 42,
-         *           "task_id": 42,
-         *           "prompt": "example",
-         *           "scheduled_for": "2026-02-22T17:21:00Z",
-         *           "claim_token": "example",
-         *           "agent_id": 42
-         *         }
-         *       ]
-         *     }
-         */
-        AgentRecurringTaskDueRunsResponse: {
-            /**
-             * @description Data.
-             * @example [
-             *       {
-             *         "run_id": 42,
-             *         "task_id": 42,
-             *         "prompt": "example",
-             *         "scheduled_for": "2026-02-22T17:21:00Z",
-             *         "claim_token": "example",
-             *         "agent_id": 42
-             *       }
-             *     ]
-             */
-            data: components["schemas"]["AgentRecurringTaskDueRun"][];
-        };
-        /**
-         * @description Agent Recurring Task Run schema.
-         * @example {
-         *       "id": 42,
-         *       "team_id": 42,
-         *       "agent_id": 42,
-         *       "agent_recurring_task_id": 42,
-         *       "scheduled_for": "2026-02-22T17:21:00Z",
-         *       "status": "running",
-         *       "claim_token": "example",
-         *       "prompt_snapshot": "example",
-         *       "schedule_snapshot": {
-         *         "key": "value"
-         *       },
-         *       "started_at": "2026-02-22T17:21:00Z",
-         *       "finished_at": "2026-02-22T17:21:00Z",
-         *       "summary": "Morning operations handoff digest.",
-         *       "error_message": "example",
-         *       "runtime_meta": {
-         *         "key": "value"
-         *       },
-         *       "created_at": "2026-02-22T17:21:00Z",
-         *       "updated_at": "2026-02-22T17:21:00Z"
-         *     }
-         */
-        AgentRecurringTaskRun: {
-            /**
-             * @description Unique identifier for this record.
-             * @example 42
-             */
-            id: number;
-            /**
-             * @description Team identifier that owns this record.
-             * @example 42
-             */
-            team_id: number;
-            /**
-             * @description Identifier for agent.
-             * @example 42
-             */
-            agent_id: number;
-            /**
-             * @description Identifier for agent recurring task.
-             * @example 42
-             */
-            agent_recurring_task_id: number;
-            /**
-             * Format: date-time
-             * @description Scheduled for.
-             * @example 2026-02-22T17:21:00Z
-             */
-            scheduled_for: string;
-            /**
-             * @description Current lifecycle status for this record. Allowed values: running, success, error.
-             * @example running
-             * @enum {string}
-             */
-            status: "running" | "success" | "error";
-            /**
-             * @description Claim token.
-             * @example example
-             */
-            claim_token: string;
-            /**
-             * @description Prompt snapshot.
-             * @example example
-             */
-            prompt_snapshot: string;
-            /**
-             * @description Schedule snapshot.
-             * @example {
-             *       "key": "value"
-             *     }
-             */
-            schedule_snapshot: {
-                [key: string]: unknown;
-            } | null;
-            /**
-             * Format: date-time
-             * @description ISO-8601 timestamp for started.
-             * @example 2026-02-22T17:21:00Z
-             */
-            started_at: string | null;
-            /**
-             * Format: date-time
-             * @description ISO-8601 timestamp for finished.
-             * @example 2026-02-22T17:21:00Z
-             */
-            finished_at: string | null;
-            /**
-             * @description Optional short summary.
-             * @example Morning operations handoff digest.
-             */
-            summary: string | null;
-            /**
-             * @description Error message.
-             * @example example
-             */
-            error_message: string | null;
-            /**
-             * @description Additional metadata for Agent Recurring Task Run.
-             * @example {
-             *       "key": "value"
-             *     }
-             */
-            runtime_meta: {
-                [key: string]: unknown;
-            } | null;
-            /**
-             * Format: date-time
-             * @description ISO-8601 timestamp when this record was created.
-             * @example 2026-02-22T17:21:00Z
-             */
-            created_at: string | null;
-            /**
-             * Format: date-time
-             * @description ISO-8601 timestamp when this record was last updated.
-             * @example 2026-02-22T17:21:00Z
-             */
-            updated_at: string | null;
-        };
-        /**
-         * @description Agent Recurring Task Run Response response schema.
-         * @example {
-         *       "data": {
-         *         "id": 42,
-         *         "team_id": 42,
-         *         "agent_id": 42,
-         *         "agent_recurring_task_id": 42,
-         *         "scheduled_for": "2026-02-22T17:21:00Z",
-         *         "status": "running",
-         *         "claim_token": "example",
-         *         "prompt_snapshot": "example",
-         *         "schedule_snapshot": {
-         *           "key": "value"
-         *         },
-         *         "started_at": "2026-02-22T17:21:00Z",
-         *         "finished_at": "2026-02-22T17:21:00Z",
-         *         "summary": "Morning operations handoff digest.",
-         *         "error_message": "example",
-         *         "runtime_meta": {
-         *           "key": "value"
-         *         },
-         *         "created_at": "2026-02-22T17:21:00Z",
-         *         "updated_at": "2026-02-22T17:21:00Z"
-         *       }
-         *     }
-         */
-        AgentRecurringTaskRunResponse: {
-            /**
-             * @description Data.
-             * @example {
-             *       "id": 42,
-             *       "team_id": 42,
-             *       "agent_id": 42,
-             *       "agent_recurring_task_id": 42,
-             *       "scheduled_for": "2026-02-22T17:21:00Z",
-             *       "status": "running",
-             *       "claim_token": "example",
-             *       "prompt_snapshot": "example",
-             *       "schedule_snapshot": {
-             *         "key": "value"
-             *       },
-             *       "started_at": "2026-02-22T17:21:00Z",
-             *       "finished_at": "2026-02-22T17:21:00Z",
-             *       "summary": "Morning operations handoff digest.",
-             *       "error_message": "example",
-             *       "runtime_meta": {
-             *         "key": "value"
-             *       },
-             *       "created_at": "2026-02-22T17:21:00Z",
-             *       "updated_at": "2026-02-22T17:21:00Z"
-             *     }
-             */
-            data: components["schemas"]["AgentRecurringTaskRun"];
-        };
-        /**
-         * @description Brief Entry Summary schema.
-         * @example {
-         *       "id": 42,
-         *       "agent_id": 42,
-         *       "external_id": "ops-brief-2026-02-22",
-         *       "name": "Example Name",
-         *       "timezone": "America/Los_Angeles",
-         *       "summary": "Morning operations handoff digest.",
-         *       "include_sections": [
-         *         {
-         *           "key": "value"
-         *         }
-         *       ],
-         *       "headline": "3 overdue tasks | 4 upcoming events",
-         *       "content_markdown": "## Highlights\n- Elevated API error rate",
-         *       "content_json": {
-         *         "key": "value"
-         *       },
-         *       "source_meta": {
-         *         "key": "value"
-         *       },
-         *       "attachments": [
-         *         {
-         *           "id": 45,
-         *           "team_file_id": 101,
-         *           "preview_url": "/api/v1/files/101/preview",
-         *           "download_url": "/api/v1/files/101/download",
-         *           "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-         *           "file": {
-         *             "id": 101,
-         *             "display_name": "incident-timeline.png",
-         *             "original_filename": "incident-timeline.png",
-         *             "mime_type": "image/png",
-         *             "size_bytes": 144220,
-         *             "preview_kind": "image",
-         *             "created_at": "2026-02-27T17:20:00Z",
-         *             "updated_at": "2026-02-27T17:24:00Z"
-         *           }
-         *         }
-         *       ],
-         *       "received_at": "2026-02-22T17:21:00Z",
-         *       "generated_at": "2026-02-22T17:21:00Z",
-         *       "created_at": "2026-02-22T17:21:00Z",
-         *       "updated_at": "2026-02-22T17:21:00Z"
-         *     }
-         */
-        BriefEntrySummary: {
-            /**
-             * @description Unique identifier for this record.
-             * @example 42
-             */
-            id: number;
-            /**
-             * @description Identifier for agent.
-             * @example 42
-             */
-            agent_id: number | null;
-            /**
-             * @description Optional external provider identifier.
-             * @example ops-brief-2026-02-22
-             */
-            external_id: string | null;
-            /**
-             * @description Human-readable name.
-             * @example Example Name
-             */
-            name: string;
-            /**
-             * @description IANA timezone identifier (for example, America/Los_Angeles).
-             * @example America/Los_Angeles
-             */
-            timezone: string;
-            /**
-             * @description Optional short summary.
-             * @example Morning operations handoff digest.
-             */
-            summary: string | null;
-            /**
-             * @description Include sections.
-             * @example [
-             *       {
-             *         "key": "value"
-             *       }
-             *     ]
-             */
-            include_sections: {
-                [key: string]: unknown;
-            }[];
-            /**
-             * @description Headline.
-             * @example 3 overdue tasks | 4 upcoming events
-             */
-            headline: string | null;
-            /**
-             * @description Markdown body content. Include file embeds as `![alt](/api/v1/files/{id}/preview)`.
-             * @example ## Highlights
-             *     - Elevated API error rate
-             */
-            content_markdown: string | null;
-            /**
-             * @description Structured JSON content.
-             * @example {
-             *       "key": "value"
-             *     }
-             */
-            content_json: {
-                [key: string]: unknown;
-            } | null;
-            /**
-             * @description Additional metadata for Brief Entry Summary.
-             * @example {
-             *       "key": "value"
-             *     }
-             */
-            source_meta: {
-                [key: string]: unknown;
-            } | null;
-            /**
-             * @description Attached team files resolved from markdown embeds or upload payloads.
-             * @example [
-             *       {
-             *         "id": 45,
-             *         "team_file_id": 101,
-             *         "preview_url": "/api/v1/files/101/preview",
-             *         "download_url": "/api/v1/files/101/download",
-             *         "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-             *         "file": {
-             *           "id": 101,
-             *           "display_name": "incident-timeline.png",
-             *           "original_filename": "incident-timeline.png",
-             *           "mime_type": "image/png",
-             *           "size_bytes": 144220,
-             *           "preview_kind": "image",
-             *           "created_at": "2026-02-27T17:20:00Z",
-             *           "updated_at": "2026-02-27T17:24:00Z"
-             *         }
-             *       }
-             *     ]
-             */
-            attachments: components["schemas"]["TeamFileAttachment"][];
-            /**
-             * Format: date-time
-             * @description ISO-8601 receipt timestamp.
-             * @example 2026-02-22T17:21:00Z
-             */
-            received_at: string | null;
-            /**
-             * Format: date-time
-             * @description ISO-8601 generation timestamp.
-             * @example 2026-02-22T17:21:00Z
-             */
-            generated_at: string | null;
-            /**
-             * Format: date-time
-             * @description ISO-8601 timestamp when this record was created.
-             * @example 2026-02-22T17:21:00Z
-             */
-            created_at: string | null;
-            /**
-             * Format: date-time
-             * @description ISO-8601 timestamp when this record was last updated.
-             * @example 2026-02-22T17:21:00Z
-             */
-            updated_at: string | null;
-        };
-        /**
-         * @description Recurring Brief Summary schema.
-         * @example {
-         *       "id": 42,
-         *       "team_id": 42,
-         *       "agent_id": 42,
-         *       "external_key": "daily-operations",
-         *       "external_id": "ops-brief-2026-02-22",
-         *       "name": "Example Name",
-         *       "timezone": "America/Los_Angeles",
-         *       "summary": "Morning operations handoff digest.",
-         *       "include_sections": [
-         *         {
-         *           "key": "value"
-         *         }
-         *       ],
-         *       "headline": "3 overdue tasks | 4 upcoming events",
-         *       "content_markdown": "## Highlights\n- Elevated API error rate",
-         *       "content_json": {
-         *         "key": "value"
-         *       },
-         *       "source_meta": {
-         *         "key": "value"
-         *       },
-         *       "attachments": [
-         *         {
-         *           "id": 45,
-         *           "team_file_id": 101,
-         *           "preview_url": "/api/v1/files/101/preview",
-         *           "download_url": "/api/v1/files/101/download",
-         *           "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-         *           "file": {
-         *             "id": 101,
-         *             "display_name": "incident-timeline.png",
-         *             "original_filename": "incident-timeline.png",
-         *             "mime_type": "image/png",
-         *             "size_bytes": 144220,
-         *             "preview_kind": "image",
-         *             "created_at": "2026-02-27T17:20:00Z",
-         *             "updated_at": "2026-02-27T17:24:00Z"
-         *           }
-         *         }
-         *       ],
-         *       "received_at": "2026-02-22T17:21:00Z",
-         *       "generated_at": "2026-02-22T17:21:00Z",
-         *       "read_by_user_id": 42,
-         *       "latest_entry_id": 42,
-         *       "entries_count": 0,
-         *       "latest_entry": {
-         *         "id": 42,
-         *         "agent_id": 42,
-         *         "external_id": "ops-brief-2026-02-22",
-         *         "name": "Example Name",
-         *         "timezone": "America/Los_Angeles",
-         *         "summary": "Morning operations handoff digest.",
-         *         "include_sections": [
-         *           {
-         *             "key": "value"
-         *           }
-         *         ],
-         *         "headline": "3 overdue tasks | 4 upcoming events",
-         *         "content_markdown": "## Highlights\n- Elevated API error rate",
-         *         "content_json": {
-         *           "key": "value"
-         *         },
-         *         "source_meta": {
-         *           "key": "value"
-         *         },
-         *         "attachments": [
-         *           {
-         *             "id": 45,
-         *             "team_file_id": 101,
-         *             "preview_url": "/api/v1/files/101/preview",
-         *             "download_url": "/api/v1/files/101/download",
-         *             "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-         *             "file": {
-         *               "id": 101,
-         *               "display_name": "incident-timeline.png",
-         *               "original_filename": "incident-timeline.png",
-         *               "mime_type": "image/png",
-         *               "size_bytes": 144220,
-         *               "preview_kind": "image",
-         *               "created_at": "2026-02-27T17:20:00Z",
-         *               "updated_at": "2026-02-27T17:24:00Z"
-         *             }
-         *           }
-         *         ],
-         *         "received_at": "2026-02-22T17:21:00Z",
-         *         "generated_at": "2026-02-22T17:21:00Z",
-         *         "created_at": "2026-02-22T17:21:00Z",
-         *         "updated_at": "2026-02-22T17:21:00Z"
-         *       },
-         *       "created_at": "2026-02-22T17:21:00Z",
-         *       "updated_at": "2026-02-22T17:21:00Z"
-         *     }
-         */
-        RecurringBriefSummary: {
-            /**
-             * @description Unique identifier for this record.
-             * @example 42
-             */
-            id: number;
-            /**
-             * @description Team identifier that owns this record.
-             * @example 42
-             */
-            team_id: number;
-            /**
-             * @description Identifier for agent.
-             * @example 42
-             */
-            agent_id: number | null;
-            /**
-             * @description Stable external key used for upsert/idempotent writes.
-             * @example daily-operations
-             */
-            external_key: string | null;
-            /**
-             * @description Optional external provider identifier.
-             * @example ops-brief-2026-02-22
-             */
-            external_id: string | null;
-            /**
-             * @description Human-readable name.
-             * @example Example Name
-             */
-            name: string;
-            /**
-             * @description IANA timezone identifier (for example, America/Los_Angeles).
-             * @example America/Los_Angeles
-             */
-            timezone: string;
-            /**
-             * @description Optional short summary.
-             * @example Morning operations handoff digest.
-             */
-            summary: string | null;
-            /**
-             * @description Include sections.
-             * @example [
-             *       {
-             *         "key": "value"
-             *       }
-             *     ]
-             */
-            include_sections: {
-                [key: string]: unknown;
-            }[];
-            /**
-             * @description Headline.
-             * @example 3 overdue tasks | 4 upcoming events
-             */
-            headline: string | null;
-            /**
-             * @description Markdown body content. Include file embeds as `![alt](/api/v1/files/{id}/preview)`.
-             * @example ## Highlights
-             *     - Elevated API error rate
-             */
-            content_markdown: string | null;
-            /**
-             * @description Structured JSON content.
-             * @example {
-             *       "key": "value"
-             *     }
-             */
-            content_json: {
-                [key: string]: unknown;
-            } | null;
-            /**
-             * @description Additional metadata for Recurring Brief Summary.
-             * @example {
-             *       "key": "value"
-             *     }
-             */
-            source_meta: {
-                [key: string]: unknown;
-            } | null;
-            /**
-             * @description Attached team files resolved from markdown embeds or upload payloads.
-             * @example [
-             *       {
-             *         "id": 45,
-             *         "team_file_id": 101,
-             *         "preview_url": "/api/v1/files/101/preview",
-             *         "download_url": "/api/v1/files/101/download",
-             *         "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-             *         "file": {
-             *           "id": 101,
-             *           "display_name": "incident-timeline.png",
-             *           "original_filename": "incident-timeline.png",
-             *           "mime_type": "image/png",
-             *           "size_bytes": 144220,
-             *           "preview_kind": "image",
-             *           "created_at": "2026-02-27T17:20:00Z",
-             *           "updated_at": "2026-02-27T17:24:00Z"
-             *         }
-             *       }
-             *     ]
-             */
-            attachments: components["schemas"]["TeamFileAttachment"][];
-            /**
-             * Format: date-time
-             * @description ISO-8601 receipt timestamp.
-             * @example 2026-02-22T17:21:00Z
-             */
-            received_at: string | null;
-            /**
-             * Format: date-time
-             * @description ISO-8601 generation timestamp.
-             * @example 2026-02-22T17:21:00Z
-             */
-            generated_at: string | null;
-            /**
-             * @description Identifier for read by user.
-             * @example 42
-             */
-            read_by_user_id: number | null;
-            /**
-             * @description Identifier of the most recent child entry for this parent brief.
-             * @example 42
-             */
-            latest_entry_id: number | null;
-            /**
-             * @description Total number of child entries stored for this parent brief.
-             * @example 0
-             */
-            entries_count: number | null;
-            /**
-             * @description Most recent child entry snapshot for this parent brief.
-             * @example {
-             *       "id": 42,
-             *       "agent_id": 42,
-             *       "external_id": "ops-brief-2026-02-22",
-             *       "name": "Example Name",
-             *       "timezone": "America/Los_Angeles",
-             *       "summary": "Morning operations handoff digest.",
-             *       "include_sections": [
-             *         {
-             *           "key": "value"
-             *         }
-             *       ],
-             *       "headline": "3 overdue tasks | 4 upcoming events",
-             *       "content_markdown": "## Highlights\n- Elevated API error rate",
-             *       "content_json": {
-             *         "key": "value"
-             *       },
-             *       "source_meta": {
-             *         "key": "value"
-             *       },
-             *       "attachments": [
-             *         {
-             *           "id": 45,
-             *           "team_file_id": 101,
-             *           "preview_url": "/api/v1/files/101/preview",
-             *           "download_url": "/api/v1/files/101/download",
-             *           "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-             *           "file": {
-             *             "id": 101,
-             *             "display_name": "incident-timeline.png",
-             *             "original_filename": "incident-timeline.png",
-             *             "mime_type": "image/png",
-             *             "size_bytes": 144220,
-             *             "preview_kind": "image",
-             *             "created_at": "2026-02-27T17:20:00Z",
-             *             "updated_at": "2026-02-27T17:24:00Z"
-             *           }
-             *         }
-             *       ],
-             *       "received_at": "2026-02-22T17:21:00Z",
-             *       "generated_at": "2026-02-22T17:21:00Z",
-             *       "created_at": "2026-02-22T17:21:00Z",
-             *       "updated_at": "2026-02-22T17:21:00Z"
-             *     }
-             */
-            latest_entry: components["schemas"]["BriefEntrySummary"] | null;
-            /**
-             * Format: date-time
-             * @description ISO-8601 timestamp when this record was created.
-             * @example 2026-02-22T17:21:00Z
-             */
-            created_at: string | null;
-            /**
-             * Format: date-time
-             * @description ISO-8601 timestamp when this record was last updated.
-             * @example 2026-02-22T17:21:00Z
-             */
-            updated_at: string | null;
-        };
-        /**
-         * @description Agent Brief Response response schema.
-         * @example {
-         *       "brief": {
-         *         "id": 42,
-         *         "team_id": 42,
-         *         "agent_id": 42,
-         *         "external_key": "daily-operations",
-         *         "external_id": "ops-brief-2026-02-22",
-         *         "name": "Example Name",
-         *         "timezone": "America/Los_Angeles",
-         *         "summary": "Morning operations handoff digest.",
-         *         "include_sections": [
-         *           {
-         *             "key": "value"
-         *           }
-         *         ],
-         *         "headline": "3 overdue tasks | 4 upcoming events",
-         *         "content_markdown": "## Highlights\n- Elevated API error rate",
-         *         "content_json": {
-         *           "key": "value"
-         *         },
-         *         "source_meta": {
-         *           "key": "value"
-         *         },
-         *         "attachments": [
-         *           {
-         *             "id": 45,
-         *             "team_file_id": 101,
-         *             "preview_url": "/api/v1/files/101/preview",
-         *             "download_url": "/api/v1/files/101/download",
-         *             "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-         *             "file": {
-         *               "id": 101,
-         *               "display_name": "incident-timeline.png",
-         *               "original_filename": "incident-timeline.png",
-         *               "mime_type": "image/png",
-         *               "size_bytes": 144220,
-         *               "preview_kind": "image",
-         *               "created_at": "2026-02-27T17:20:00Z",
-         *               "updated_at": "2026-02-27T17:24:00Z"
-         *             }
-         *           }
-         *         ],
-         *         "received_at": "2026-02-22T17:21:00Z",
-         *         "generated_at": "2026-02-22T17:21:00Z",
-         *         "read_by_user_id": 42,
-         *         "latest_entry_id": 42,
-         *         "entries_count": 0,
-         *         "latest_entry": {
-         *           "id": 42,
-         *           "agent_id": 42,
-         *           "external_id": "ops-brief-2026-02-22",
-         *           "name": "Example Name",
-         *           "timezone": "America/Los_Angeles",
-         *           "summary": "Morning operations handoff digest.",
-         *           "include_sections": [
-         *             {
-         *               "key": "value"
-         *             }
-         *           ],
-         *           "headline": "3 overdue tasks | 4 upcoming events",
-         *           "content_markdown": "## Highlights\n- Elevated API error rate",
-         *           "content_json": {
-         *             "key": "value"
-         *           },
-         *           "source_meta": {
-         *             "key": "value"
-         *           },
-         *           "attachments": [
-         *             {
-         *               "id": 45,
-         *               "team_file_id": 101,
-         *               "preview_url": "/api/v1/files/101/preview",
-         *               "download_url": "/api/v1/files/101/download",
-         *               "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-         *               "file": {
-         *                 "id": 101,
-         *                 "display_name": "incident-timeline.png",
-         *                 "original_filename": "incident-timeline.png",
-         *                 "mime_type": "image/png",
-         *                 "size_bytes": 144220,
-         *                 "preview_kind": "image",
-         *                 "created_at": "2026-02-27T17:20:00Z",
-         *                 "updated_at": "2026-02-27T17:24:00Z"
-         *               }
-         *             }
-         *           ],
-         *           "received_at": "2026-02-22T17:21:00Z",
-         *           "generated_at": "2026-02-22T17:21:00Z",
-         *           "created_at": "2026-02-22T17:21:00Z",
-         *           "updated_at": "2026-02-22T17:21:00Z"
-         *         },
-         *         "created_at": "2026-02-22T17:21:00Z",
-         *         "updated_at": "2026-02-22T17:21:00Z"
-         *       }
-         *     }
-         */
-        AgentBriefResponse: {
-            /**
-             * @description Brief.
-             * @example {
-             *       "id": 42,
-             *       "team_id": 42,
-             *       "agent_id": 42,
-             *       "external_key": "daily-operations",
-             *       "external_id": "ops-brief-2026-02-22",
-             *       "name": "Example Name",
-             *       "timezone": "America/Los_Angeles",
-             *       "summary": "Morning operations handoff digest.",
-             *       "include_sections": [
-             *         {
-             *           "key": "value"
-             *         }
-             *       ],
-             *       "headline": "3 overdue tasks | 4 upcoming events",
-             *       "content_markdown": "## Highlights\n- Elevated API error rate",
-             *       "content_json": {
-             *         "key": "value"
-             *       },
-             *       "source_meta": {
-             *         "key": "value"
-             *       },
-             *       "attachments": [
-             *         {
-             *           "id": 45,
-             *           "team_file_id": 101,
-             *           "preview_url": "/api/v1/files/101/preview",
-             *           "download_url": "/api/v1/files/101/download",
-             *           "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-             *           "file": {
-             *             "id": 101,
-             *             "display_name": "incident-timeline.png",
-             *             "original_filename": "incident-timeline.png",
-             *             "mime_type": "image/png",
-             *             "size_bytes": 144220,
-             *             "preview_kind": "image",
-             *             "created_at": "2026-02-27T17:20:00Z",
-             *             "updated_at": "2026-02-27T17:24:00Z"
-             *           }
-             *         }
-             *       ],
-             *       "received_at": "2026-02-22T17:21:00Z",
-             *       "generated_at": "2026-02-22T17:21:00Z",
-             *       "read_by_user_id": 42,
-             *       "latest_entry_id": 42,
-             *       "entries_count": 0,
-             *       "latest_entry": {
-             *         "id": 42,
-             *         "agent_id": 42,
-             *         "external_id": "ops-brief-2026-02-22",
-             *         "name": "Example Name",
-             *         "timezone": "America/Los_Angeles",
-             *         "summary": "Morning operations handoff digest.",
-             *         "include_sections": [
-             *           {
-             *             "key": "value"
-             *           }
-             *         ],
-             *         "headline": "3 overdue tasks | 4 upcoming events",
-             *         "content_markdown": "## Highlights\n- Elevated API error rate",
-             *         "content_json": {
-             *           "key": "value"
-             *         },
-             *         "source_meta": {
-             *           "key": "value"
-             *         },
-             *         "attachments": [
-             *           {
-             *             "id": 45,
-             *             "team_file_id": 101,
-             *             "preview_url": "/api/v1/files/101/preview",
-             *             "download_url": "/api/v1/files/101/download",
-             *             "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-             *             "file": {
-             *               "id": 101,
-             *               "display_name": "incident-timeline.png",
-             *               "original_filename": "incident-timeline.png",
-             *               "mime_type": "image/png",
-             *               "size_bytes": 144220,
-             *               "preview_kind": "image",
-             *               "created_at": "2026-02-27T17:20:00Z",
-             *               "updated_at": "2026-02-27T17:24:00Z"
-             *             }
-             *           }
-             *         ],
-             *         "received_at": "2026-02-22T17:21:00Z",
-             *         "generated_at": "2026-02-22T17:21:00Z",
-             *         "created_at": "2026-02-22T17:21:00Z",
-             *         "updated_at": "2026-02-22T17:21:00Z"
-             *       },
-             *       "created_at": "2026-02-22T17:21:00Z",
-             *       "updated_at": "2026-02-22T17:21:00Z"
-             *     }
-             */
-            brief: components["schemas"]["RecurringBriefSummary"];
-        };
-        /**
-         * @description Agent Brief Record Response response schema.
-         * @example {
-         *       "brief": {
-         *         "id": 42,
-         *         "team_id": 42,
-         *         "agent_id": 42,
-         *         "external_key": "daily-operations",
-         *         "external_id": "ops-brief-2026-02-22",
-         *         "name": "Example Name",
-         *         "timezone": "America/Los_Angeles",
-         *         "summary": "Morning operations handoff digest.",
-         *         "include_sections": [
-         *           {
-         *             "key": "value"
-         *           }
-         *         ],
-         *         "headline": "3 overdue tasks | 4 upcoming events",
-         *         "content_markdown": "## Highlights\n- Elevated API error rate",
-         *         "content_json": {
-         *           "key": "value"
-         *         },
-         *         "source_meta": {
-         *           "key": "value"
-         *         },
-         *         "attachments": [
-         *           {
-         *             "id": 45,
-         *             "team_file_id": 101,
-         *             "preview_url": "/api/v1/files/101/preview",
-         *             "download_url": "/api/v1/files/101/download",
-         *             "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-         *             "file": {
-         *               "id": 101,
-         *               "display_name": "incident-timeline.png",
-         *               "original_filename": "incident-timeline.png",
-         *               "mime_type": "image/png",
-         *               "size_bytes": 144220,
-         *               "preview_kind": "image",
-         *               "created_at": "2026-02-27T17:20:00Z",
-         *               "updated_at": "2026-02-27T17:24:00Z"
-         *             }
-         *           }
-         *         ],
-         *         "received_at": "2026-02-22T17:21:00Z",
-         *         "generated_at": "2026-02-22T17:21:00Z",
-         *         "read_by_user_id": 42,
-         *         "latest_entry_id": 42,
-         *         "entries_count": 0,
-         *         "latest_entry": {
-         *           "id": 42,
-         *           "agent_id": 42,
-         *           "external_id": "ops-brief-2026-02-22",
-         *           "name": "Example Name",
-         *           "timezone": "America/Los_Angeles",
-         *           "summary": "Morning operations handoff digest.",
-         *           "include_sections": [
-         *             {
-         *               "key": "value"
-         *             }
-         *           ],
-         *           "headline": "3 overdue tasks | 4 upcoming events",
-         *           "content_markdown": "## Highlights\n- Elevated API error rate",
-         *           "content_json": {
-         *             "key": "value"
-         *           },
-         *           "source_meta": {
-         *             "key": "value"
-         *           },
-         *           "attachments": [
-         *             {
-         *               "id": 45,
-         *               "team_file_id": 101,
-         *               "preview_url": "/api/v1/files/101/preview",
-         *               "download_url": "/api/v1/files/101/download",
-         *               "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-         *               "file": {
-         *                 "id": 101,
-         *                 "display_name": "incident-timeline.png",
-         *                 "original_filename": "incident-timeline.png",
-         *                 "mime_type": "image/png",
-         *                 "size_bytes": 144220,
-         *                 "preview_kind": "image",
-         *                 "created_at": "2026-02-27T17:20:00Z",
-         *                 "updated_at": "2026-02-27T17:24:00Z"
-         *               }
-         *             }
-         *           ],
-         *           "received_at": "2026-02-22T17:21:00Z",
-         *           "generated_at": "2026-02-22T17:21:00Z",
-         *           "created_at": "2026-02-22T17:21:00Z",
-         *           "updated_at": "2026-02-22T17:21:00Z"
-         *         },
-         *         "created_at": "2026-02-22T17:21:00Z",
-         *         "updated_at": "2026-02-22T17:21:00Z"
-         *       }
-         *     }
-         */
-        AgentBriefRecordResponse: {
-            /**
-             * @description Brief.
-             * @example {
-             *       "id": 42,
-             *       "team_id": 42,
-             *       "agent_id": 42,
-             *       "external_key": "daily-operations",
-             *       "external_id": "ops-brief-2026-02-22",
-             *       "name": "Example Name",
-             *       "timezone": "America/Los_Angeles",
-             *       "summary": "Morning operations handoff digest.",
-             *       "include_sections": [
-             *         {
-             *           "key": "value"
-             *         }
-             *       ],
-             *       "headline": "3 overdue tasks | 4 upcoming events",
-             *       "content_markdown": "## Highlights\n- Elevated API error rate",
-             *       "content_json": {
-             *         "key": "value"
-             *       },
-             *       "source_meta": {
-             *         "key": "value"
-             *       },
-             *       "attachments": [
-             *         {
-             *           "id": 45,
-             *           "team_file_id": 101,
-             *           "preview_url": "/api/v1/files/101/preview",
-             *           "download_url": "/api/v1/files/101/download",
-             *           "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-             *           "file": {
-             *             "id": 101,
-             *             "display_name": "incident-timeline.png",
-             *             "original_filename": "incident-timeline.png",
-             *             "mime_type": "image/png",
-             *             "size_bytes": 144220,
-             *             "preview_kind": "image",
-             *             "created_at": "2026-02-27T17:20:00Z",
-             *             "updated_at": "2026-02-27T17:24:00Z"
-             *           }
-             *         }
-             *       ],
-             *       "received_at": "2026-02-22T17:21:00Z",
-             *       "generated_at": "2026-02-22T17:21:00Z",
-             *       "read_by_user_id": 42,
-             *       "latest_entry_id": 42,
-             *       "entries_count": 0,
-             *       "latest_entry": {
-             *         "id": 42,
-             *         "agent_id": 42,
-             *         "external_id": "ops-brief-2026-02-22",
-             *         "name": "Example Name",
-             *         "timezone": "America/Los_Angeles",
-             *         "summary": "Morning operations handoff digest.",
-             *         "include_sections": [
-             *           {
-             *             "key": "value"
-             *           }
-             *         ],
-             *         "headline": "3 overdue tasks | 4 upcoming events",
-             *         "content_markdown": "## Highlights\n- Elevated API error rate",
-             *         "content_json": {
-             *           "key": "value"
-             *         },
-             *         "source_meta": {
-             *           "key": "value"
-             *         },
-             *         "attachments": [
-             *           {
-             *             "id": 45,
-             *             "team_file_id": 101,
-             *             "preview_url": "/api/v1/files/101/preview",
-             *             "download_url": "/api/v1/files/101/download",
-             *             "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-             *             "file": {
-             *               "id": 101,
-             *               "display_name": "incident-timeline.png",
-             *               "original_filename": "incident-timeline.png",
-             *               "mime_type": "image/png",
-             *               "size_bytes": 144220,
-             *               "preview_kind": "image",
-             *               "created_at": "2026-02-27T17:20:00Z",
-             *               "updated_at": "2026-02-27T17:24:00Z"
-             *             }
-             *           }
-             *         ],
-             *         "received_at": "2026-02-22T17:21:00Z",
-             *         "generated_at": "2026-02-22T17:21:00Z",
-             *         "created_at": "2026-02-22T17:21:00Z",
-             *         "updated_at": "2026-02-22T17:21:00Z"
-             *       },
-             *       "created_at": "2026-02-22T17:21:00Z",
-             *       "updated_at": "2026-02-22T17:21:00Z"
-             *     }
-             */
-            brief: components["schemas"]["RecurringBriefSummary"];
-        };
-        /**
-         * @description Paginated Recurring Brief Summary Response response schema.
-         * @example {
-         *       "data": [
-         *         {
-         *           "id": 42,
-         *           "team_id": 42,
-         *           "agent_id": 42,
-         *           "external_key": "daily-operations",
-         *           "external_id": "ops-brief-2026-02-22",
-         *           "name": "Example Name",
-         *           "timezone": "America/Los_Angeles",
-         *           "summary": "Morning operations handoff digest.",
-         *           "include_sections": [
-         *             {
-         *               "key": "value"
-         *             }
-         *           ],
-         *           "headline": "3 overdue tasks | 4 upcoming events",
-         *           "content_markdown": "## Highlights\n- Elevated API error rate",
-         *           "content_json": {
-         *             "key": "value"
-         *           },
-         *           "source_meta": {
-         *             "key": "value"
-         *           },
-         *           "attachments": [
-         *             {
-         *               "id": 45,
-         *               "team_file_id": 101,
-         *               "preview_url": "/api/v1/files/101/preview",
-         *               "download_url": "/api/v1/files/101/download",
-         *               "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-         *               "file": {
-         *                 "id": 101,
-         *                 "display_name": "incident-timeline.png",
-         *                 "original_filename": "incident-timeline.png",
-         *                 "mime_type": "image/png",
-         *                 "size_bytes": 144220,
-         *                 "preview_kind": "image",
-         *                 "created_at": "2026-02-27T17:20:00Z",
-         *                 "updated_at": "2026-02-27T17:24:00Z"
-         *               }
-         *             }
-         *           ],
-         *           "received_at": "2026-02-22T17:21:00Z",
-         *           "generated_at": "2026-02-22T17:21:00Z",
-         *           "read_by_user_id": 42,
-         *           "latest_entry_id": 42,
-         *           "entries_count": 0,
-         *           "latest_entry": {
-         *             "id": 42,
-         *             "agent_id": 42,
-         *             "external_id": "ops-brief-2026-02-22",
-         *             "name": "Example Name",
-         *             "timezone": "America/Los_Angeles",
-         *             "summary": "Morning operations handoff digest.",
-         *             "include_sections": [
-         *               {
-         *                 "key": "value"
-         *               }
-         *             ],
-         *             "headline": "3 overdue tasks | 4 upcoming events",
-         *             "content_markdown": "## Highlights\n- Elevated API error rate",
-         *             "content_json": {
-         *               "key": "value"
-         *             },
-         *             "source_meta": {
-         *               "key": "value"
-         *             },
-         *             "attachments": [
-         *               {
-         *                 "id": 45,
-         *                 "team_file_id": 101,
-         *                 "preview_url": "/api/v1/files/101/preview",
-         *                 "download_url": "/api/v1/files/101/download",
-         *                 "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-         *                 "file": {
-         *                   "id": 101,
-         *                   "display_name": "incident-timeline.png",
-         *                   "original_filename": "incident-timeline.png",
-         *                   "mime_type": "image/png",
-         *                   "size_bytes": 144220,
-         *                   "preview_kind": "image",
-         *                   "created_at": "2026-02-27T17:20:00Z",
-         *                   "updated_at": "2026-02-27T17:24:00Z"
-         *                 }
-         *               }
-         *             ],
-         *             "received_at": "2026-02-22T17:21:00Z",
-         *             "generated_at": "2026-02-22T17:21:00Z",
-         *             "created_at": "2026-02-22T17:21:00Z",
-         *             "updated_at": "2026-02-22T17:21:00Z"
-         *           },
-         *           "created_at": "2026-02-22T17:21:00Z",
-         *           "updated_at": "2026-02-22T17:21:00Z"
-         *         }
-         *       ],
-         *       "links": {
-         *         "first": "example",
-         *         "last": "example",
-         *         "prev": "example",
-         *         "next": "example"
-         *       },
-         *       "meta": {
-         *         "current_page": 1,
-         *         "from": 1,
-         *         "last_page": 1,
-         *         "links": [
-         *           {
-         *             "url": "https://agentmc.example.com/docs/incident-123",
-         *             "label": "example",
-         *             "active": true
-         *           }
-         *         ],
-         *         "path": "notes/daily-ops.md",
-         *         "per_page": 25,
-         *         "total": 0
-         *       }
-         *     }
-         */
-        PaginatedRecurringBriefSummaryResponse: {
-            /**
-             * @description Data.
-             * @example [
-             *       {
-             *         "id": 42,
-             *         "team_id": 42,
-             *         "agent_id": 42,
-             *         "external_key": "daily-operations",
-             *         "external_id": "ops-brief-2026-02-22",
-             *         "name": "Example Name",
-             *         "timezone": "America/Los_Angeles",
-             *         "summary": "Morning operations handoff digest.",
-             *         "include_sections": [
-             *           {
-             *             "key": "value"
-             *           }
-             *         ],
-             *         "headline": "3 overdue tasks | 4 upcoming events",
-             *         "content_markdown": "## Highlights\n- Elevated API error rate",
-             *         "content_json": {
-             *           "key": "value"
-             *         },
-             *         "source_meta": {
-             *           "key": "value"
-             *         },
-             *         "attachments": [
-             *           {
-             *             "id": 45,
-             *             "team_file_id": 101,
-             *             "preview_url": "/api/v1/files/101/preview",
-             *             "download_url": "/api/v1/files/101/download",
-             *             "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-             *             "file": {
-             *               "id": 101,
-             *               "display_name": "incident-timeline.png",
-             *               "original_filename": "incident-timeline.png",
-             *               "mime_type": "image/png",
-             *               "size_bytes": 144220,
-             *               "preview_kind": "image",
-             *               "created_at": "2026-02-27T17:20:00Z",
-             *               "updated_at": "2026-02-27T17:24:00Z"
-             *             }
-             *           }
-             *         ],
-             *         "received_at": "2026-02-22T17:21:00Z",
-             *         "generated_at": "2026-02-22T17:21:00Z",
-             *         "read_by_user_id": 42,
-             *         "latest_entry_id": 42,
-             *         "entries_count": 0,
-             *         "latest_entry": {
-             *           "id": 42,
-             *           "agent_id": 42,
-             *           "external_id": "ops-brief-2026-02-22",
-             *           "name": "Example Name",
-             *           "timezone": "America/Los_Angeles",
-             *           "summary": "Morning operations handoff digest.",
-             *           "include_sections": [
-             *             {
-             *               "key": "value"
-             *             }
-             *           ],
-             *           "headline": "3 overdue tasks | 4 upcoming events",
-             *           "content_markdown": "## Highlights\n- Elevated API error rate",
-             *           "content_json": {
-             *             "key": "value"
-             *           },
-             *           "source_meta": {
-             *             "key": "value"
-             *           },
-             *           "attachments": [
-             *             {
-             *               "id": 45,
-             *               "team_file_id": 101,
-             *               "preview_url": "/api/v1/files/101/preview",
-             *               "download_url": "/api/v1/files/101/download",
-             *               "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-             *               "file": {
-             *                 "id": 101,
-             *                 "display_name": "incident-timeline.png",
-             *                 "original_filename": "incident-timeline.png",
-             *                 "mime_type": "image/png",
-             *                 "size_bytes": 144220,
-             *                 "preview_kind": "image",
-             *                 "created_at": "2026-02-27T17:20:00Z",
-             *                 "updated_at": "2026-02-27T17:24:00Z"
-             *               }
-             *             }
-             *           ],
-             *           "received_at": "2026-02-22T17:21:00Z",
-             *           "generated_at": "2026-02-22T17:21:00Z",
-             *           "created_at": "2026-02-22T17:21:00Z",
-             *           "updated_at": "2026-02-22T17:21:00Z"
-             *         },
-             *         "created_at": "2026-02-22T17:21:00Z",
-             *         "updated_at": "2026-02-22T17:21:00Z"
-             *       }
-             *     ]
-             */
-            data: components["schemas"]["RecurringBriefSummary"][];
-            /**
-             * @description Links.
-             * @example {
-             *       "first": "example",
-             *       "last": "example",
-             *       "prev": "example",
-             *       "next": "example"
-             *     }
-             */
-            links: components["schemas"]["PaginationLinks"];
-            /**
-             * @description Arbitrary JSON metadata object.
-             * @example {
-             *       "current_page": 1,
-             *       "from": 1,
-             *       "last_page": 1,
-             *       "links": [
-             *         {
-             *           "url": "https://agentmc.example.com/docs/incident-123",
-             *           "label": "example",
-             *           "active": true
-             *         }
-             *       ],
-             *       "path": "notes/daily-ops.md",
-             *       "per_page": 25,
-             *       "total": 0
-             *     }
-             */
-            meta: components["schemas"]["PaginationMeta"];
-        };
-        /**
-         * @description Host Agent Summary schema.
-         * @example {
-         *       "id": 42,
-         *       "team_id": 42,
-         *       "host_id": 42,
-         *       "name": "Example Name",
-         *       "status": "online",
-         *       "meta": {
-         *         "key": "value"
-         *       },
-         *       "tasks_count": 0,
-         *       "last_seen_at": "2026-02-22T17:21:00Z",
-         *       "created_at": "2026-02-22T17:21:00Z",
-         *       "updated_at": "2026-02-22T17:21:00Z"
-         *     }
-         */
-        HostAgentSummary: {
-            /**
-             * @description Unique identifier for this record.
-             * @example 42
-             */
-            id: number;
-            /**
-             * @description Team identifier that owns this record.
-             * @example 42
-             */
-            team_id: number;
-            /**
-             * @description Identifier for host.
-             * @example 42
-             */
-            host_id: number;
-            /**
-             * @description Human-readable name.
-             * @example Example Name
-             */
-            name: string;
-            /**
-             * @description Current lifecycle status for this record. Allowed values: online, offline.
-             * @example online
-             * @enum {string}
-             */
-            status: "online" | "offline";
-            /**
-             * @description Arbitrary JSON metadata object.
-             * @example {
-             *       "key": "value"
-             *     }
-             */
-            meta: {
-                [key: string]: unknown;
-            } | null;
-            /**
-             * @description Count of tasks currently assigned to this agent.
-             * @example 0
-             */
-            tasks_count: number;
-            /**
-             * Format: date-time
-             * @description ISO-8601 timestamp for most recent heartbeat.
-             * @example 2026-02-22T17:21:00Z
-             */
-            last_seen_at: string | null;
-            /**
-             * Format: date-time
-             * @description ISO-8601 timestamp when this record was created.
-             * @example 2026-02-22T17:21:00Z
-             */
-            created_at: string | null;
-            /**
-             * Format: date-time
-             * @description ISO-8601 timestamp when this record was last updated.
-             * @example 2026-02-22T17:21:00Z
-             */
-            updated_at: string | null;
-        };
-        /**
-         * @description Agent Realtime Session schema.
-         * @example {
-         *       "id": 42,
-         *       "team_id": 42,
-         *       "agent_id": 42,
-         *       "requested_by_user_id": 42,
-         *       "status": "requested",
-         *       "claimed_at": "2026-02-22T17:21:00Z",
-         *       "opened_at": "2026-02-22T17:21:00Z",
-         *       "closed_at": "2026-02-22T17:21:00Z",
-         *       "expires_at": "2026-02-22T17:21:00Z",
-         *       "last_browser_heartbeat_at": "2026-02-22T17:21:00Z",
-         *       "last_agent_heartbeat_at": "2026-02-22T17:21:00Z",
-         *       "meta": {
-         *         "key": "value"
-         *       },
-         *       "created_at": "2026-02-22T17:21:00Z",
-         *       "updated_at": "2026-02-22T17:21:00Z"
-         *     }
-         */
-        AgentRealtimeSession: {
-            /**
-             * @description Unique identifier for this record.
-             * @example 42
-             */
-            id: number;
-            /**
-             * @description Team identifier that owns this record.
-             * @example 42
-             */
-            team_id: number;
-            /**
-             * @description Identifier for agent.
-             * @example 42
-             */
-            agent_id: number;
-            /**
-             * @description Identifier for requested by user.
-             * @example 42
-             */
-            requested_by_user_id: number | null;
-            /**
-             * @description Current lifecycle status for this record. Allowed values: requested, claimed, active, closed, failed, expired.
-             * @example requested
-             * @enum {string}
-             */
-            status: "requested" | "claimed" | "active" | "closed" | "failed" | "expired";
-            /**
-             * Format: date-time
-             * @description ISO-8601 timestamp for claimed.
-             * @example 2026-02-22T17:21:00Z
-             */
-            claimed_at: string | null;
-            /**
-             * Format: date-time
-             * @description ISO-8601 timestamp for opened.
-             * @example 2026-02-22T17:21:00Z
-             */
-            opened_at: string | null;
-            /**
-             * Format: date-time
-             * @description ISO-8601 timestamp for closed.
-             * @example 2026-02-22T17:21:00Z
-             */
-            closed_at: string | null;
-            /**
-             * Format: date-time
-             * @description ISO-8601 expiration timestamp.
-             * @example 2026-02-22T17:21:00Z
-             */
-            expires_at: string | null;
-            /**
-             * Format: date-time
-             * @description ISO-8601 timestamp for last browser heartbeat.
-             * @example 2026-02-22T17:21:00Z
-             */
-            last_browser_heartbeat_at: string | null;
-            /**
-             * Format: date-time
-             * @description ISO-8601 timestamp for last agent heartbeat.
-             * @example 2026-02-22T17:21:00Z
-             */
-            last_agent_heartbeat_at: string | null;
-            /**
-             * @description Arbitrary JSON metadata object.
-             * @example {
-             *       "key": "value"
-             *     }
-             */
-            meta: {
-                [key: string]: unknown;
-            } | null;
-            /**
-             * @description Socket.
-             * @example {
-             *       "connection": {
-             *         "driver": "example",
-             *         "key": "example",
-             *         "cluster": "example",
-             *         "host": "ip-10-0-3-42",
-             *         "port": 1,
-             *         "scheme": "example",
-             *         "path": "notes/daily-ops.md"
-             *       },
-             *       "channel": "example",
-             *       "event": "example",
-             *       "auth_endpoint": "example"
-             *     }
-             */
-            socket?: components["schemas"]["HostRealtimeSocketPayload"];
-            /**
-             * Format: date-time
-             * @description ISO-8601 timestamp when this record was created.
-             * @example 2026-02-22T17:21:00Z
-             */
-            created_at: string | null;
-            /**
-             * Format: date-time
-             * @description ISO-8601 timestamp when this record was last updated.
-             * @example 2026-02-22T17:21:00Z
-             */
-            updated_at: string | null;
-        };
-        /**
-         * @description Host Realtime Socket Payload schema.
-         * @example {
-         *       "connection": {
-         *         "driver": "example",
-         *         "key": "example",
-         *         "cluster": "example",
-         *         "host": "ip-10-0-3-42",
-         *         "port": 1,
-         *         "scheme": "example",
-         *         "path": "notes/daily-ops.md"
-         *       },
-         *       "channel": "example",
-         *       "event": "example",
-         *       "auth_endpoint": "example"
-         *     }
-         */
-        HostRealtimeSocketPayload: {
-            /**
-             * @description Connection.
-             * @example {
-             *       "driver": "example",
-             *       "key": "example",
-             *       "cluster": "example",
-             *       "host": "ip-10-0-3-42",
-             *       "port": 1,
-             *       "scheme": "example",
-             *       "path": "notes/daily-ops.md"
-             *     }
-             */
-            connection: {
-                /**
-                 * @description Driver.
-                 * @example example
-                 */
-                driver: string;
-                /**
-                 * @description Stable mention key composed from mention type and identifier.
-                 * @example example
-                 */
-                key: string;
-                /**
-                 * @description Cluster.
-                 * @example example
-                 */
-                cluster: string;
-                /**
-                 * @description Host.
-                 * @example ip-10-0-3-42
-                 */
-                host: string;
-                /**
-                 * @description Port.
-                 * @example 1
-                 */
-                port: number;
-                /**
-                 * @description Scheme.
-                 * @example example
-                 */
-                scheme: string;
-                /**
-                 * @description Local filesystem path where this file should be written.
-                 * @example notes/daily-ops.md
-                 */
-                path: string;
-            };
-            /**
-             * @description Channel.
-             * @example example
-             */
-            channel: string;
-            /**
-             * @description Event.
-             * @example example
-             */
-            event: string;
-            /**
-             * @description Auth endpoint.
-             * @example example
-             */
-            auth_endpoint: string;
-        };
-        /**
-         * @description Agent Realtime Signal schema.
-         * @example {
-         *       "id": 42,
-         *       "team_id": 42,
-         *       "agent_id": 42,
-         *       "session_id": 42,
-         *       "sender": "agent",
-         *       "type": "example",
-         *       "payload": {
-         *         "key": "value"
-         *       },
-         *       "created_at": "2026-02-22T17:21:00Z",
-         *       "updated_at": "2026-02-22T17:21:00Z"
-         *     }
-         */
-        AgentRealtimeSignal: {
-            /**
-             * @description Unique identifier for this record.
-             * @example 42
-             */
-            id: number;
-            /**
-             * @description Team identifier that owns this record.
-             * @example 42
-             */
-            team_id: number;
-            /**
-             * @description Identifier for agent.
-             * @example 42
-             */
-            agent_id: number;
-            /**
-             * @description Identifier for session.
-             * @example 42
-             */
-            session_id: number;
-            /**
-             * @description Allowed values: agent, browser, system.
-             * @example agent
-             * @enum {string}
-             */
-            sender: "agent" | "browser" | "system";
-            /**
-             * @description Type discriminator for this record.
-             * @example example
-             */
-            type: string;
-            /**
-             * @description Arbitrary JSON payload object.
-             * @example {
-             *       "key": "value"
-             *     }
-             */
-            payload: {
-                [key: string]: unknown;
-            } | null;
-            /**
-             * Format: date-time
-             * @description ISO-8601 timestamp when this record was created.
-             * @example 2026-02-22T17:21:00Z
-             */
-            created_at: string | null;
-            /**
-             * Format: date-time
-             * @description ISO-8601 timestamp when this record was last updated.
-             * @example 2026-02-22T17:21:00Z
-             */
-            updated_at: string | null;
-        };
-        /**
-         * @description Host schema.
-         * @example {
-         *       "id": 42,
-         *       "team_id": 42,
-         *       "name": "Example Name",
-         *       "fingerprint": "a3f56f330f311a2159f8c101eaf1439a29f1d57f007375d56aa79f304bc4f112",
-         *       "status": "online",
-         *       "last_seen_at": "2026-02-22T17:21:00Z",
-         *       "meta": {
-         *         "hostname": "worker-01",
-         *         "ip": "10.0.2.15",
-         *         "os": "Ubuntu",
-         *         "arch": "x86_64",
-         *         "cpu": "Intel Xeon",
-         *         "ram_gb": 32,
-         *         "runtime": {
-         *           "name": "openclaw",
-         *           "version": "1.14.2"
-         *         }
-         *       },
-         *       "created_by_user_id": 42,
-         *       "agents_total": 1,
-         *       "agents_online": 1,
-         *       "created_at": "2026-02-22T17:21:00Z",
-         *       "updated_at": "2026-02-22T17:21:00Z"
-         *     }
-         */
-        Host: {
-            /**
-             * @description Host record identifier.
-             * @example 42
-             */
-            id: number;
-            /**
-             * @description Team identifier that owns this host.
-             * @example 42
-             */
-            team_id: number;
-            /**
-             * @description Human-readable host name.
-             * @example Example Name
-             */
-            name: string;
-            /**
-             * @description Stable runtime-reported host fingerprint.
-             * @example a3f56f330f311a2159f8c101eaf1439a29f1d57f007375d56aa79f304bc4f112
-             */
-            fingerprint: string;
-            /**
-             * @description Host liveness derived from last_seen_at and configured online window.
-             * @example online
-             * @enum {string}
-             */
-            status: "online" | "offline";
-            /**
-             * Format: date-time
-             * @description Most recent runtime heartbeat update timestamp from this host.
-             * @example 2026-02-22T17:21:00Z
-             */
-            last_seen_at: string | null;
-            /**
-             * @description Required machine metadata snapshot reported by the runtime (hostname, primary IP, private/public network IPs, OS, architecture, CPU, RAM, disk, uptime, runtime version).
-             * @example {
-             *       "hostname": "worker-01",
-             *       "ip": "10.0.2.15",
-             *       "os": "Ubuntu",
-             *       "arch": "x86_64",
-             *       "cpu": "Intel Xeon",
-             *       "ram_gb": 32,
-             *       "runtime": {
-             *         "name": "openclaw",
-             *         "version": "1.14.2"
-             *       }
-             *     }
-             */
-            meta: {
-                [key: string]: unknown;
-            } | null;
-            /**
-             * @description User that created the host record, if available.
-             * @example 42
-             */
-            created_by_user_id: number | null;
-            /**
-             * @description Count of agents assigned to this host.
-             * @example 1
-             */
-            agents_total: number;
-            /**
-             * @description Count of assigned agents currently reporting online.
-             * @example 1
-             */
-            agents_online: number;
-            /**
-             * Format: date-time
-             * @description Host record creation timestamp.
-             * @example 2026-02-22T17:21:00Z
-             */
-            created_at: string | null;
-            /**
-             * Format: date-time
-             * @description Host record update timestamp.
-             * @example 2026-02-22T17:21:00Z
-             */
-            updated_at: string | null;
-        };
-        /**
-         * @description Board Column schema.
-         * @example {
-         *       "id": 42,
-         *       "board_id": 42,
-         *       "team_id": 42,
-         *       "name": "Example Name",
-         *       "position": 1,
-         *       "created_at": "2026-02-22T17:21:00Z",
-         *       "updated_at": "2026-02-22T17:21:00Z"
-         *     }
-         */
-        BoardColumn: {
-            /**
-             * @description Unique identifier for this record.
-             * @example 42
-             */
-            id: number;
-            /**
-             * @description Board identifier.
-             * @example 42
-             */
-            board_id: number;
-            /**
-             * @description Team identifier that owns this record.
-             * @example 42
-             */
-            team_id: number;
-            /**
-             * @description Human-readable name.
-             * @example Example Name
-             */
-            name: string;
-            /**
-             * @description Position.
-             * @example 1
-             */
-            position: number;
-            /**
-             * Format: date-time
-             * @description ISO-8601 timestamp when this record was created.
-             * @example 2026-02-22T17:21:00Z
-             */
-            created_at: string | null;
-            /**
-             * Format: date-time
-             * @description ISO-8601 timestamp when this record was last updated.
-             * @example 2026-02-22T17:21:00Z
-             */
-            updated_at: string | null;
-        };
-        /**
-         * @description Board Owner Summary schema.
-         * @example {
-         *       "id": 42,
-         *       "name": "Example Name"
-         *     }
-         */
-        BoardOwnerSummary: {
-            /**
-             * @description Unique identifier for this record.
-             * @example 42
-             */
-            id: number;
-            /**
-             * @description Human-readable name.
-             * @example Example Name
-             */
-            name: string;
-        };
-        /**
-         * @description Board record returned by board endpoints.
-         * @example {
-         *       "id": 42,
-         *       "team_id": 42,
-         *       "name": "Example Name",
-         *       "description": "Example description text.",
-         *       "visibility": "team",
-         *       "personal_owner_user_id": 42,
-         *       "created_by_user_id": 42,
-         *       "created_at": "2026-02-22T17:21:00Z",
-         *       "updated_at": "2026-02-22T17:21:00Z"
-         *     }
-         */
-        Board: {
-            /**
-             * @description Unique identifier for this record.
-             * @example 42
-             */
-            id: number;
-            /**
-             * @description Team identifier that owns this record.
-             * @example 42
-             */
-            team_id: number;
-            /**
-             * @description Human-readable name.
-             * @example Example Name
-             */
-            name: string;
-            /**
-             * @description Optional long-form description.
-             * @example Example description text.
-             */
-            description: string | null;
-            /**
-             * @description Visibility scope for this item. Allowed values: team, personal.
-             * @example team
-             * @enum {string}
-             */
-            visibility: "team" | "personal";
-            /**
-             * @description Identifier for the private board owner user.
-             * @example 42
-             */
-            personal_owner_user_id: number | null;
-            /**
-             * @description Identifier for created by user.
-             * @example 42
-             */
-            created_by_user_id: number | null;
-            /**
-             * @description Private board owner user summary.
-             * @example {
-             *       "id": 42,
-             *       "name": "Example Name"
-             *     }
-             */
-            personal_owner_user?: components["schemas"]["BoardOwnerSummary"] | null;
-            /**
-             * @description Columns count.
-             * @example 1
-             */
-            columns_count?: number | null;
-            /**
-             * @description Count of tasks currently assigned to this agent.
-             * @example 1
-             */
-            tasks_count?: number | null;
-            /**
-             * @description Columns.
-             * @example [
-             *       {
-             *         "id": 42,
-             *         "board_id": 42,
-             *         "team_id": 42,
-             *         "name": "Example Name",
-             *         "position": 1,
-             *         "created_at": "2026-02-22T17:21:00Z",
-             *         "updated_at": "2026-02-22T17:21:00Z"
-             *       }
-             *     ]
-             */
-            columns?: components["schemas"]["BoardColumn"][];
-            /**
-             * Format: date-time
-             * @description ISO-8601 timestamp when this record was created.
-             * @example 2026-02-22T17:21:00Z
-             */
-            created_at: string | null;
-            /**
-             * Format: date-time
-             * @description ISO-8601 timestamp when this record was last updated.
-             * @example 2026-02-22T17:21:00Z
-             */
-            updated_at: string | null;
-        };
-        /**
-         * @description Task Assigned Agent schema.
-         * @example {
-         *       "id": 42,
-         *       "name": "Example Name",
-         *       "meta": {
-         *         "key": "value"
-         *       }
-         *     }
-         */
-        TaskAssignedAgent: {
-            /**
-             * @description Unique identifier for this record.
-             * @example 42
-             */
-            id: number | null;
-            /**
-             * @description Human-readable name.
-             * @example Example Name
-             */
-            name: string | null;
-            /**
-             * @description Arbitrary JSON metadata object.
-             * @example {
-             *       "key": "value"
-             *     }
-             */
-            meta: {
-                [key: string]: unknown;
-            } | null;
-        };
-        /**
-         * @description Task record returned by task endpoints.
-         * @example {
-         *       "id": 42,
-         *       "team_id": 42,
-         *       "board_id": 42,
-         *       "column_id": 42,
-         *       "title": "Example Title",
-         *       "description": "Example description text.",
-         *       "archived_at": "2026-02-22T17:21:00Z",
-         *       "is_archived": true,
-         *       "position": 1,
-         *       "due_at": "2026-02-22T17:21:00Z",
-         *       "created_by_user_id": 42,
-         *       "assigned_to_user_id": 42,
-         *       "assigned_to_agent_id": 42,
-         *       "attachments": [
-         *         {
-         *           "id": 45,
-         *           "team_file_id": 101,
-         *           "preview_url": "/api/v1/files/101/preview",
-         *           "download_url": "/api/v1/files/101/download",
-         *           "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-         *           "file": {
-         *             "id": 101,
-         *             "display_name": "incident-timeline.png",
-         *             "original_filename": "incident-timeline.png",
-         *             "mime_type": "image/png",
-         *             "size_bytes": 144220,
-         *             "preview_kind": "image",
-         *             "created_at": "2026-02-27T17:20:00Z",
-         *             "updated_at": "2026-02-27T17:24:00Z"
-         *           }
-         *         }
-         *       ],
-         *       "assignee_type": "human",
-         *       "created_at": "2026-02-22T17:21:00Z",
-         *       "updated_at": "2026-02-22T17:21:00Z"
-         *     }
-         */
-        Task: {
-            /**
-             * @description Unique identifier for this record.
-             * @example 42
-             */
-            id: number;
-            /**
-             * @description Team identifier that owns this record.
-             * @example 42
-             */
-            team_id: number;
-            /**
-             * @description Board identifier.
-             * @example 42
-             */
-            board_id: number;
-            /**
-             * @description Board column identifier.
-             * @example 42
-             */
-            column_id: number;
-            /**
-             * @description Human-readable title.
-             * @example Example Title
-             */
-            title: string;
-            /**
-             * @description Long-form description. Supports Markdown formatting and file embeds like `![alt](/api/v1/files/{id}/preview)`.
-             * @example Example description text.
-             */
-            description: string | null;
-            /**
-             * Format: date-time
-             * @description ISO-8601 timestamp when this task was archived. Null means active.
-             * @example 2026-02-22T17:21:00Z
-             */
-            archived_at: string | null;
-            /**
-             * @description Whether this task is archived.
-             * @example true
-             */
-            is_archived: boolean;
-            /**
-             * @description Position.
-             * @example 1
-             */
-            position: number;
-            /**
-             * Format: date-time
-             * @description ISO-8601 due timestamp.
-             * @example 2026-02-22T17:21:00Z
-             */
-            due_at: string | null;
-            /**
-             * @description Identifier for created by user.
-             * @example 42
-             */
-            created_by_user_id: number | null;
-            /**
-             * @description Identifier for assigned to user.
-             * @example 42
-             */
-            assigned_to_user_id: number | null;
-            /**
-             * @description Identifier for assigned to agent.
-             * @example 42
-             */
-            assigned_to_agent_id: number | null;
-            /**
-             * @description Assigned agent.
-             * @example {
-             *       "id": 42,
-             *       "name": "Example Name",
-             *       "meta": {
-             *         "key": "value"
-             *       }
-             *     }
-             */
-            assigned_agent?: components["schemas"]["TaskAssignedAgent"];
-            /**
-             * @description Attached team files resolved from markdown embeds or upload payloads.
-             * @example [
-             *       {
-             *         "id": 45,
-             *         "team_file_id": 101,
-             *         "preview_url": "/api/v1/files/101/preview",
-             *         "download_url": "/api/v1/files/101/download",
-             *         "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-             *         "file": {
-             *           "id": 101,
-             *           "display_name": "incident-timeline.png",
-             *           "original_filename": "incident-timeline.png",
-             *           "mime_type": "image/png",
-             *           "size_bytes": 144220,
-             *           "preview_kind": "image",
-             *           "created_at": "2026-02-27T17:20:00Z",
-             *           "updated_at": "2026-02-27T17:24:00Z"
-             *         }
-             *       }
-             *     ]
-             */
-            attachments: components["schemas"]["TeamFileAttachment"][];
-            /**
-             * @description Assignee type when this notification is assignment-related. Allowed values: human, agent.
-             * @example human
-             * @enum {string|null}
-             */
-            assignee_type: "human" | "agent" | null;
-            /**
-             * Format: date-time
-             * @description ISO-8601 timestamp when this record was created.
-             * @example 2026-02-22T17:21:00Z
-             */
-            created_at: string | null;
-            /**
-             * Format: date-time
-             * @description ISO-8601 timestamp when this record was last updated.
-             * @example 2026-02-22T17:21:00Z
-             */
-            updated_at: string | null;
-        };
-        /**
-         * @description Task Comment Mention schema.
-         * @example {
-         *       "key": "example",
-         *       "type": "user",
-         *       "id": 42,
-         *       "label": "example",
-         *       "handle": "example",
-         *       "token": "example"
-         *     }
-         */
-        TaskCommentMention: {
-            /**
-             * @description Stable mention key composed from mention type and identifier.
-             * @example example
-             */
-            key: string;
-            /**
-             * @description Type discriminator for this record. Allowed values: user, agent.
-             * @example user
-             * @enum {string}
-             */
-            type: "user" | "agent";
-            /**
-             * @description Unique identifier for this record.
-             * @example 42
-             */
-            id: number;
-            /**
-             * @description Display label for this mention target.
-             * @example example
-             */
-            label: string;
-            /**
-             * @description Mention handle that can be typed in editors (for example @alex).
-             * @example example
-             */
-            handle: string;
-            /**
-             * @description Structured mention token to insert into markdown comments.
-             * @example example
-             */
-            token: string;
-        };
-        /**
-         * @description Task comment record returned by task comment endpoints.
-         * @example {
-         *       "id": 42,
-         *       "task_id": 42,
-         *       "actor_type": "user",
-         *       "actor_id": 42,
-         *       "actor_name": "Example Name",
-         *       "body": "Example content.",
-         *       "mentions": [
-         *         {
-         *           "key": "example",
-         *           "type": "user",
-         *           "id": 42,
-         *           "label": "example",
-         *           "handle": "example",
-         *           "token": "example"
-         *         }
-         *       ],
-         *       "attachments": [
-         *         {
-         *           "id": 45,
-         *           "team_file_id": 101,
-         *           "preview_url": "/api/v1/files/101/preview",
-         *           "download_url": "/api/v1/files/101/download",
-         *           "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-         *           "file": {
-         *             "id": 101,
-         *             "display_name": "incident-timeline.png",
-         *             "original_filename": "incident-timeline.png",
-         *             "mime_type": "image/png",
-         *             "size_bytes": 144220,
-         *             "preview_kind": "image",
-         *             "created_at": "2026-02-27T17:20:00Z",
-         *             "updated_at": "2026-02-27T17:24:00Z"
-         *           }
-         *         }
-         *       ],
-         *       "edited_at": "2026-02-22T17:21:00Z",
-         *       "created_at": "2026-02-22T17:21:00Z"
-         *     }
-         */
-        TaskComment: {
-            /**
-             * @description Unique identifier for this record.
-             * @example 42
-             */
-            id: number;
-            /**
-             * @description Task identifier.
-             * @example 42
-             */
-            task_id: number;
-            /**
-             * @description Allowed values: user, agent, api_key.
-             * @example user
-             * @enum {string}
-             */
-            actor_type: "user" | "agent" | "api_key";
-            /**
-             * @description Identifier for actor.
-             * @example 42
-             */
-            actor_id: number | null;
-            /**
-             * @description Resolved display name for the actor that performed the action.
-             * @example Example Name
-             */
-            actor_name: string;
-            /**
-             * @description Markdown comment body. Include file embeds as `![alt](/api/v1/files/{id}/preview)`.
-             * @example Example content.
-             */
-            body: string;
-            /**
-             * @description Mention targets detected from structured mention tokens in the comment body.
-             * @example [
-             *       {
-             *         "key": "example",
-             *         "type": "user",
-             *         "id": 42,
-             *         "label": "example",
-             *         "handle": "example",
-             *         "token": "example"
-             *       }
-             *     ]
-             */
-            mentions: components["schemas"]["TaskCommentMention"][];
-            /**
-             * @description Attached team files resolved from markdown embeds or upload payloads.
-             * @example [
-             *       {
-             *         "id": 45,
-             *         "team_file_id": 101,
-             *         "preview_url": "/api/v1/files/101/preview",
-             *         "download_url": "/api/v1/files/101/download",
-             *         "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-             *         "file": {
-             *           "id": 101,
-             *           "display_name": "incident-timeline.png",
-             *           "original_filename": "incident-timeline.png",
-             *           "mime_type": "image/png",
-             *           "size_bytes": 144220,
-             *           "preview_kind": "image",
-             *           "created_at": "2026-02-27T17:20:00Z",
-             *           "updated_at": "2026-02-27T17:24:00Z"
-             *         }
-             *       }
-             *     ]
-             */
-            attachments: components["schemas"]["TeamFileAttachment"][];
-            /**
-             * Format: date-time
-             * @description ISO-8601 timestamp when this comment body was last edited.
-             * @example 2026-02-22T17:21:00Z
-             */
-            edited_at: string | null;
-            /**
-             * Format: date-time
-             * @description ISO-8601 timestamp when this record was created.
-             * @example 2026-02-22T17:21:00Z
-             */
-            created_at: string | null;
-        };
-        /**
-         * @description Log schema.
-         * @example {
-         *       "id": 42,
-         *       "team_id": 42,
-         *       "actor_type": "example",
-         *       "actor_id": 42,
-         *       "action": "example",
-         *       "subject_type": "example",
-         *       "subject_id": 42,
-         *       "meta": {
-         *         "key": "value"
-         *       },
-         *       "created_at": "2026-02-22T17:21:00Z"
-         *     }
-         */
-        Log: {
-            /**
-             * @description Unique identifier for this record.
-             * @example 42
-             */
-            id: number;
-            /**
-             * @description Team identifier that owns this record.
-             * @example 42
-             */
-            team_id: number;
-            /**
-             * @description Actor type.
-             * @example example
-             */
-            actor_type: string | null;
-            /**
-             * @description Identifier for actor.
-             * @example 42
-             */
-            actor_id: number | null;
-            /**
-             * @description Action.
-             * @example example
-             */
-            action: string;
-            /**
-             * @description Subject type.
-             * @example example
-             */
-            subject_type: string | null;
-            /**
-             * @description Identifier for subject.
-             * @example 42
-             */
-            subject_id: number | null;
-            /**
-             * @description Arbitrary JSON metadata object.
-             * @example {
-             *       "key": "value"
-             *     }
-             */
-            meta: {
-                [key: string]: unknown;
-            } | null;
-            /**
-             * Format: date-time
-             * @description ISO-8601 timestamp when this record was created.
-             * @example 2026-02-22T17:21:00Z
-             */
-            created_at: string | null;
-        };
-        /**
-         * @description Team notification record (mention, assignment, or comment activity) for the authenticated principal.
-         * @example {
-         *       "id": "c084fc57-b2c6-466c-adcb-cf6f4efca42a",
-         *       "notification_type": "mention",
-         *       "source_type": "App\\Notifications\\MentionedInCommentNotification",
-         *       "team_id": 7,
-         *       "subject_type": "task",
-         *       "subject_id": 121,
-         *       "subject_label": "Prepare incident postmortem",
-         *       "actor_type": "user",
-         *       "actor_id": 3,
-         *       "actor_name": "Alex Morgan",
-         *       "assignee_type": null,
-         *       "assignee_id": null,
-         *       "mention_handle": "@tim",
-         *       "comment": "Can you own the timeline section before standup?",
-         *       "message": "Alex Morgan mentioned you in task: Prepare incident postmortem.",
-         *       "url": "/tasks/121?comment=998",
-         *       "comment_id": 998,
-         *       "response_action": {
-         *         "type": "post_comment_reply",
-         *         "method": "POST",
-         *         "path": "/tasks/121/comments",
-         *         "request_body": {
-         *           "body": "Thanks, I can own the timeline section."
-         *         }
-         *       },
-         *       "is_read": false,
-         *       "read_at": null,
-         *       "created_at": "2026-02-24T02:11:00Z",
-         *       "updated_at": "2026-02-24T02:11:00Z"
-         *     }
-         */
-        Notification: {
-            /**
-             * Format: uuid
-             * @description Unique identifier for this record.
-             * @example 11111111-1111-4111-8111-111111111111
-             */
-            id: string;
-            /**
-             * @description Normalized notification type for API consumers. Allowed values: mention, assignment, comment.
-             * @example mention
-             * @enum {string}
-             */
-            notification_type: "mention" | "assignment" | "comment";
-            /**
-             * @description Underlying Laravel notification class name.
-             * @example example
-             */
-            source_type: string;
-            /**
-             * @description Team identifier that owns this record.
-             * @example 42
-             */
-            team_id: number | null;
-            /**
-             * @description Subject type.
-             * @example example
-             */
-            subject_type: string | null;
-            /**
-             * @description Identifier for subject.
-             * @example 42
-             */
-            subject_id: number | null;
-            /**
-             * @description Subject label.
-             * @example example
-             */
-            subject_label: string | null;
-            /**
-             * @description Actor type.
-             * @example example
-             */
-            actor_type: string | null;
-            /**
-             * @description Identifier for actor.
-             * @example 42
-             */
-            actor_id: number | null;
-            /**
-             * @description Resolved display name for the actor that performed the action.
-             * @example Example Name
-             */
-            actor_name: string | null;
-            /**
-             * @description Assignee type when this notification is assignment-related. Allowed values: user, agent.
-             * @example user
-             * @enum {string|null}
-             */
-            assignee_type: "user" | "agent" | null;
-            /**
-             * @description Assignee identifier when this notification is assignment-related.
-             * @example 42
-             */
-            assignee_id: number | null;
-            /**
-             * @description Mention handle detected in the comment body.
-             * @example example
-             */
-            mention_handle: string | null;
-            /**
-             * @description Comment.
-             * @example example
-             */
-            comment: string | null;
-            /**
-             * @description Message.
-             * @example example
-             */
-            message: string;
-            /**
-             * @description URL value for url.
-             * @example https://agentmc.example.com/docs/incident-123
-             */
-            url: string | null;
-            /**
-             * @description Identifier for comment.
-             * @example 42
-             */
-            comment_id: number | null;
-            /**
-             * @description Machine-readable follow-up action. For mention notifications, call the provided method/path with request_body to post a reply comment.
-             * @example {
-             *       "type": "post_comment_reply",
-             *       "method": "POST",
-             *       "path": "/tasks/121/comments",
-             *       "request_body": {
-             *         "body": "Thanks, I can own the timeline section."
-             *       }
-             *     }
-             */
-            response_action: {
-                /**
-                 * @description Next action type to complete this notification.
-                 * @example post_comment_reply
-                 * @enum {string}
-                 */
-                type: "post_comment_reply";
-                /**
-                 * @description HTTP method to execute for this response action.
-                 * @example POST
-                 * @enum {string}
-                 */
-                method: "POST";
-                /**
-                 * @description API path to call for posting the reply comment.
-                 * @example /tasks/121/comments
-                 */
-                path: string;
-                /**
-                 * @description JSON payload template for the reply API call.
-                 * @example {
-                 *       "body": "Thanks, I can own the timeline section."
-                 *     }
-                 */
-                request_body: {
-                    /**
-                     * @description Reply comment markdown body to send.
-                     * @example Thanks, I can own the timeline section.
-                     */
-                    body: string;
-                };
-            } | null;
-            /**
-             * @description True when this notification has been marked as read.
-             * @example true
-             */
-            is_read: boolean;
-            /**
-             * Format: date-time
-             * @description ISO-8601 timestamp for read.
-             * @example 2026-02-22T17:21:00Z
-             */
-            read_at: string | null;
-            /**
-             * Format: date-time
-             * @description ISO-8601 timestamp when this record was created.
-             * @example 2026-02-22T17:21:00Z
-             */
-            created_at: string | null;
-            /**
-             * Format: date-time
-             * @description ISO-8601 timestamp when this record was last updated.
-             * @example 2026-02-22T17:21:00Z
-             */
-            updated_at: string | null;
-        };
-        /**
-         * @description Calendar Item Assignee schema.
-         * @example {
-         *       "id": 42,
-         *       "assignee_type": "user",
-         *       "assignee_id": 42,
-         *       "role": "owner",
-         *       "name": "Example Name",
-         *       "created_at": "2026-02-22T17:21:00Z"
-         *     }
-         */
-        CalendarItemAssignee: {
-            /**
-             * @description Unique identifier for this record.
-             * @example 42
-             */
-            id: number;
-            /**
-             * @description Assignee type when this notification is assignment-related. Allowed values: user, agent.
-             * @example user
-             * @enum {string}
-             */
-            assignee_type: "user" | "agent";
-            /**
-             * @description Assignee identifier when this notification is assignment-related.
-             * @example 42
-             */
-            assignee_id: number;
-            /**
-             * @description Allowed values: owner, collaborator, watcher.
-             * @example owner
-             * @enum {string|null}
-             */
-            role: "owner" | "collaborator" | "watcher" | null;
-            /**
-             * @description Human-readable name.
-             * @example Example Name
-             */
-            name: string | null;
-            /**
-             * Format: date-time
-             * @description ISO-8601 timestamp when this record was created.
-             * @example 2026-02-22T17:21:00Z
-             */
-            created_at: string | null;
-        };
-        /**
-         * @description Calendar Item Comment schema.
-         * @example {
-         *       "id": 42,
-         *       "actor_type": "user",
-         *       "actor_id": 42,
-         *       "body": "Example content.",
-         *       "attachments": [
-         *         {
-         *           "id": 45,
-         *           "team_file_id": 101,
-         *           "preview_url": "/api/v1/files/101/preview",
-         *           "download_url": "/api/v1/files/101/download",
-         *           "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-         *           "file": {
-         *             "id": 101,
-         *             "display_name": "incident-timeline.png",
-         *             "original_filename": "incident-timeline.png",
-         *             "mime_type": "image/png",
-         *             "size_bytes": 144220,
-         *             "preview_kind": "image",
-         *             "created_at": "2026-02-27T17:20:00Z",
-         *             "updated_at": "2026-02-27T17:24:00Z"
-         *           }
-         *         }
-         *       ],
-         *       "created_at": "2026-02-22T17:21:00Z"
-         *     }
-         */
-        CalendarItemComment: {
-            /**
-             * @description Unique identifier for this record.
-             * @example 42
-             */
-            id: number;
-            /**
-             * @description Allowed values: user, agent, api_key.
-             * @example user
-             * @enum {string}
-             */
-            actor_type: "user" | "agent" | "api_key";
-            /**
-             * @description Identifier for actor.
-             * @example 42
-             */
-            actor_id: number | null;
-            /**
-             * @description Markdown comment body. Include file embeds as `![alt](/api/v1/files/{id}/preview)`.
-             * @example Example content.
-             */
-            body: string;
-            /**
-             * @description Attached team files resolved from markdown embeds or upload payloads.
-             * @example [
-             *       {
-             *         "id": 45,
-             *         "team_file_id": 101,
-             *         "preview_url": "/api/v1/files/101/preview",
-             *         "download_url": "/api/v1/files/101/download",
-             *         "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-             *         "file": {
-             *           "id": 101,
-             *           "display_name": "incident-timeline.png",
-             *           "original_filename": "incident-timeline.png",
-             *           "mime_type": "image/png",
-             *           "size_bytes": 144220,
-             *           "preview_kind": "image",
-             *           "created_at": "2026-02-27T17:20:00Z",
-             *           "updated_at": "2026-02-27T17:24:00Z"
-             *         }
-             *       }
-             *     ]
-             */
-            attachments: components["schemas"]["TeamFileAttachment"][];
-            /**
-             * Format: date-time
-             * @description ISO-8601 timestamp when this record was created.
-             * @example 2026-02-22T17:21:00Z
-             */
-            created_at: string | null;
-        };
-        /**
-         * @description Calendar item record returned by calendar endpoints.
-         * @example {
-         *       "id": 42,
-         *       "team_id": 42,
-         *       "type": "event",
-         *       "title": "Example Title",
-         *       "description": "Example description text.",
-         *       "start_at": "2026-02-22T17:21:00Z",
-         *       "end_at": "2026-02-22T17:21:00Z",
-         *       "due_at": "2026-02-22T17:21:00Z",
-         *       "all_day": false,
-         *       "location": "example",
-         *       "timezone": "America/Los_Angeles",
-         *       "status": "todo",
-         *       "priority": "low",
-         *       "visibility": "team",
-         *       "created_by": 1,
-         *       "updated_by": 1,
-         *       "assignees": [
-         *         {
-         *           "id": 42,
-         *           "assignee_type": "user",
-         *           "assignee_id": 42,
-         *           "role": "owner",
-         *           "name": "Example Name",
-         *           "created_at": "2026-02-22T17:21:00Z"
-         *         }
-         *       ],
-         *       "attachments": [
-         *         {
-         *           "id": 45,
-         *           "team_file_id": 101,
-         *           "preview_url": "/api/v1/files/101/preview",
-         *           "download_url": "/api/v1/files/101/download",
-         *           "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-         *           "file": {
-         *             "id": 101,
-         *             "display_name": "incident-timeline.png",
-         *             "original_filename": "incident-timeline.png",
-         *             "mime_type": "image/png",
-         *             "size_bytes": 144220,
-         *             "preview_kind": "image",
-         *             "created_at": "2026-02-27T17:20:00Z",
-         *             "updated_at": "2026-02-27T17:24:00Z"
-         *           }
-         *         }
-         *       ],
-         *       "comments_count": 1,
-         *       "created_at": "2026-02-22T17:21:00Z",
-         *       "updated_at": "2026-02-22T17:21:00Z",
-         *       "deleted_at": "2026-02-22T17:21:00Z"
-         *     }
-         */
-        CalendarItem: {
-            /**
-             * @description Unique identifier for this record.
-             * @example 42
-             */
-            id: number;
-            /**
-             * @description Team identifier that owns this record.
-             * @example 42
-             */
-            team_id: number;
-            /**
-             * @description Type discriminator for this record. Allowed values: event, task.
-             * @example event
-             * @enum {string}
-             */
-            type: "event" | "task";
-            /**
-             * @description Human-readable title.
-             * @example Example Title
-             */
-            title: string;
-            /**
-             * @description Long-form description. Supports Markdown formatting and file embeds like `![alt](/api/v1/files/{id}/preview)`.
-             * @example Example description text.
-             */
-            description: string | null;
-            /**
-             * Format: date-time
-             * @description ISO-8601 start timestamp.
-             * @example 2026-02-22T17:21:00Z
-             */
-            start_at: string | null;
-            /**
-             * Format: date-time
-             * @description ISO-8601 end timestamp.
-             * @example 2026-02-22T17:21:00Z
-             */
-            end_at: string | null;
-            /**
-             * Format: date-time
-             * @description ISO-8601 due timestamp.
-             * @example 2026-02-22T17:21:00Z
-             */
-            due_at: string | null;
-            /**
-             * @description True when this item spans the full day.
-             * @example false
-             */
-            all_day: boolean;
-            /**
-             * @description Location.
-             * @example example
-             */
-            location: string | null;
-            /**
-             * @description IANA timezone identifier (for example, America/Los_Angeles).
-             * @example America/Los_Angeles
-             */
-            timezone: string | null;
-            /**
-             * @description Current lifecycle status for this record. Allowed values: todo, in_progress, blocked, done, canceled.
-             * @example todo
-             * @enum {string|null}
-             */
-            status: "todo" | "in_progress" | "blocked" | "done" | "canceled" | null;
-            /**
-             * @description Priority level for this record. Allowed values: low, medium, high, urgent.
-             * @example low
-             * @enum {string|null}
-             */
-            priority: "low" | "medium" | "high" | "urgent" | null;
-            /**
-             * @description Visibility scope for this item. Allowed values: team, private.
-             * @example team
-             * @enum {string}
-             */
-            visibility: "team" | "private";
-            /**
-             * @description Created by.
-             * @example 1
-             */
-            created_by: number | null;
-            /**
-             * @description Updated by.
-             * @example 1
-             */
-            updated_by: number | null;
-            /**
-             * @description Assignees.
-             * @example [
-             *       {
-             *         "id": 42,
-             *         "assignee_type": "user",
-             *         "assignee_id": 42,
-             *         "role": "owner",
-             *         "name": "Example Name",
-             *         "created_at": "2026-02-22T17:21:00Z"
-             *       }
-             *     ]
-             */
-            assignees: components["schemas"]["CalendarItemAssignee"][];
-            /**
-             * @description Attached team files resolved from markdown embeds or upload payloads.
-             * @example [
-             *       {
-             *         "id": 45,
-             *         "team_file_id": 101,
-             *         "preview_url": "/api/v1/files/101/preview",
-             *         "download_url": "/api/v1/files/101/download",
-             *         "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-             *         "file": {
-             *           "id": 101,
-             *           "display_name": "incident-timeline.png",
-             *           "original_filename": "incident-timeline.png",
-             *           "mime_type": "image/png",
-             *           "size_bytes": 144220,
-             *           "preview_kind": "image",
-             *           "created_at": "2026-02-27T17:20:00Z",
-             *           "updated_at": "2026-02-27T17:24:00Z"
-             *         }
-             *       }
-             *     ]
-             */
-            attachments: components["schemas"]["TeamFileAttachment"][];
-            /**
-             * @description Comments count.
-             * @example 1
-             */
-            comments_count: number | null;
-            /**
-             * Format: date-time
-             * @description ISO-8601 timestamp when this record was created.
-             * @example 2026-02-22T17:21:00Z
-             */
-            created_at: string | null;
-            /**
-             * Format: date-time
-             * @description ISO-8601 timestamp when this record was last updated.
-             * @example 2026-02-22T17:21:00Z
-             */
-            updated_at: string | null;
-            /**
-             * Format: date-time
-             * @description ISO-8601 timestamp when this record was soft-deleted.
-             * @example 2026-02-22T17:21:00Z
-             */
-            deleted_at: string | null;
-        };
-        /**
-         * @description Host detail response with associated agent summaries.
-         * @example {
-         *       "data": {
-         *         "id": 42,
-         *         "team_id": 42,
-         *         "name": "Example Name",
-         *         "fingerprint": "a3f56f330f311a2159f8c101eaf1439a29f1d57f007375d56aa79f304bc4f112",
-         *         "status": "online",
-         *         "last_seen_at": "2026-02-22T17:21:00Z",
-         *         "meta": {
-         *           "hostname": "worker-01",
-         *           "ip": "10.0.2.15",
-         *           "os": "Ubuntu",
-         *           "arch": "x86_64",
-         *           "cpu": "Intel Xeon",
-         *           "ram_gb": 32,
-         *           "runtime": {
-         *             "name": "openclaw",
-         *             "version": "1.14.2"
-         *           }
-         *         },
-         *         "created_by_user_id": 42,
-         *         "agents_total": 1,
-         *         "agents_online": 1,
-         *         "created_at": "2026-02-22T17:21:00Z",
-         *         "updated_at": "2026-02-22T17:21:00Z"
-         *       },
-         *       "agents": [
-         *         {
-         *           "id": 42,
-         *           "team_id": 42,
-         *           "host_id": 42,
-         *           "name": "Example Name",
-         *           "status": "online",
-         *           "meta": {
-         *             "key": "value"
-         *           },
-         *           "tasks_count": 0,
-         *           "last_seen_at": "2026-02-22T17:21:00Z",
-         *           "created_at": "2026-02-22T17:21:00Z",
-         *           "updated_at": "2026-02-22T17:21:00Z"
-         *         }
-         *       ],
-         *       "agents_meta": {
-         *         "current_page": 1,
-         *         "last_page": 1,
-         *         "per_page": 25,
-         *         "total": 0
-         *       }
-         *     }
-         */
-        HostDetailResponse: {
-            /**
-             * @description Data.
-             * @example {
-             *       "id": 42,
-             *       "team_id": 42,
-             *       "name": "Example Name",
-             *       "fingerprint": "a3f56f330f311a2159f8c101eaf1439a29f1d57f007375d56aa79f304bc4f112",
-             *       "status": "online",
-             *       "last_seen_at": "2026-02-22T17:21:00Z",
-             *       "meta": {
-             *         "hostname": "worker-01",
-             *         "ip": "10.0.2.15",
-             *         "os": "Ubuntu",
-             *         "arch": "x86_64",
-             *         "cpu": "Intel Xeon",
-             *         "ram_gb": 32,
-             *         "runtime": {
-             *           "name": "openclaw",
-             *           "version": "1.14.2"
-             *         }
-             *       },
-             *       "created_by_user_id": 42,
-             *       "agents_total": 1,
-             *       "agents_online": 1,
-             *       "created_at": "2026-02-22T17:21:00Z",
-             *       "updated_at": "2026-02-22T17:21:00Z"
-             *     }
-             */
-            data: components["schemas"]["Host"];
-            /**
-             * @description Agents.
-             * @example [
-             *       {
-             *         "id": 42,
-             *         "team_id": 42,
-             *         "host_id": 42,
-             *         "name": "Example Name",
-             *         "status": "online",
-             *         "meta": {
-             *           "key": "value"
-             *         },
-             *         "tasks_count": 0,
-             *         "last_seen_at": "2026-02-22T17:21:00Z",
-             *         "created_at": "2026-02-22T17:21:00Z",
-             *         "updated_at": "2026-02-22T17:21:00Z"
-             *       }
-             *     ]
-             */
-            agents: components["schemas"]["HostAgentSummary"][];
-            /**
-             * @description Additional metadata for Host Detail Response.
-             * @example {
-             *       "current_page": 1,
-             *       "last_page": 1,
-             *       "per_page": 25,
-             *       "total": 0
-             *     }
-             */
-            agents_meta: components["schemas"]["HostAgentsMeta"];
-        };
-        /**
-         * @description Agent Realtime Requested Sessions Response response schema.
-         * @example {
-         *       "data": [
-         *         {
-         *           "id": 42,
-         *           "team_id": 42,
-         *           "agent_id": 42,
-         *           "requested_by_user_id": 42,
-         *           "status": "requested",
-         *           "claimed_at": "2026-02-22T17:21:00Z",
-         *           "opened_at": "2026-02-22T17:21:00Z",
-         *           "closed_at": "2026-02-22T17:21:00Z",
-         *           "expires_at": "2026-02-22T17:21:00Z",
-         *           "last_browser_heartbeat_at": "2026-02-22T17:21:00Z",
-         *           "last_agent_heartbeat_at": "2026-02-22T17:21:00Z",
-         *           "meta": {
-         *             "key": "value"
-         *           },
-         *           "created_at": "2026-02-22T17:21:00Z",
-         *           "updated_at": "2026-02-22T17:21:00Z"
-         *         }
-         *       ]
-         *     }
-         */
-        AgentRealtimeRequestedSessionsResponse: {
-            /**
-             * @description Data.
-             * @example [
-             *       {
-             *         "id": 42,
-             *         "team_id": 42,
-             *         "agent_id": 42,
-             *         "requested_by_user_id": 42,
-             *         "status": "requested",
-             *         "claimed_at": "2026-02-22T17:21:00Z",
-             *         "opened_at": "2026-02-22T17:21:00Z",
-             *         "closed_at": "2026-02-22T17:21:00Z",
-             *         "expires_at": "2026-02-22T17:21:00Z",
-             *         "last_browser_heartbeat_at": "2026-02-22T17:21:00Z",
-             *         "last_agent_heartbeat_at": "2026-02-22T17:21:00Z",
-             *         "meta": {
-             *           "key": "value"
-             *         },
-             *         "created_at": "2026-02-22T17:21:00Z",
-             *         "updated_at": "2026-02-22T17:21:00Z"
-             *       }
-             *     ]
-             */
-            data: components["schemas"]["AgentRealtimeSession"][];
-        };
-        /**
-         * @description Agent Realtime Session Response response schema.
-         * @example {
-         *       "data": {
-         *         "id": 42,
-         *         "team_id": 42,
-         *         "agent_id": 42,
-         *         "requested_by_user_id": 42,
-         *         "status": "requested",
-         *         "claimed_at": "2026-02-22T17:21:00Z",
-         *         "opened_at": "2026-02-22T17:21:00Z",
-         *         "closed_at": "2026-02-22T17:21:00Z",
-         *         "expires_at": "2026-02-22T17:21:00Z",
-         *         "last_browser_heartbeat_at": "2026-02-22T17:21:00Z",
-         *         "last_agent_heartbeat_at": "2026-02-22T17:21:00Z",
-         *         "meta": {
-         *           "key": "value"
-         *         },
-         *         "created_at": "2026-02-22T17:21:00Z",
-         *         "updated_at": "2026-02-22T17:21:00Z"
-         *       }
-         *     }
-         */
-        AgentRealtimeSessionResponse: {
-            /**
-             * @description Data.
-             * @example {
-             *       "id": 42,
-             *       "team_id": 42,
-             *       "agent_id": 42,
-             *       "requested_by_user_id": 42,
-             *       "status": "requested",
-             *       "claimed_at": "2026-02-22T17:21:00Z",
-             *       "opened_at": "2026-02-22T17:21:00Z",
-             *       "closed_at": "2026-02-22T17:21:00Z",
-             *       "expires_at": "2026-02-22T17:21:00Z",
-             *       "last_browser_heartbeat_at": "2026-02-22T17:21:00Z",
-             *       "last_agent_heartbeat_at": "2026-02-22T17:21:00Z",
-             *       "meta": {
-             *         "key": "value"
-             *       },
-             *       "created_at": "2026-02-22T17:21:00Z",
-             *       "updated_at": "2026-02-22T17:21:00Z"
-             *     }
-             */
-            data: components["schemas"]["AgentRealtimeSession"];
-        };
-        /**
-         * @description Agent Realtime Signals Response response schema.
-         * @example {
-         *       "data": [
-         *         {
-         *           "id": 42,
-         *           "team_id": 42,
-         *           "agent_id": 42,
-         *           "session_id": 42,
-         *           "sender": "agent",
-         *           "type": "example",
-         *           "payload": {
-         *             "key": "value"
-         *           },
-         *           "created_at": "2026-02-22T17:21:00Z",
-         *           "updated_at": "2026-02-22T17:21:00Z"
-         *         }
-         *       ],
-         *       "session": {
-         *         "id": 42,
-         *         "team_id": 42,
-         *         "agent_id": 42,
-         *         "requested_by_user_id": 42,
-         *         "status": "requested",
-         *         "claimed_at": "2026-02-22T17:21:00Z",
-         *         "opened_at": "2026-02-22T17:21:00Z",
-         *         "closed_at": "2026-02-22T17:21:00Z",
-         *         "expires_at": "2026-02-22T17:21:00Z",
-         *         "last_browser_heartbeat_at": "2026-02-22T17:21:00Z",
-         *         "last_agent_heartbeat_at": "2026-02-22T17:21:00Z",
-         *         "meta": {
-         *           "key": "value"
-         *         },
-         *         "created_at": "2026-02-22T17:21:00Z",
-         *         "updated_at": "2026-02-22T17:21:00Z"
-         *       }
-         *     }
-         */
-        AgentRealtimeSignalsResponse: {
-            /**
-             * @description Data.
-             * @example [
-             *       {
-             *         "id": 42,
-             *         "team_id": 42,
-             *         "agent_id": 42,
-             *         "session_id": 42,
-             *         "sender": "agent",
-             *         "type": "example",
-             *         "payload": {
-             *           "key": "value"
-             *         },
-             *         "created_at": "2026-02-22T17:21:00Z",
-             *         "updated_at": "2026-02-22T17:21:00Z"
-             *       }
-             *     ]
-             */
-            data: components["schemas"]["AgentRealtimeSignal"][];
-            /**
-             * @description Session.
-             * @example {
-             *       "id": 42,
-             *       "team_id": 42,
-             *       "agent_id": 42,
-             *       "requested_by_user_id": 42,
-             *       "status": "requested",
-             *       "claimed_at": "2026-02-22T17:21:00Z",
-             *       "opened_at": "2026-02-22T17:21:00Z",
-             *       "closed_at": "2026-02-22T17:21:00Z",
-             *       "expires_at": "2026-02-22T17:21:00Z",
-             *       "last_browser_heartbeat_at": "2026-02-22T17:21:00Z",
-             *       "last_agent_heartbeat_at": "2026-02-22T17:21:00Z",
-             *       "meta": {
-             *         "key": "value"
-             *       },
-             *       "created_at": "2026-02-22T17:21:00Z",
-             *       "updated_at": "2026-02-22T17:21:00Z"
-             *     }
-             */
-            session: components["schemas"]["AgentRealtimeSession"];
-        };
-        /**
-         * @description Agent Realtime Signal Response response schema.
-         * @example {
-         *       "data": {
-         *         "id": 42,
-         *         "team_id": 42,
-         *         "agent_id": 42,
-         *         "session_id": 42,
-         *         "sender": "agent",
-         *         "type": "example",
-         *         "payload": {
-         *           "key": "value"
-         *         },
-         *         "created_at": "2026-02-22T17:21:00Z",
-         *         "updated_at": "2026-02-22T17:21:00Z"
-         *       },
-         *       "session": {
-         *         "id": 42,
-         *         "team_id": 42,
-         *         "agent_id": 42,
-         *         "requested_by_user_id": 42,
-         *         "status": "requested",
-         *         "claimed_at": "2026-02-22T17:21:00Z",
-         *         "opened_at": "2026-02-22T17:21:00Z",
-         *         "closed_at": "2026-02-22T17:21:00Z",
-         *         "expires_at": "2026-02-22T17:21:00Z",
-         *         "last_browser_heartbeat_at": "2026-02-22T17:21:00Z",
-         *         "last_agent_heartbeat_at": "2026-02-22T17:21:00Z",
-         *         "meta": {
-         *           "key": "value"
-         *         },
-         *         "created_at": "2026-02-22T17:21:00Z",
-         *         "updated_at": "2026-02-22T17:21:00Z"
-         *       }
-         *     }
-         */
-        AgentRealtimeSignalResponse: {
-            /**
-             * @description Data.
-             * @example {
-             *       "id": 42,
-             *       "team_id": 42,
-             *       "agent_id": 42,
-             *       "session_id": 42,
-             *       "sender": "agent",
-             *       "type": "example",
-             *       "payload": {
-             *         "key": "value"
-             *       },
-             *       "created_at": "2026-02-22T17:21:00Z",
-             *       "updated_at": "2026-02-22T17:21:00Z"
-             *     }
-             */
-            data: components["schemas"]["AgentRealtimeSignal"];
-            /**
-             * @description Session.
-             * @example {
-             *       "id": 42,
-             *       "team_id": 42,
-             *       "agent_id": 42,
-             *       "requested_by_user_id": 42,
-             *       "status": "requested",
-             *       "claimed_at": "2026-02-22T17:21:00Z",
-             *       "opened_at": "2026-02-22T17:21:00Z",
-             *       "closed_at": "2026-02-22T17:21:00Z",
-             *       "expires_at": "2026-02-22T17:21:00Z",
-             *       "last_browser_heartbeat_at": "2026-02-22T17:21:00Z",
-             *       "last_agent_heartbeat_at": "2026-02-22T17:21:00Z",
-             *       "meta": {
-             *         "key": "value"
-             *       },
-             *       "created_at": "2026-02-22T17:21:00Z",
-             *       "updated_at": "2026-02-22T17:21:00Z"
-             *     }
-             */
-            session: components["schemas"]["AgentRealtimeSession"];
-        };
-        /**
-         * @description Agent Realtime Socket Auth Response response schema.
-         * @example {
-         *       "auth": "example"
-         *     }
-         */
-        AgentRealtimeSocketAuthResponse: {
-            /**
-             * @description Auth.
-             * @example example
-             */
-            auth: string;
-        };
-        /**
-         * @description Response returned after marking team notifications as read.
-         * @example {
-         *       "data": {
-         *         "updated": 4,
-         *         "unread_count": 0
-         *       }
-         *     }
-         */
-        NotificationMarkAllReadResponse: {
-            /**
-             * @description Data.
-             * @example {
-             *       "updated": 0,
-             *       "unread_count": 0
-             *     }
-             */
-            data: {
-                /**
-                 * @description Updated.
-                 * @example 0
-                 */
-                updated: number;
-                /**
-                 * @description Unread notification count after the operation completes.
-                 * @example 0
-                 */
-                unread_count: number;
-            };
-        };
-        /**
-         * @description Board Response response schema.
-         * @example {
-         *       "data": {
-         *         "id": 42,
-         *         "team_id": 42,
-         *         "name": "Example Name",
-         *         "description": "Example description text.",
-         *         "visibility": "team",
-         *         "personal_owner_user_id": 42,
-         *         "created_by_user_id": 42,
-         *         "created_at": "2026-02-22T17:21:00Z",
-         *         "updated_at": "2026-02-22T17:21:00Z"
-         *       }
-         *     }
-         */
-        BoardResponse: {
-            /**
-             * @description Data.
-             * @example {
-             *       "id": 42,
-             *       "team_id": 42,
-             *       "name": "Example Name",
-             *       "description": "Example description text.",
-             *       "visibility": "team",
-             *       "personal_owner_user_id": 42,
-             *       "created_by_user_id": 42,
-             *       "created_at": "2026-02-22T17:21:00Z",
-             *       "updated_at": "2026-02-22T17:21:00Z"
-             *     }
-             */
-            data: components["schemas"]["Board"];
-        };
-        /**
-         * @description Board Column Response response schema.
-         * @example {
-         *       "data": {
-         *         "id": 42,
-         *         "board_id": 42,
-         *         "team_id": 42,
-         *         "name": "Example Name",
-         *         "position": 1,
-         *         "created_at": "2026-02-22T17:21:00Z",
-         *         "updated_at": "2026-02-22T17:21:00Z"
-         *       }
-         *     }
-         */
-        BoardColumnResponse: {
-            /**
-             * @description Data.
-             * @example {
-             *       "id": 42,
-             *       "board_id": 42,
-             *       "team_id": 42,
-             *       "name": "Example Name",
-             *       "position": 1,
-             *       "created_at": "2026-02-22T17:21:00Z",
-             *       "updated_at": "2026-02-22T17:21:00Z"
-             *     }
-             */
-            data: components["schemas"]["BoardColumn"];
-        };
-        /**
-         * @description Task Response response schema.
-         * @example {
-         *       "data": {
-         *         "id": 42,
-         *         "team_id": 42,
-         *         "board_id": 42,
-         *         "column_id": 42,
-         *         "title": "Example Title",
-         *         "description": "Example description text.",
-         *         "archived_at": "2026-02-22T17:21:00Z",
-         *         "is_archived": true,
-         *         "position": 1,
-         *         "due_at": "2026-02-22T17:21:00Z",
-         *         "created_by_user_id": 42,
-         *         "assigned_to_user_id": 42,
-         *         "assigned_to_agent_id": 42,
-         *         "attachments": [
-         *           {
-         *             "id": 45,
-         *             "team_file_id": 101,
-         *             "preview_url": "/api/v1/files/101/preview",
-         *             "download_url": "/api/v1/files/101/download",
-         *             "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-         *             "file": {
-         *               "id": 101,
-         *               "display_name": "incident-timeline.png",
-         *               "original_filename": "incident-timeline.png",
-         *               "mime_type": "image/png",
-         *               "size_bytes": 144220,
-         *               "preview_kind": "image",
-         *               "created_at": "2026-02-27T17:20:00Z",
-         *               "updated_at": "2026-02-27T17:24:00Z"
-         *             }
-         *           }
-         *         ],
-         *         "assignee_type": "human",
-         *         "created_at": "2026-02-22T17:21:00Z",
-         *         "updated_at": "2026-02-22T17:21:00Z"
-         *       }
-         *     }
-         */
-        TaskResponse: {
-            /**
-             * @description Data.
-             * @example {
-             *       "id": 42,
-             *       "team_id": 42,
-             *       "board_id": 42,
-             *       "column_id": 42,
-             *       "title": "Example Title",
-             *       "description": "Example description text.",
-             *       "archived_at": "2026-02-22T17:21:00Z",
-             *       "is_archived": true,
-             *       "position": 1,
-             *       "due_at": "2026-02-22T17:21:00Z",
-             *       "created_by_user_id": 42,
-             *       "assigned_to_user_id": 42,
-             *       "assigned_to_agent_id": 42,
-             *       "attachments": [
-             *         {
-             *           "id": 45,
-             *           "team_file_id": 101,
-             *           "preview_url": "/api/v1/files/101/preview",
-             *           "download_url": "/api/v1/files/101/download",
-             *           "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-             *           "file": {
-             *             "id": 101,
-             *             "display_name": "incident-timeline.png",
-             *             "original_filename": "incident-timeline.png",
-             *             "mime_type": "image/png",
-             *             "size_bytes": 144220,
-             *             "preview_kind": "image",
-             *             "created_at": "2026-02-27T17:20:00Z",
-             *             "updated_at": "2026-02-27T17:24:00Z"
-             *           }
-             *         }
-             *       ],
-             *       "assignee_type": "human",
-             *       "created_at": "2026-02-22T17:21:00Z",
-             *       "updated_at": "2026-02-22T17:21:00Z"
-             *     }
-             */
-            data: components["schemas"]["Task"];
-        };
-        /**
-         * @description Task Comment Response response schema.
-         * @example {
-         *       "data": {
-         *         "id": 42,
-         *         "task_id": 42,
-         *         "actor_type": "user",
-         *         "actor_id": 42,
-         *         "actor_name": "Example Name",
-         *         "body": "Example content.",
-         *         "mentions": [
-         *           {
-         *             "key": "example",
-         *             "type": "user",
-         *             "id": 42,
-         *             "label": "example",
-         *             "handle": "example",
-         *             "token": "example"
-         *           }
-         *         ],
-         *         "attachments": [
-         *           {
-         *             "id": 45,
-         *             "team_file_id": 101,
-         *             "preview_url": "/api/v1/files/101/preview",
-         *             "download_url": "/api/v1/files/101/download",
-         *             "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-         *             "file": {
-         *               "id": 101,
-         *               "display_name": "incident-timeline.png",
-         *               "original_filename": "incident-timeline.png",
-         *               "mime_type": "image/png",
-         *               "size_bytes": 144220,
-         *               "preview_kind": "image",
-         *               "created_at": "2026-02-27T17:20:00Z",
-         *               "updated_at": "2026-02-27T17:24:00Z"
-         *             }
-         *           }
-         *         ],
-         *         "edited_at": "2026-02-22T17:21:00Z",
-         *         "created_at": "2026-02-22T17:21:00Z"
-         *       }
-         *     }
-         */
-        TaskCommentResponse: {
-            /**
-             * @description Data.
-             * @example {
-             *       "id": 42,
-             *       "task_id": 42,
-             *       "actor_type": "user",
-             *       "actor_id": 42,
-             *       "actor_name": "Example Name",
-             *       "body": "Example content.",
-             *       "mentions": [
-             *         {
-             *           "key": "example",
-             *           "type": "user",
-             *           "id": 42,
-             *           "label": "example",
-             *           "handle": "example",
-             *           "token": "example"
-             *         }
-             *       ],
-             *       "attachments": [
-             *         {
-             *           "id": 45,
-             *           "team_file_id": 101,
-             *           "preview_url": "/api/v1/files/101/preview",
-             *           "download_url": "/api/v1/files/101/download",
-             *           "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-             *           "file": {
-             *             "id": 101,
-             *             "display_name": "incident-timeline.png",
-             *             "original_filename": "incident-timeline.png",
-             *             "mime_type": "image/png",
-             *             "size_bytes": 144220,
-             *             "preview_kind": "image",
-             *             "created_at": "2026-02-27T17:20:00Z",
-             *             "updated_at": "2026-02-27T17:24:00Z"
-             *           }
-             *         }
-             *       ],
-             *       "edited_at": "2026-02-22T17:21:00Z",
-             *       "created_at": "2026-02-22T17:21:00Z"
-             *     }
-             */
-            data: components["schemas"]["TaskComment"];
-        };
-        /**
-         * @description Log Response response schema.
-         * @example {
-         *       "data": {
-         *         "id": 42,
-         *         "team_id": 42,
-         *         "actor_type": "example",
-         *         "actor_id": 42,
-         *         "action": "example",
-         *         "subject_type": "example",
-         *         "subject_id": 42,
-         *         "meta": {
-         *           "key": "value"
-         *         },
-         *         "created_at": "2026-02-22T17:21:00Z"
-         *       }
-         *     }
-         */
-        LogResponse: {
-            /**
-             * @description Data.
-             * @example {
-             *       "id": 42,
-             *       "team_id": 42,
-             *       "actor_type": "example",
-             *       "actor_id": 42,
-             *       "action": "example",
-             *       "subject_type": "example",
-             *       "subject_id": 42,
-             *       "meta": {
-             *         "key": "value"
-             *       },
-             *       "created_at": "2026-02-22T17:21:00Z"
-             *     }
-             */
-            data: components["schemas"]["Log"];
-        };
-        /**
-         * @description Calendar Item Response response schema.
-         * @example {
-         *       "data": {
-         *         "id": 42,
-         *         "team_id": 42,
-         *         "type": "event",
-         *         "title": "Example Title",
-         *         "description": "Example description text.",
-         *         "start_at": "2026-02-22T17:21:00Z",
-         *         "end_at": "2026-02-22T17:21:00Z",
-         *         "due_at": "2026-02-22T17:21:00Z",
-         *         "all_day": false,
-         *         "location": "example",
-         *         "timezone": "America/Los_Angeles",
-         *         "status": "todo",
-         *         "priority": "low",
-         *         "visibility": "team",
-         *         "created_by": 1,
-         *         "updated_by": 1,
-         *         "assignees": [
-         *           {
-         *             "id": 42,
-         *             "assignee_type": "user",
-         *             "assignee_id": 42,
-         *             "role": "owner",
-         *             "name": "Example Name",
-         *             "created_at": "2026-02-22T17:21:00Z"
-         *           }
-         *         ],
-         *         "attachments": [
-         *           {
-         *             "id": 45,
-         *             "team_file_id": 101,
-         *             "preview_url": "/api/v1/files/101/preview",
-         *             "download_url": "/api/v1/files/101/download",
-         *             "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-         *             "file": {
-         *               "id": 101,
-         *               "display_name": "incident-timeline.png",
-         *               "original_filename": "incident-timeline.png",
-         *               "mime_type": "image/png",
-         *               "size_bytes": 144220,
-         *               "preview_kind": "image",
-         *               "created_at": "2026-02-27T17:20:00Z",
-         *               "updated_at": "2026-02-27T17:24:00Z"
-         *             }
-         *           }
-         *         ],
-         *         "comments_count": 1,
-         *         "created_at": "2026-02-22T17:21:00Z",
-         *         "updated_at": "2026-02-22T17:21:00Z",
-         *         "deleted_at": "2026-02-22T17:21:00Z"
-         *       }
-         *     }
-         */
-        CalendarItemResponse: {
-            /**
-             * @description Data.
-             * @example {
-             *       "id": 42,
-             *       "team_id": 42,
-             *       "type": "event",
-             *       "title": "Example Title",
-             *       "description": "Example description text.",
-             *       "start_at": "2026-02-22T17:21:00Z",
-             *       "end_at": "2026-02-22T17:21:00Z",
-             *       "due_at": "2026-02-22T17:21:00Z",
-             *       "all_day": false,
-             *       "location": "example",
-             *       "timezone": "America/Los_Angeles",
-             *       "status": "todo",
-             *       "priority": "low",
-             *       "visibility": "team",
-             *       "created_by": 1,
-             *       "updated_by": 1,
-             *       "assignees": [
-             *         {
-             *           "id": 42,
-             *           "assignee_type": "user",
-             *           "assignee_id": 42,
-             *           "role": "owner",
-             *           "name": "Example Name",
-             *           "created_at": "2026-02-22T17:21:00Z"
-             *         }
-             *       ],
-             *       "attachments": [
-             *         {
-             *           "id": 45,
-             *           "team_file_id": 101,
-             *           "preview_url": "/api/v1/files/101/preview",
-             *           "download_url": "/api/v1/files/101/download",
-             *           "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-             *           "file": {
-             *             "id": 101,
-             *             "display_name": "incident-timeline.png",
-             *             "original_filename": "incident-timeline.png",
-             *             "mime_type": "image/png",
-             *             "size_bytes": 144220,
-             *             "preview_kind": "image",
-             *             "created_at": "2026-02-27T17:20:00Z",
-             *             "updated_at": "2026-02-27T17:24:00Z"
-             *           }
-             *         }
-             *       ],
-             *       "comments_count": 1,
-             *       "created_at": "2026-02-22T17:21:00Z",
-             *       "updated_at": "2026-02-22T17:21:00Z",
-             *       "deleted_at": "2026-02-22T17:21:00Z"
-             *     }
-             */
-            data: components["schemas"]["CalendarItem"];
-        };
-        /**
-         * @description Calendar Item Comment Response response schema.
-         * @example {
-         *       "data": {
-         *         "id": 42,
-         *         "actor_type": "user",
-         *         "actor_id": 42,
-         *         "body": "Example content.",
-         *         "attachments": [
-         *           {
-         *             "id": 45,
-         *             "team_file_id": 101,
-         *             "preview_url": "/api/v1/files/101/preview",
-         *             "download_url": "/api/v1/files/101/download",
-         *             "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-         *             "file": {
-         *               "id": 101,
-         *               "display_name": "incident-timeline.png",
-         *               "original_filename": "incident-timeline.png",
-         *               "mime_type": "image/png",
-         *               "size_bytes": 144220,
-         *               "preview_kind": "image",
-         *               "created_at": "2026-02-27T17:20:00Z",
-         *               "updated_at": "2026-02-27T17:24:00Z"
-         *             }
-         *           }
-         *         ],
-         *         "created_at": "2026-02-22T17:21:00Z"
-         *       }
-         *     }
-         */
-        CalendarItemCommentResponse: {
-            /**
-             * @description Data.
-             * @example {
-             *       "id": 42,
-             *       "actor_type": "user",
-             *       "actor_id": 42,
-             *       "body": "Example content.",
-             *       "attachments": [
-             *         {
-             *           "id": 45,
-             *           "team_file_id": 101,
-             *           "preview_url": "/api/v1/files/101/preview",
-             *           "download_url": "/api/v1/files/101/download",
-             *           "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-             *           "file": {
-             *             "id": 101,
-             *             "display_name": "incident-timeline.png",
-             *             "original_filename": "incident-timeline.png",
-             *             "mime_type": "image/png",
-             *             "size_bytes": 144220,
-             *             "preview_kind": "image",
-             *             "created_at": "2026-02-27T17:20:00Z",
-             *             "updated_at": "2026-02-27T17:24:00Z"
-             *           }
-             *         }
-             *       ],
-             *       "created_at": "2026-02-22T17:21:00Z"
-             *     }
-             */
-            data: components["schemas"]["CalendarItemComment"];
-        };
-        /**
-         * @description Host Response response schema.
-         * @example {
-         *       "data": {
-         *         "id": 42,
-         *         "team_id": 42,
-         *         "name": "Example Name",
-         *         "fingerprint": "a3f56f330f311a2159f8c101eaf1439a29f1d57f007375d56aa79f304bc4f112",
-         *         "status": "online",
-         *         "last_seen_at": "2026-02-22T17:21:00Z",
-         *         "meta": {
-         *           "hostname": "worker-01",
-         *           "ip": "10.0.2.15",
-         *           "os": "Ubuntu",
-         *           "arch": "x86_64",
-         *           "cpu": "Intel Xeon",
-         *           "ram_gb": 32,
-         *           "runtime": {
-         *             "name": "openclaw",
-         *             "version": "1.14.2"
-         *           }
-         *         },
-         *         "created_by_user_id": 42,
-         *         "agents_total": 1,
-         *         "agents_online": 1,
-         *         "created_at": "2026-02-22T17:21:00Z",
-         *         "updated_at": "2026-02-22T17:21:00Z"
-         *       }
-         *     }
-         */
-        HostResponse: {
-            /**
-             * @description Data.
-             * @example {
-             *       "id": 42,
-             *       "team_id": 42,
-             *       "name": "Example Name",
-             *       "fingerprint": "a3f56f330f311a2159f8c101eaf1439a29f1d57f007375d56aa79f304bc4f112",
-             *       "status": "online",
-             *       "last_seen_at": "2026-02-22T17:21:00Z",
-             *       "meta": {
-             *         "hostname": "worker-01",
-             *         "ip": "10.0.2.15",
-             *         "os": "Ubuntu",
-             *         "arch": "x86_64",
-             *         "cpu": "Intel Xeon",
-             *         "ram_gb": 32,
-             *         "runtime": {
-             *           "name": "openclaw",
-             *           "version": "1.14.2"
-             *         }
-             *       },
-             *       "created_by_user_id": 42,
-             *       "agents_total": 1,
-             *       "agents_online": 1,
-             *       "created_at": "2026-02-22T17:21:00Z",
-             *       "updated_at": "2026-02-22T17:21:00Z"
-             *     }
-             */
-            data: components["schemas"]["Host"];
-        };
-        /**
-         * @description Notification Response response schema.
-         * @example {
-         *       "data": {
-         *         "id": "c084fc57-b2c6-466c-adcb-cf6f4efca42a",
-         *         "notification_type": "mention",
-         *         "source_type": "App\\Notifications\\MentionedInCommentNotification",
-         *         "team_id": 7,
-         *         "subject_type": "task",
-         *         "subject_id": 121,
-         *         "subject_label": "Prepare incident postmortem",
-         *         "actor_type": "user",
-         *         "actor_id": 3,
-         *         "actor_name": "Alex Morgan",
-         *         "assignee_type": null,
-         *         "assignee_id": null,
-         *         "mention_handle": "@tim",
-         *         "comment": "Can you own the timeline section before standup?",
-         *         "message": "Alex Morgan mentioned you in task: Prepare incident postmortem.",
-         *         "url": "/tasks/121?comment=998",
-         *         "comment_id": 998,
-         *         "response_action": {
-         *           "type": "post_comment_reply",
-         *           "method": "POST",
-         *           "path": "/tasks/121/comments",
-         *           "request_body": {
-         *             "body": "Thanks, I can own the timeline section."
-         *           }
-         *         },
-         *         "is_read": false,
-         *         "read_at": null,
-         *         "created_at": "2026-02-24T02:11:00Z",
-         *         "updated_at": "2026-02-24T02:11:00Z"
-         *       }
-         *     }
-         */
-        NotificationResponse: {
-            /**
-             * @description Data.
-             * @example {
-             *       "id": "c084fc57-b2c6-466c-adcb-cf6f4efca42a",
-             *       "notification_type": "mention",
-             *       "source_type": "App\\Notifications\\MentionedInCommentNotification",
-             *       "team_id": 7,
-             *       "subject_type": "task",
-             *       "subject_id": 121,
-             *       "subject_label": "Prepare incident postmortem",
-             *       "actor_type": "user",
-             *       "actor_id": 3,
-             *       "actor_name": "Alex Morgan",
-             *       "assignee_type": null,
-             *       "assignee_id": null,
-             *       "mention_handle": "@tim",
-             *       "comment": "Can you own the timeline section before standup?",
-             *       "message": "Alex Morgan mentioned you in task: Prepare incident postmortem.",
-             *       "url": "/tasks/121?comment=998",
-             *       "comment_id": 998,
-             *       "response_action": {
-             *         "type": "post_comment_reply",
-             *         "method": "POST",
-             *         "path": "/tasks/121/comments",
-             *         "request_body": {
-             *           "body": "Thanks, I can own the timeline section."
-             *         }
-             *       },
-             *       "is_read": false,
-             *       "read_at": null,
-             *       "created_at": "2026-02-24T02:11:00Z",
-             *       "updated_at": "2026-02-24T02:11:00Z"
-             *     }
-             */
-            data: components["schemas"]["Notification"];
-        };
-        /**
-         * @description Paginated Board Response response schema.
-         * @example {
-         *       "data": [
-         *         {
-         *           "id": 42,
-         *           "team_id": 42,
-         *           "name": "Example Name",
-         *           "description": "Example description text.",
-         *           "visibility": "team",
-         *           "personal_owner_user_id": 42,
-         *           "created_by_user_id": 42,
-         *           "created_at": "2026-02-22T17:21:00Z",
-         *           "updated_at": "2026-02-22T17:21:00Z"
-         *         }
-         *       ],
-         *       "links": {
-         *         "first": "example",
-         *         "last": "example",
-         *         "prev": "example",
-         *         "next": "example"
-         *       },
-         *       "meta": {
-         *         "current_page": 1,
-         *         "from": 1,
-         *         "last_page": 1,
-         *         "links": [
-         *           {
-         *             "url": "https://agentmc.example.com/docs/incident-123",
-         *             "label": "example",
-         *             "active": true
-         *           }
-         *         ],
-         *         "path": "notes/daily-ops.md",
-         *         "per_page": 25,
-         *         "total": 0
-         *       }
-         *     }
-         */
-        PaginatedBoardResponse: {
-            /**
-             * @description Data.
-             * @example [
-             *       {
-             *         "id": 42,
-             *         "team_id": 42,
-             *         "name": "Example Name",
-             *         "description": "Example description text.",
-             *         "visibility": "team",
-             *         "personal_owner_user_id": 42,
-             *         "created_by_user_id": 42,
-             *         "created_at": "2026-02-22T17:21:00Z",
-             *         "updated_at": "2026-02-22T17:21:00Z"
-             *       }
-             *     ]
-             */
-            data: components["schemas"]["Board"][];
-            /**
-             * @description Links.
-             * @example {
-             *       "first": "example",
-             *       "last": "example",
-             *       "prev": "example",
-             *       "next": "example"
-             *     }
-             */
-            links: components["schemas"]["PaginationLinks"];
-            /**
-             * @description Arbitrary JSON metadata object.
-             * @example {
-             *       "current_page": 1,
-             *       "from": 1,
-             *       "last_page": 1,
-             *       "links": [
-             *         {
-             *           "url": "https://agentmc.example.com/docs/incident-123",
-             *           "label": "example",
-             *           "active": true
-             *         }
-             *       ],
-             *       "path": "notes/daily-ops.md",
-             *       "per_page": 25,
-             *       "total": 0
-             *     }
-             */
-            meta: components["schemas"]["PaginationMeta"];
-        };
-        /**
-         * @description Paginated Task Response response schema.
-         * @example {
-         *       "data": [
-         *         {
-         *           "id": 42,
-         *           "team_id": 42,
-         *           "board_id": 42,
-         *           "column_id": 42,
-         *           "title": "Example Title",
-         *           "description": "Example description text.",
-         *           "archived_at": "2026-02-22T17:21:00Z",
-         *           "is_archived": true,
-         *           "position": 1,
-         *           "due_at": "2026-02-22T17:21:00Z",
-         *           "created_by_user_id": 42,
-         *           "assigned_to_user_id": 42,
-         *           "assigned_to_agent_id": 42,
-         *           "attachments": [
-         *             {
-         *               "id": 45,
-         *               "team_file_id": 101,
-         *               "preview_url": "/api/v1/files/101/preview",
-         *               "download_url": "/api/v1/files/101/download",
-         *               "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-         *               "file": {
-         *                 "id": 101,
-         *                 "display_name": "incident-timeline.png",
-         *                 "original_filename": "incident-timeline.png",
-         *                 "mime_type": "image/png",
-         *                 "size_bytes": 144220,
-         *                 "preview_kind": "image",
-         *                 "created_at": "2026-02-27T17:20:00Z",
-         *                 "updated_at": "2026-02-27T17:24:00Z"
-         *               }
-         *             }
-         *           ],
-         *           "assignee_type": "human",
-         *           "created_at": "2026-02-22T17:21:00Z",
-         *           "updated_at": "2026-02-22T17:21:00Z"
-         *         }
-         *       ],
-         *       "links": {
-         *         "first": "example",
-         *         "last": "example",
-         *         "prev": "example",
-         *         "next": "example"
-         *       },
-         *       "meta": {
-         *         "current_page": 1,
-         *         "from": 1,
-         *         "last_page": 1,
-         *         "links": [
-         *           {
-         *             "url": "https://agentmc.example.com/docs/incident-123",
-         *             "label": "example",
-         *             "active": true
-         *           }
-         *         ],
-         *         "path": "notes/daily-ops.md",
-         *         "per_page": 25,
-         *         "total": 0
-         *       }
-         *     }
-         */
-        PaginatedTaskResponse: {
-            /**
-             * @description Data.
-             * @example [
-             *       {
-             *         "id": 42,
-             *         "team_id": 42,
-             *         "board_id": 42,
-             *         "column_id": 42,
-             *         "title": "Example Title",
-             *         "description": "Example description text.",
-             *         "archived_at": "2026-02-22T17:21:00Z",
-             *         "is_archived": true,
-             *         "position": 1,
-             *         "due_at": "2026-02-22T17:21:00Z",
-             *         "created_by_user_id": 42,
-             *         "assigned_to_user_id": 42,
-             *         "assigned_to_agent_id": 42,
-             *         "attachments": [
-             *           {
-             *             "id": 45,
-             *             "team_file_id": 101,
-             *             "preview_url": "/api/v1/files/101/preview",
-             *             "download_url": "/api/v1/files/101/download",
-             *             "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-             *             "file": {
-             *               "id": 101,
-             *               "display_name": "incident-timeline.png",
-             *               "original_filename": "incident-timeline.png",
-             *               "mime_type": "image/png",
-             *               "size_bytes": 144220,
-             *               "preview_kind": "image",
-             *               "created_at": "2026-02-27T17:20:00Z",
-             *               "updated_at": "2026-02-27T17:24:00Z"
-             *             }
-             *           }
-             *         ],
-             *         "assignee_type": "human",
-             *         "created_at": "2026-02-22T17:21:00Z",
-             *         "updated_at": "2026-02-22T17:21:00Z"
-             *       }
-             *     ]
-             */
-            data: components["schemas"]["Task"][];
-            /**
-             * @description Links.
-             * @example {
-             *       "first": "example",
-             *       "last": "example",
-             *       "prev": "example",
-             *       "next": "example"
-             *     }
-             */
-            links: components["schemas"]["PaginationLinks"];
-            /**
-             * @description Arbitrary JSON metadata object.
-             * @example {
-             *       "current_page": 1,
-             *       "from": 1,
-             *       "last_page": 1,
-             *       "links": [
-             *         {
-             *           "url": "https://agentmc.example.com/docs/incident-123",
-             *           "label": "example",
-             *           "active": true
-             *         }
-             *       ],
-             *       "path": "notes/daily-ops.md",
-             *       "per_page": 25,
-             *       "total": 0
-             *     }
-             */
-            meta: components["schemas"]["PaginationMeta"];
-        };
-        /**
-         * @description Paginated Task Comment Response response schema.
-         * @example {
-         *       "data": [
-         *         {
-         *           "id": 42,
-         *           "task_id": 42,
-         *           "actor_type": "user",
-         *           "actor_id": 42,
-         *           "actor_name": "Example Name",
-         *           "body": "Example content.",
-         *           "mentions": [
-         *             {
-         *               "key": "example",
-         *               "type": "user",
-         *               "id": 42,
-         *               "label": "example",
-         *               "handle": "example",
-         *               "token": "example"
-         *             }
-         *           ],
-         *           "attachments": [
-         *             {
-         *               "id": 45,
-         *               "team_file_id": 101,
-         *               "preview_url": "/api/v1/files/101/preview",
-         *               "download_url": "/api/v1/files/101/download",
-         *               "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-         *               "file": {
-         *                 "id": 101,
-         *                 "display_name": "incident-timeline.png",
-         *                 "original_filename": "incident-timeline.png",
-         *                 "mime_type": "image/png",
-         *                 "size_bytes": 144220,
-         *                 "preview_kind": "image",
-         *                 "created_at": "2026-02-27T17:20:00Z",
-         *                 "updated_at": "2026-02-27T17:24:00Z"
-         *               }
-         *             }
-         *           ],
-         *           "edited_at": "2026-02-22T17:21:00Z",
-         *           "created_at": "2026-02-22T17:21:00Z"
-         *         }
-         *       ],
-         *       "links": {
-         *         "first": "example",
-         *         "last": "example",
-         *         "prev": "example",
-         *         "next": "example"
-         *       },
-         *       "meta": {
-         *         "current_page": 1,
-         *         "from": 1,
-         *         "last_page": 1,
-         *         "links": [
-         *           {
-         *             "url": "https://agentmc.example.com/docs/incident-123",
-         *             "label": "example",
-         *             "active": true
-         *           }
-         *         ],
-         *         "path": "notes/daily-ops.md",
-         *         "per_page": 25,
-         *         "total": 0
-         *       }
-         *     }
-         */
-        PaginatedTaskCommentResponse: {
-            /**
-             * @description Data.
-             * @example [
-             *       {
-             *         "id": 42,
-             *         "task_id": 42,
-             *         "actor_type": "user",
-             *         "actor_id": 42,
-             *         "actor_name": "Example Name",
-             *         "body": "Example content.",
-             *         "mentions": [
-             *           {
-             *             "key": "example",
-             *             "type": "user",
-             *             "id": 42,
-             *             "label": "example",
-             *             "handle": "example",
-             *             "token": "example"
-             *           }
-             *         ],
-             *         "attachments": [
-             *           {
-             *             "id": 45,
-             *             "team_file_id": 101,
-             *             "preview_url": "/api/v1/files/101/preview",
-             *             "download_url": "/api/v1/files/101/download",
-             *             "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-             *             "file": {
-             *               "id": 101,
-             *               "display_name": "incident-timeline.png",
-             *               "original_filename": "incident-timeline.png",
-             *               "mime_type": "image/png",
-             *               "size_bytes": 144220,
-             *               "preview_kind": "image",
-             *               "created_at": "2026-02-27T17:20:00Z",
-             *               "updated_at": "2026-02-27T17:24:00Z"
-             *             }
-             *           }
-             *         ],
-             *         "edited_at": "2026-02-22T17:21:00Z",
-             *         "created_at": "2026-02-22T17:21:00Z"
-             *       }
-             *     ]
-             */
-            data: components["schemas"]["TaskComment"][];
-            /**
-             * @description Links.
-             * @example {
-             *       "first": "example",
-             *       "last": "example",
-             *       "prev": "example",
-             *       "next": "example"
-             *     }
-             */
-            links: components["schemas"]["PaginationLinks"];
-            /**
-             * @description Arbitrary JSON metadata object.
-             * @example {
-             *       "current_page": 1,
-             *       "from": 1,
-             *       "last_page": 1,
-             *       "links": [
-             *         {
-             *           "url": "https://agentmc.example.com/docs/incident-123",
-             *           "label": "example",
-             *           "active": true
-             *         }
-             *       ],
-             *       "path": "notes/daily-ops.md",
-             *       "per_page": 25,
-             *       "total": 0
-             *     }
-             */
-            meta: components["schemas"]["PaginationMeta"];
-        };
-        /**
-         * @description Paginated Log Response response schema.
-         * @example {
-         *       "data": [
-         *         {
-         *           "id": 42,
-         *           "team_id": 42,
-         *           "actor_type": "example",
-         *           "actor_id": 42,
-         *           "action": "example",
-         *           "subject_type": "example",
-         *           "subject_id": 42,
-         *           "meta": {
-         *             "key": "value"
-         *           },
-         *           "created_at": "2026-02-22T17:21:00Z"
-         *         }
-         *       ],
-         *       "links": {
-         *         "first": "example",
-         *         "last": "example",
-         *         "prev": "example",
-         *         "next": "example"
-         *       },
-         *       "meta": {
-         *         "current_page": 1,
-         *         "from": 1,
-         *         "last_page": 1,
-         *         "links": [
-         *           {
-         *             "url": "https://agentmc.example.com/docs/incident-123",
-         *             "label": "example",
-         *             "active": true
-         *           }
-         *         ],
-         *         "path": "notes/daily-ops.md",
-         *         "per_page": 25,
-         *         "total": 0
-         *       }
-         *     }
-         */
-        PaginatedLogResponse: {
-            /**
-             * @description Data.
-             * @example [
-             *       {
-             *         "id": 42,
-             *         "team_id": 42,
-             *         "actor_type": "example",
-             *         "actor_id": 42,
-             *         "action": "example",
-             *         "subject_type": "example",
-             *         "subject_id": 42,
-             *         "meta": {
-             *           "key": "value"
-             *         },
-             *         "created_at": "2026-02-22T17:21:00Z"
-             *       }
-             *     ]
-             */
-            data: components["schemas"]["Log"][];
-            /**
-             * @description Links.
-             * @example {
-             *       "first": "example",
-             *       "last": "example",
-             *       "prev": "example",
-             *       "next": "example"
-             *     }
-             */
-            links: components["schemas"]["PaginationLinks"];
-            /**
-             * @description Arbitrary JSON metadata object.
-             * @example {
-             *       "current_page": 1,
-             *       "from": 1,
-             *       "last_page": 1,
-             *       "links": [
-             *         {
-             *           "url": "https://agentmc.example.com/docs/incident-123",
-             *           "label": "example",
-             *           "active": true
-             *         }
-             *       ],
-             *       "path": "notes/daily-ops.md",
-             *       "per_page": 25,
-             *       "total": 0
-             *     }
-             */
-            meta: components["schemas"]["PaginationMeta"];
-        };
-        /**
-         * @description Paginated Calendar Item Response response schema.
-         * @example {
-         *       "data": [
-         *         {
-         *           "id": 42,
-         *           "team_id": 42,
-         *           "type": "event",
-         *           "title": "Example Title",
-         *           "description": "Example description text.",
-         *           "start_at": "2026-02-22T17:21:00Z",
-         *           "end_at": "2026-02-22T17:21:00Z",
-         *           "due_at": "2026-02-22T17:21:00Z",
-         *           "all_day": false,
-         *           "location": "example",
-         *           "timezone": "America/Los_Angeles",
-         *           "status": "todo",
-         *           "priority": "low",
-         *           "visibility": "team",
-         *           "created_by": 1,
-         *           "updated_by": 1,
-         *           "assignees": [
-         *             {
-         *               "id": 42,
-         *               "assignee_type": "user",
-         *               "assignee_id": 42,
-         *               "role": "owner",
-         *               "name": "Example Name",
-         *               "created_at": "2026-02-22T17:21:00Z"
-         *             }
-         *           ],
-         *           "attachments": [
-         *             {
-         *               "id": 45,
-         *               "team_file_id": 101,
-         *               "preview_url": "/api/v1/files/101/preview",
-         *               "download_url": "/api/v1/files/101/download",
-         *               "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-         *               "file": {
-         *                 "id": 101,
-         *                 "display_name": "incident-timeline.png",
-         *                 "original_filename": "incident-timeline.png",
-         *                 "mime_type": "image/png",
-         *                 "size_bytes": 144220,
-         *                 "preview_kind": "image",
-         *                 "created_at": "2026-02-27T17:20:00Z",
-         *                 "updated_at": "2026-02-27T17:24:00Z"
-         *               }
-         *             }
-         *           ],
-         *           "comments_count": 1,
-         *           "created_at": "2026-02-22T17:21:00Z",
-         *           "updated_at": "2026-02-22T17:21:00Z",
-         *           "deleted_at": "2026-02-22T17:21:00Z"
-         *         }
-         *       ],
-         *       "links": {
-         *         "first": "example",
-         *         "last": "example",
-         *         "prev": "example",
-         *         "next": "example"
-         *       },
-         *       "meta": {
-         *         "current_page": 1,
-         *         "from": 1,
-         *         "last_page": 1,
-         *         "links": [
-         *           {
-         *             "url": "https://agentmc.example.com/docs/incident-123",
-         *             "label": "example",
-         *             "active": true
-         *           }
-         *         ],
-         *         "path": "notes/daily-ops.md",
-         *         "per_page": 25,
-         *         "total": 0
-         *       }
-         *     }
-         */
-        PaginatedCalendarItemResponse: {
-            /**
-             * @description Data.
-             * @example [
-             *       {
-             *         "id": 42,
-             *         "team_id": 42,
-             *         "type": "event",
-             *         "title": "Example Title",
-             *         "description": "Example description text.",
-             *         "start_at": "2026-02-22T17:21:00Z",
-             *         "end_at": "2026-02-22T17:21:00Z",
-             *         "due_at": "2026-02-22T17:21:00Z",
-             *         "all_day": false,
-             *         "location": "example",
-             *         "timezone": "America/Los_Angeles",
-             *         "status": "todo",
-             *         "priority": "low",
-             *         "visibility": "team",
-             *         "created_by": 1,
-             *         "updated_by": 1,
-             *         "assignees": [
-             *           {
-             *             "id": 42,
-             *             "assignee_type": "user",
-             *             "assignee_id": 42,
-             *             "role": "owner",
-             *             "name": "Example Name",
-             *             "created_at": "2026-02-22T17:21:00Z"
-             *           }
-             *         ],
-             *         "attachments": [
-             *           {
-             *             "id": 45,
-             *             "team_file_id": 101,
-             *             "preview_url": "/api/v1/files/101/preview",
-             *             "download_url": "/api/v1/files/101/download",
-             *             "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-             *             "file": {
-             *               "id": 101,
-             *               "display_name": "incident-timeline.png",
-             *               "original_filename": "incident-timeline.png",
-             *               "mime_type": "image/png",
-             *               "size_bytes": 144220,
-             *               "preview_kind": "image",
-             *               "created_at": "2026-02-27T17:20:00Z",
-             *               "updated_at": "2026-02-27T17:24:00Z"
-             *             }
-             *           }
-             *         ],
-             *         "comments_count": 1,
-             *         "created_at": "2026-02-22T17:21:00Z",
-             *         "updated_at": "2026-02-22T17:21:00Z",
-             *         "deleted_at": "2026-02-22T17:21:00Z"
-             *       }
-             *     ]
-             */
-            data: components["schemas"]["CalendarItem"][];
-            /**
-             * @description Links.
-             * @example {
-             *       "first": "example",
-             *       "last": "example",
-             *       "prev": "example",
-             *       "next": "example"
-             *     }
-             */
-            links: components["schemas"]["PaginationLinks"];
-            /**
-             * @description Arbitrary JSON metadata object.
-             * @example {
-             *       "current_page": 1,
-             *       "from": 1,
-             *       "last_page": 1,
-             *       "links": [
-             *         {
-             *           "url": "https://agentmc.example.com/docs/incident-123",
-             *           "label": "example",
-             *           "active": true
-             *         }
-             *       ],
-             *       "path": "notes/daily-ops.md",
-             *       "per_page": 25,
-             *       "total": 0
-             *     }
-             */
-            meta: components["schemas"]["PaginationMeta"];
-        };
-        /**
-         * @description Paginated Host Response response schema.
-         * @example {
-         *       "data": [
-         *         {
-         *           "id": 42,
-         *           "team_id": 42,
-         *           "name": "Example Name",
-         *           "fingerprint": "a3f56f330f311a2159f8c101eaf1439a29f1d57f007375d56aa79f304bc4f112",
-         *           "status": "online",
-         *           "last_seen_at": "2026-02-22T17:21:00Z",
-         *           "meta": {
-         *             "hostname": "worker-01",
-         *             "ip": "10.0.2.15",
-         *             "os": "Ubuntu",
-         *             "arch": "x86_64",
-         *             "cpu": "Intel Xeon",
-         *             "ram_gb": 32,
-         *             "runtime": {
-         *               "name": "openclaw",
-         *               "version": "1.14.2"
-         *             }
-         *           },
-         *           "created_by_user_id": 42,
-         *           "agents_total": 1,
-         *           "agents_online": 1,
-         *           "created_at": "2026-02-22T17:21:00Z",
-         *           "updated_at": "2026-02-22T17:21:00Z"
-         *         }
-         *       ],
-         *       "links": {
-         *         "first": "example",
-         *         "last": "example",
-         *         "prev": "example",
-         *         "next": "example"
-         *       },
-         *       "meta": {
-         *         "current_page": 1,
-         *         "from": 1,
-         *         "last_page": 1,
-         *         "links": [
-         *           {
-         *             "url": "https://agentmc.example.com/docs/incident-123",
-         *             "label": "example",
-         *             "active": true
-         *           }
-         *         ],
-         *         "path": "notes/daily-ops.md",
-         *         "per_page": 25,
-         *         "total": 0
-         *       }
-         *     }
-         */
-        PaginatedHostResponse: {
-            /**
-             * @description Data.
-             * @example [
-             *       {
-             *         "id": 42,
-             *         "team_id": 42,
-             *         "name": "Example Name",
-             *         "fingerprint": "a3f56f330f311a2159f8c101eaf1439a29f1d57f007375d56aa79f304bc4f112",
-             *         "status": "online",
-             *         "last_seen_at": "2026-02-22T17:21:00Z",
-             *         "meta": {
-             *           "hostname": "worker-01",
-             *           "ip": "10.0.2.15",
-             *           "os": "Ubuntu",
-             *           "arch": "x86_64",
-             *           "cpu": "Intel Xeon",
-             *           "ram_gb": 32,
-             *           "runtime": {
-             *             "name": "openclaw",
-             *             "version": "1.14.2"
-             *           }
-             *         },
-             *         "created_by_user_id": 42,
-             *         "agents_total": 1,
-             *         "agents_online": 1,
-             *         "created_at": "2026-02-22T17:21:00Z",
-             *         "updated_at": "2026-02-22T17:21:00Z"
-             *       }
-             *     ]
-             */
-            data: components["schemas"]["Host"][];
-            /**
-             * @description Links.
-             * @example {
-             *       "first": "example",
-             *       "last": "example",
-             *       "prev": "example",
-             *       "next": "example"
-             *     }
-             */
-            links: components["schemas"]["PaginationLinks"];
-            /**
-             * @description Arbitrary JSON metadata object.
-             * @example {
-             *       "current_page": 1,
-             *       "from": 1,
-             *       "last_page": 1,
-             *       "links": [
-             *         {
-             *           "url": "https://agentmc.example.com/docs/incident-123",
-             *           "label": "example",
-             *           "active": true
-             *         }
-             *       ],
-             *       "path": "notes/daily-ops.md",
-             *       "per_page": 25,
-             *       "total": 0
-             *     }
-             */
-            meta: components["schemas"]["PaginationMeta"];
-        };
-        /**
-         * @description Paginated Notification Response response schema.
-         * @example {
-         *       "data": [
-         *         {
-         *           "id": "c084fc57-b2c6-466c-adcb-cf6f4efca42a",
-         *           "notification_type": "mention",
-         *           "source_type": "App\\Notifications\\MentionedInCommentNotification",
-         *           "team_id": 7,
-         *           "subject_type": "task",
-         *           "subject_id": 121,
-         *           "subject_label": "Prepare incident postmortem",
-         *           "actor_type": "user",
-         *           "actor_id": 3,
-         *           "actor_name": "Alex Morgan",
-         *           "assignee_type": null,
-         *           "assignee_id": null,
-         *           "mention_handle": "@tim",
-         *           "comment": "Can you own the timeline section before standup?",
-         *           "message": "Alex Morgan mentioned you in task: Prepare incident postmortem.",
-         *           "url": "/tasks/121?comment=998",
-         *           "comment_id": 998,
-         *           "response_action": {
-         *             "type": "post_comment_reply",
-         *             "method": "POST",
-         *             "path": "/tasks/121/comments",
-         *             "request_body": {
-         *               "body": "Thanks, I can own the timeline section."
-         *             }
-         *           },
-         *           "is_read": false,
-         *           "read_at": null,
-         *           "created_at": "2026-02-24T02:11:00Z",
-         *           "updated_at": "2026-02-24T02:11:00Z"
-         *         }
-         *       ],
-         *       "links": {
-         *         "first": "example",
-         *         "last": "example",
-         *         "prev": "example",
-         *         "next": "example"
-         *       },
-         *       "meta": {
-         *         "current_page": 1,
-         *         "from": 1,
-         *         "last_page": 1,
-         *         "links": [
-         *           {
-         *             "url": "https://agentmc.example.com/docs/incident-123",
-         *             "label": "example",
-         *             "active": true
-         *           }
-         *         ],
-         *         "path": "notes/daily-ops.md",
-         *         "per_page": 25,
-         *         "total": 0
-         *       }
-         *     }
-         */
-        PaginatedNotificationResponse: {
-            /**
-             * @description Data.
-             * @example [
-             *       {
-             *         "id": "c084fc57-b2c6-466c-adcb-cf6f4efca42a",
-             *         "notification_type": "mention",
-             *         "source_type": "App\\Notifications\\MentionedInCommentNotification",
-             *         "team_id": 7,
-             *         "subject_type": "task",
-             *         "subject_id": 121,
-             *         "subject_label": "Prepare incident postmortem",
-             *         "actor_type": "user",
-             *         "actor_id": 3,
-             *         "actor_name": "Alex Morgan",
-             *         "assignee_type": null,
-             *         "assignee_id": null,
-             *         "mention_handle": "@tim",
-             *         "comment": "Can you own the timeline section before standup?",
-             *         "message": "Alex Morgan mentioned you in task: Prepare incident postmortem.",
-             *         "url": "/tasks/121?comment=998",
-             *         "comment_id": 998,
-             *         "response_action": {
-             *           "type": "post_comment_reply",
-             *           "method": "POST",
-             *           "path": "/tasks/121/comments",
-             *           "request_body": {
-             *             "body": "Thanks, I can own the timeline section."
-             *           }
-             *         },
-             *         "is_read": false,
-             *         "read_at": null,
-             *         "created_at": "2026-02-24T02:11:00Z",
-             *         "updated_at": "2026-02-24T02:11:00Z"
-             *       }
-             *     ]
-             */
-            data: components["schemas"]["Notification"][];
-            /**
-             * @description Links.
-             * @example {
-             *       "first": "example",
-             *       "last": "example",
-             *       "prev": "example",
-             *       "next": "example"
-             *     }
-             */
-            links: components["schemas"]["PaginationLinks"];
-            /**
-             * @description Arbitrary JSON metadata object.
-             * @example {
-             *       "current_page": 1,
-             *       "from": 1,
-             *       "last_page": 1,
-             *       "links": [
-             *         {
-             *           "url": "https://agentmc.example.com/docs/incident-123",
-             *           "label": "example",
-             *           "active": true
-             *         }
-             *       ],
-             *       "path": "notes/daily-ops.md",
-             *       "per_page": 25,
-             *       "total": 0
-             *     }
-             */
-            meta: components["schemas"]["PaginationMeta"];
-        };
-        /**
-         * @description Authenticate Agent Realtime Socket Api Request request schema.
-         * @example {
-         *       "socket_id": "1234.567890",
-         *       "channel_name": "private-agent-realtime.7.42"
-         *     }
-         */
-        AuthenticateAgentRealtimeSocketApiRequest: {
-            /**
-             * @description Realtime socket id from websocket connection metadata.
-             * @example 1234.567890
-             */
-            socket_id: string;
-            /**
-             * @description Private realtime channel name to authorize.
-             * @example private-agent-realtime.7.42
-             */
-            channel_name: string;
-        };
-        /**
-         * @description Authenticate Host Realtime Socket Api Request request schema.
-         * @example {
-         *       "socket_id": "1234.567890",
-         *       "channel_name": "private-agent-realtime.7.42"
-         *     }
-         */
-        AuthenticateHostRealtimeSocketApiRequest: {
-            /**
-             * @description Realtime socket id from websocket connection metadata.
-             * @example 1234.567890
-             */
-            socket_id: string;
-            /**
-             * @description Private realtime channel name to authorize.
-             * @example private-agent-realtime.7.42
-             */
-            channel_name: string;
-        };
-        /**
-         * @description Claim Agent Realtime Session Api Request request schema.
-         * @example {
-         *       "owner_token": "agent-claim:16f40b2b5dfb20c9af20db9f0d6d7b61"
-         *     }
-         */
-        ClaimAgentRealtimeSessionApiRequest: {
-            /**
-             * @description Owner token.
-             * @example agent-claim:16f40b2b5dfb20c9af20db9f0d6d7b61
-             */
-            owner_token: string;
-        };
-        /**
-         * @description Close Agent Realtime Session Api Request request schema.
-         * @example {
-         *       "reason": "example",
-         *       "status": "closed",
-         *       "payload": {
-         *         "key": "value"
-         *       }
-         *     }
-         */
-        CloseAgentRealtimeSessionApiRequest: {
-            /**
-             * @description Reason.
-             * @example example
-             */
-            reason?: string | null;
-            /**
-             * @description Current lifecycle status for this record. Allowed values: closed, failed.
-             * @example closed
-             * @enum {string|null}
-             */
-            status?: "closed" | "failed" | null;
-            /**
-             * @description Arbitrary JSON payload object.
-             * @example {
-             *       "key": "value"
-             *     }
-             */
-            payload?: ({
-                [key: string]: unknown;
-            } | {
-                [key: string]: unknown;
-            }[]) | null;
-        };
-        /**
-         * @description Complete Agent Recurring Task Run Api Request request schema.
-         * @example {
-         *       "status": "success",
-         *       "claim_token": "example",
-         *       "summary": "Morning operations handoff digest.",
-         *       "error_message": "example"
-         *     }
-         */
-        CompleteAgentRecurringTaskRunApiRequest: {
-            /**
-             * @description Current lifecycle status for this record. Allowed values: success, error.
-             * @example success
-             * @enum {string}
-             */
-            status: "success" | "error";
-            /**
-             * @description Claim token.
-             * @example example
-             */
-            claim_token: string;
-            /**
-             * @description Optional short summary.
-             * @example Morning operations handoff digest.
-             */
-            summary?: string | null;
-            /**
-             * @description Error message.
-             * @example example
-             */
-            error_message?: string | null;
-            /**
-             * Format: date-time
-             * @description ISO-8601 timestamp for started.
-             * @example 2026-02-22T17:21:00Z
-             */
-            started_at?: string | null;
-            /**
-             * Format: date-time
-             * @description ISO-8601 timestamp for finished.
-             * @example 2026-02-22T17:21:00Z
-             */
-            finished_at?: string | null;
-            /**
-             * @description Additional metadata for Complete Agent Recurring Task Run Api Request.
-             * @example {
-             *       "key": "value"
-             *     }
-             */
-            runtime_meta?: ({
-                [key: string]: unknown;
-            } | {
-                [key: string]: unknown;
-            }[]) | null;
-        };
-        /**
-         * @description Create Team File Upload Api Request request schema.
-         * @example {
-         *       "filename": "Example Name",
-         *       "byte_size": 1,
-         *       "mime_type": "example",
-         *       "checksum_sha256": "example"
-         *     }
-         */
-        CreateTeamFileUploadApiRequest: {
-            /**
-             * @description Filename.
-             * @example Example Name
-             */
-            filename: string;
-            /**
-             * @description Byte size.
-             * @example 1
-             */
-            byte_size: number;
-            /**
-             * @description Mime type.
-             * @example example
-             */
-            mime_type: string;
-            /**
-             * @description Checksum sha256.
-             * @example example
-             */
-            checksum_sha256?: string | null;
-        };
-        /**
-         * @description Heartbeat payload that requires host telemetry and runtime agent state. Runtime clients should send `meta.models` and `meta.agentmc_node_package_version` on every heartbeat.
-         * @example {
-         *       "meta": {
-         *         "runtime": {
-         *           "name": "openclaw",
-         *           "version": "2026.2.26",
-         *           "build": "bc50708",
-         *           "mode": "openclaw"
-         *         },
-         *         "openclaw_version": "2026.2.26",
-         *         "openclaw_build": "bc50708",
-         *         "models": [
-         *           "openai/gpt-5-codex"
-         *         ],
-         *         "node_version": "v25.7.0",
-         *         "agentmc_node_package_version": "0.14.2",
-         *         "runtime_mode": "openclaw",
-         *         "usage_window_label": "5h",
-         *         "usage_window_percent_left": 97,
-         *         "usage_window_time_left": "2h 27m",
-         *         "usage_day_label": "Week",
-         *         "usage_day_percent_left": 98,
-         *         "usage_day_time_left": "5d 23h",
-         *         "auth": "oauth (openai-codex:default)",
-         *         "session": "agent:main:main",
-         *         "openclaw_models_status": {
-         *           "default_model": "openai-codex/gpt-5.3-codex",
-         *           "resolved_default": "openai-codex/gpt-5.3-codex"
-         *         },
-         *         "tool_availability": {
-         *           "chat_realtime": true,
-         *           "files_realtime": true,
-         *           "notifications_realtime": true
-         *         }
-         *       },
-         *       "host": {
-         *         "fingerprint": "a3f56f330f311a2159f8c101eaf1439a29f1d57f007375d56aa79f304bc4f112",
-         *         "name": "worker-01",
-         *         "meta": {
-         *           "hostname": "worker-01",
-         *           "ip": "10.0.2.15",
-         *           "network": {
-         *             "private_ip": "10.0.2.15",
-         *             "public_ip": "34.222.10.10"
-         *           },
-         *           "os": "Ubuntu",
-         *           "os_version": "24.04",
-         *           "arch": "x86_64",
-         *           "cpu": {
-         *             "model": "Intel Xeon Platinum"
-         *           },
-         *           "cpu_cores": 8,
-         *           "ram_gb": 32,
-         *           "disk": {
-         *             "total_bytes": 536870912000,
-         *             "free_bytes": 322122547200
-         *           },
-         *           "uptime_seconds": 86400,
-         *           "runtime": {
-         *             "name": "codex",
-         *             "version": "2026.02.1"
-         *           }
-         *         }
-         *       },
-         *       "agent": {
-         *         "id": 42,
-         *         "name": "Jarvis",
-         *         "identity": {
-         *           "name": "Jarvis",
-         *           "creature": "robot",
-         *           "vibe": "calm"
-         *         }
-         *       }
-         *     }
-         */
-        StoreAgentHeartbeatApiRequest: {
-            /**
-             * @description Required runtime heartbeat telemetry object (non-secret). Include runtime identity and model inventory on every heartbeat.
-             * @example {
-             *       "runtime": {
-             *         "name": "openclaw",
-             *         "version": "2026.2.26",
-             *         "build": "bc50708",
-             *         "mode": "openclaw"
-             *       },
-             *       "openclaw_version": "2026.2.26",
-             *       "openclaw_build": "bc50708",
-             *       "models": [
-             *         "openai/gpt-5-codex"
-             *       ],
-             *       "tokens_in": 77000,
-             *       "tokens_out": 1800,
-             *       "runtime_mode": "direct",
-             *       "thinking_mode": "off",
-             *       "cache_hit_rate_percent": 89,
-             *       "cache_tokens_cached": 600000,
-             *       "cache_tokens_new": 0,
-             *       "context_tokens_used": 76000,
-             *       "context_tokens_max": 272000,
-             *       "context_percent_used": 28,
-             *       "context_compactions": 0,
-             *       "browser_tool_available": true,
-             *       "exec_tool_available": true,
-             *       "nodes_tool_available": true,
-             *       "messaging_tool_available": true,
-             *       "sessions_tool_available": true,
-             *       "memory_tool_available": true,
-             *       "tool_availability": {
-             *         "chat_realtime": true,
-             *         "files_realtime": true,
-             *         "notifications_realtime": true
-             *       },
-             *       "usage_window_percent_left": 86,
-             *       "usage_window_time_left": "3h 4m",
-             *       "usage_day_percent_left": 24,
-             *       "usage_day_time_left": "3d 16h",
-             *       "node_version": "v25.7.0",
-             *       "agentmc_node_package_version": "0.14.2",
-             *       "session": "agent:main:main",
-             *       "queue": "collect",
-             *       "queue_depth": 1,
-             *       "auth": "oauth (openai-codex:default)",
-             *       "openclaw_models_status": {
-             *         "config_path": "/root/.openclaw/openclaw.json",
-             *         "agent_id": "main",
-             *         "agent_dir": "/root/.openclaw/agents/main/agent",
-             *         "default_model": "openai-codex/gpt-5.3-codex",
-             *         "resolved_default": "openai-codex/gpt-5.3-codex",
-             *         "fallbacks": [],
-             *         "model_config": {
-             *           "default_source": "defaults",
-             *           "fallbacks_source": "defaults"
-             *         },
-             *         "aliases_count": 0,
-             *         "aliases": [],
-             *         "allowed_count": 0,
-             *         "allowed": [],
-             *         "auth": {
-             *           "summary": "oauth (openai-codex:default)",
-             *           "store_path": "/root/.openclaw/agents/main/agent/auth-profiles.json",
-             *           "providers_with_oauth": [
-             *             "openai-codex (1)"
-             *           ]
-             *         }
-             *       }
-             *     }
-             */
-            meta: {
-                /**
-                 * @description Required runtime provider identity payload.
-                 * @example {
-                 *       "name": "openclaw",
-                 *       "version": "2026.2.26",
-                 *       "build": "bc50708",
-                 *       "mode": "openclaw"
-                 *     }
-                 */
-                runtime: {
-                    /**
-                     * @description Human-readable name.
-                     * @example openclaw
-                     */
-                    name: string;
-                    /**
-                     * @description Version.
-                     * @example 2026.2.26
-                     */
-                    version: string;
-                    /**
-                     * @description Build.
-                     * @example bc50708
-                     */
-                    build?: string | null;
-                    /**
-                     * @description Mode.
-                     * @example openclaw
-                     */
-                    mode?: string | null;
-                };
-                /**
-                 * @description Openclaw version.
-                 * @example 2026.2.26
-                 */
-                openclaw_version?: string;
-                /**
-                 * @description Openclaw build.
-                 * @example bc50708
-                 */
-                openclaw_build?: string;
-                /**
-                 * @description Runtime model inventory. Send an empty array when model discovery is unavailable.
-                 * @example [
-                 *       "openai/gpt-5-codex"
-                 *     ]
-                 */
-                models: (string | {
-                    [key: string]: unknown;
-                })[];
-                /**
-                 * @description Tokens in.
-                 * @example 77000
-                 */
-                tokens_in?: number;
-                /**
-                 * @description Tokens out.
-                 * @example 1800
-                 */
-                tokens_out?: number;
-                /**
-                 * @description Runtime mode.
-                 * @example openclaw
-                 */
-                runtime_mode?: string;
-                /**
-                 * @description Thinking mode.
-                 * @example off
-                 */
-                thinking_mode?: string | boolean;
-                /**
-                 * @description Cache hit rate percent.
-                 * @example 89
-                 */
-                cache_hit_rate_percent?: number;
-                /**
-                 * @description Cache tokens cached.
-                 * @example 600000
-                 */
-                cache_tokens_cached?: number;
-                /**
-                 * @description Cache tokens new.
-                 * @example 0
-                 */
-                cache_tokens_new?: number;
-                /**
-                 * @description Context tokens used.
-                 * @example 76000
-                 */
-                context_tokens_used?: number;
-                /**
-                 * @description Context tokens max.
-                 * @example 272000
-                 */
-                context_tokens_max?: number;
-                /**
-                 * @description Context percent used.
-                 * @example 28
-                 */
-                context_percent_used?: number;
-                /**
-                 * @description Context compactions.
-                 * @example 0
-                 */
-                context_compactions?: number;
-                /**
-                 * @description Browser tool availability.
-                 * @example true
-                 */
-                browser_tool_available?: boolean;
-                /**
-                 * @description Exec tool availability.
-                 * @example true
-                 */
-                exec_tool_available?: boolean;
-                /**
-                 * @description Nodes tool availability.
-                 * @example true
-                 */
-                nodes_tool_available?: boolean;
-                /**
-                 * @description Messaging tool availability.
-                 * @example true
-                 */
-                messaging_tool_available?: boolean;
-                /**
-                 * @description Sessions tool availability.
-                 * @example true
-                 */
-                sessions_tool_available?: boolean;
-                /**
-                 * @description Memory tool availability.
-                 * @example true
-                 */
-                memory_tool_available?: boolean;
-                /**
-                 * @description Optional structured tool availability map.
-                 * @example {
-                 *       "chat_realtime": true,
-                 *       "files_realtime": true,
-                 *       "notifications_realtime": true
-                 *     }
-                 */
-                tool_availability?: {
-                    [key: string]: boolean;
-                };
-                /**
-                 * @description Usage window label.
-                 * @example 5h
-                 */
-                usage_window_label?: string;
-                /**
-                 * @description Usage window percent left.
-                 * @example 86
-                 */
-                usage_window_percent_left?: number;
-                /**
-                 * @description Usage window time left.
-                 * @example 3h 4m
-                 */
-                usage_window_time_left?: string;
-                /**
-                 * @description Usage day label.
-                 * @example Week
-                 */
-                usage_day_label?: string;
-                /**
-                 * @description Usage day percent left.
-                 * @example 24
-                 */
-                usage_day_percent_left?: number;
-                /**
-                 * @description Usage day time left.
-                 * @example 3d 16h
-                 */
-                usage_day_time_left?: string;
-                /**
-                 * @description Node version.
-                 * @example v25.7.0
-                 */
-                node_version?: string;
-                /**
-                 * @description Installed @agentmc/api package version used by the runtime heartbeat client.
-                 * @example 0.14.2
-                 */
-                agentmc_node_package_version?: string;
-                /**
-                 * @description Session.
-                 * @example agent:main:main
-                 */
-                session?: string;
-                /**
-                 * @description Auth.
-                 * @example oauth (openai-codex:default)
-                 */
-                auth?: string;
-                /**
-                 * @description Normalized `openclaw models status --json` snapshot captured on heartbeat for current-model selection.
-                 * @example {
-                 *       "default_model": "openai-codex/gpt-5.3-codex",
-                 *       "resolved_default": "openai-codex/gpt-5.3-codex"
-                 *     }
-                 */
-                openclaw_models_status?: {
-                    /**
-                     * @description Default model.
-                     * @example openai-codex/gpt-5.3-codex
-                     */
-                    default_model?: string | null;
-                    /**
-                     * @description Resolved default.
-                     * @example openai-codex/gpt-5.3-codex
-                     */
-                    resolved_default?: string | null;
-                };
-            } & {
-                [key: string]: unknown;
-            };
-            /**
-             * @description Required host identity payload used to create/update host records on every heartbeat. Fingerprint must be sent either in `host.fingerprint` or the `X-Host-Fingerprint` header.
-             * @example {
-             *       "fingerprint": "a3f56f330f311a2159f8c101eaf1439a29f1d57f007375d56aa79f304bc4f112",
-             *       "name": "worker-01",
-             *       "meta": {
-             *         "hostname": "worker-01",
-             *         "ip": "10.0.2.15",
-             *         "network": {
-             *           "private_ip": "10.0.2.15",
-             *           "public_ip": "34.222.10.10"
-             *         },
-             *         "os": "Ubuntu",
-             *         "os_version": "24.04",
-             *         "arch": "x86_64",
-             *         "cpu": "Intel Xeon",
-             *         "cpu_cores": 8,
-             *         "ram_gb": 32,
-             *         "disk": {
-             *           "total_bytes": 536870912000,
-             *           "free_bytes": 322122547200
-             *         },
-             *         "uptime_seconds": 86400,
-             *         "runtime": {
-             *           "name": "codex",
-             *           "version": "2026.02.1"
-             *         }
-             *       }
-             *     }
-             */
-            host: {
-                /**
-                 * @description Stable host fingerprint. Must be 64-128 chars and match `^[A-Za-z0-9._-]+$`.
-                 * @example a3f56f330f311a2159f8c101eaf1439a29f1d57f007375d56aa79f304bc4f112
-                 */
-                fingerprint: string;
-                /**
-                 * @description Host display name used in AgentMC (max 255 chars).
-                 * @example worker-01
-                 */
-                name: string;
-                /**
-                 * @description Required machine metadata snapshot for host add/update. Include hostname, primary IP, private/public network IPs, OS, architecture, CPU, RAM, disk, uptime, and runtime version. Do not include secrets.
-                 * @example {
-                 *       "hostname": "worker-01",
-                 *       "ip": "10.0.2.15",
-                 *       "network": {
-                 *         "private_ip": "10.0.2.15",
-                 *         "public_ip": "34.222.10.10"
-                 *       },
-                 *       "os": "Ubuntu",
-                 *       "os_version": "24.04",
-                 *       "arch": "x86_64",
-                 *       "cpu": "Intel Xeon",
-                 *       "cpu_cores": 8,
-                 *       "ram_gb": 32,
-                 *       "disk": {
-                 *         "total_bytes": 536870912000,
-                 *         "free_bytes": 322122547200
-                 *       },
-                 *       "uptime_seconds": 86400,
-                 *       "runtime": {
-                 *         "name": "openclaw",
-                 *         "version": "1.14.2"
-                 *       }
-                 *     }
-                 */
-                meta: {
-                    /**
-                     * @description OS-level hostname from the runtime machine.
-                     * @example worker-01
-                     */
-                    hostname: string;
-                    /**
-                     * @description Primary host IP address.
-                     * @example 10.0.2.15
-                     */
-                    ip: string;
-                    /**
-                     * @description Network telemetry values reported by the runtime.
-                     * @example {
-                     *       "private_ip": "10.0.2.15",
-                     *       "public_ip": "34.222.10.10"
-                     *     }
-                     */
-                    network: {
-                        /**
-                         * @description Primary private/LAN IP address.
-                         * @example 10.0.2.15
-                         */
-                        private_ip: string;
-                        /**
-                         * @description Primary public/WAN IP address.
-                         * @example 34.222.10.10
-                         */
-                        public_ip: string;
-                    } & {
-                        [key: string]: unknown;
-                    };
-                    /**
-                     * @description Operating system family/name.
-                     * @example Ubuntu
-                     */
-                    os: string;
-                    /**
-                     * @description Operating system version string.
-                     * @example 24.04
-                     */
-                    os_version: string;
-                    /**
-                     * @description CPU architecture.
-                     * @example x86_64
-                     */
-                    arch: string;
-                    /**
-                     * @description CPU descriptor string or structured CPU metadata object.
-                     * @example {
-                     *       "model": "Intel Xeon Platinum 8375C"
-                     *     }
-                     */
-                    cpu: string | {
-                        [key: string]: unknown;
-                    };
-                    /**
-                     * @description Logical CPU core count.
-                     * @example 8
-                     */
-                    cpu_cores: number;
-                    /**
-                     * @description Installed RAM in gigabytes.
-                     * @example 32
-                     */
-                    ram_gb: number;
-                    /**
-                     * @description Disk capacity telemetry in bytes.
-                     * @example {
-                     *       "total_bytes": 536870912000,
-                     *       "free_bytes": 322122547200
-                     *     }
-                     */
-                    disk: {
-                        /**
-                         * @description Total disk capacity in bytes.
-                         * @example 536870912000
-                         */
-                        total_bytes: number;
-                        /**
-                         * @description Free disk capacity in bytes.
-                         * @example 322122547200
-                         */
-                        free_bytes: number;
-                    };
-                    /**
-                     * @description Machine uptime in seconds.
-                     * @example 86400
-                     */
-                    uptime_seconds: number;
-                    /**
-                     * @description Runtime process metadata.
-                     * @example {
-                     *       "name": "codex",
-                     *       "version": "2026.02.1"
-                     *     }
-                     */
-                    runtime: {
-                        /**
-                         * @description Runtime/client name.
-                         * @example codex
-                         */
-                        name: string;
-                        /**
-                         * @description Runtime/client version.
-                         * @example 2026.02.1
-                         */
-                        version: string;
-                    };
-                };
-            };
-            /**
-             * @description Required runtime agent profile metadata. Omit `agent.id` when using host keys to auto-resolve or auto-create agents from runtime identity.
-             * @example {
-             *       "name": "Jarvis",
-             *       "identity": {
-             *         "name": "Jarvis",
-             *         "agent_key": "solomon",
-             *         "creature": "robot",
-             *         "vibe": "calm",
-             *         "emoji": "🤖"
-             *       }
-             *     }
-             */
-            agent: {
-                /**
-                 * @description Optional existing AgentMC agent id. When omitted with host API keys, AgentMC auto-resolves/creates the agent.
-                 * @example 42
-                 */
-                id?: number | null;
-                /**
-                 * @description Required display name persisted to the agent record.
-                 * @example Jarvis
-                 */
-                name: string;
-                /**
-                 * @description Emoji.
-                 * @example example
-                 */
-                emoji?: string | null;
-                /**
-                 * @description Optional runtime agent type identifier. Only `openclaw` is currently supported.
-                 * @example openclaw
-                 * @enum {string}
-                 */
-                type?: "openclaw";
-                /**
-                 * @description Optional per-agent heartbeat telemetry override. Use this in multi-agent host heartbeats when each agent reports different session, token, cache, or usage values.
-                 * @example {
-                 *       "tokens_in": 182948,
-                 *       "tokens_out": 586,
-                 *       "cache_hit_rate_percent": 1,
-                 *       "cache_tokens_cached": 1536,
-                 *       "cache_tokens_new": 0,
-                 *       "context_tokens_used": 182948,
-                 *       "context_tokens_max": 272000,
-                 *       "context_percent_used": 67,
-                 *       "usage_window_label": "5h",
-                 *       "usage_window_percent_left": 99,
-                 *       "usage_window_time_left": "4h 20m",
-                 *       "usage_day_label": "Week",
-                 *       "usage_day_percent_left": 97,
-                 *       "usage_day_time_left": "5d 8h",
-                 *       "runtime_mode": "direct",
-                 *       "session": "agent:main:main"
-                 *     }
-                 */
-                meta?: {
-                    [key: string]: unknown;
-                };
-                /**
-                 * @description Required full agent identity payload (string or object). AgentMC stores this under `agent.meta.identity`.
-                 * @example {
-                 *       "name": "Jarvis",
-                 *       "creature": "robot",
-                 *       "vibe": "calm",
-                 *       "emoji": "🤖"
-                 *     }
-                 */
-                identity: {
-                    [key: string]: unknown;
-                } & (string | {
-                    [key: string]: unknown;
-                });
-            } | null;
-            /**
-             * @description Agents.
-             * @example [
-             *       {
-             *         "key": "value"
-             *       }
-             *     ]
-             */
-            agents?: ({
-                /**
-                 * @description Unique identifier for this record.
-                 * @example 42
-                 */
-                id?: number | null;
-                /**
-                 * @description Human-readable name.
-                 * @example Example Name
-                 */
-                name: string;
-                /**
-                 * @description Emoji.
-                 * @example example
-                 */
-                emoji?: string | null;
-                /**
-                 * @description Type discriminator for this record. Allowed values: openclaw.
-                 * @example openclaw
-                 * @enum {string}
-                 */
-                type?: "openclaw";
-                /**
-                 * @description Arbitrary JSON metadata object.
-                 * @example {
-                 *       "key": "value"
-                 *     }
-                 */
-                meta?: {
-                    [key: string]: unknown;
-                } | {
-                    [key: string]: unknown;
-                }[];
-                /**
-                 * @description Identity.
-                 * @example {
-                 *       "key": "value"
-                 *     }
-                 */
-                identity: {
-                    [key: string]: unknown;
-                };
-            } & ({
-                [key: string]: unknown;
-            } | {
-                [key: string]: unknown;
-            }[]))[];
-        };
-        /**
-         * @description Payload for upserting one brief parent by key and appending one child entry.
-         * @example {
-         *       "brief": {
-         *         "key": "value"
-         *       },
-         *       "source": {
-         *         "key": "value"
-         *       }
-         *     }
-         */
-        StoreAgentBriefApiRequest: {
-            /**
-             * @description Brief.
-             * @example {
-             *       "key": "value"
-             *     }
-             */
-            brief: {
-                /**
-                 * @description Stable mention key composed from mention type and identifier.
-                 * @example example
-                 */
-                key: string;
-                /**
-                 * @description Optional external provider identifier.
-                 * @example ops-brief-2026-02-22
-                 */
-                external_id?: string | null;
-                /**
-                 * @description Human-readable name.
-                 * @example Example Name
-                 */
-                name: string;
-                /**
-                 * @description IANA timezone identifier.
-                 * @example America/Los_Angeles
-                 */
-                timezone?: string | null;
-                /**
-                 * @description Optional short summary.
-                 * @example Morning operations handoff digest.
-                 */
-                summary?: string | null;
-                /**
-                 * @description Sections.
-                 * @example {
-                 *       "key": "value"
-                 *     }
-                 */
-                sections?: ({
-                    [key: string]: unknown;
-                } | {
-                    [key: string]: unknown;
-                }[]) | null;
-                /**
-                 * @description Headline.
-                 * @example 3 overdue tasks | 4 upcoming events
-                 */
-                headline?: string | null;
-                /**
-                 * @description Markdown body content. Include file embeds as `![alt](/api/v1/files/{id}/preview)`.
-                 * @example ## Highlights
-                 *     - Elevated API error rate
-                 */
-                content_markdown: string;
-                /**
-                 * @description Structured JSON content.
-                 * @example {
-                 *       "key": "value"
-                 *     }
-                 */
-                content_json?: ({
-                    [key: string]: unknown;
-                } | {
-                    [key: string]: unknown;
-                }[]) | null;
-                /**
-                 * Format: date-time
-                 * @description ISO-8601 generation timestamp.
-                 * @example 2026-02-22T17:21:00Z
-                 */
-                generated_at?: string | null;
-                /**
-                 * @description Arbitrary JSON metadata object.
-                 * @example {
-                 *       "key": "value"
-                 *     }
-                 */
-                meta?: ({
-                    [key: string]: unknown;
-                } | {
-                    [key: string]: unknown;
-                }[]) | null;
-            } & ({
-                [key: string]: unknown;
-            } | {
-                [key: string]: unknown;
-            }[]);
-            /**
-             * @description Source.
-             * @example {
-             *       "key": "value"
-             *     }
-             */
-            source?: ({
-                /**
-                 * @description Source agent identifier. Required when using an unscoped API key without agent context.
-                 * @example 42
-                 */
-                agent_id?: number | null;
-                /**
-                 * @description Arbitrary JSON metadata object.
-                 * @example {
-                 *       "key": "value"
-                 *     }
-                 */
-                meta?: ({
-                    [key: string]: unknown;
-                } | {
-                    [key: string]: unknown;
-                }[]) | null;
-            } & ({
-                [key: string]: unknown;
-            } | {
-                [key: string]: unknown;
-            }[])) | null;
-        };
-        /**
-         * @description Realtime signal create payload. Use top-level `type=message` for channel app messages and nest channel type under `payload.type`.
-         * @example {
-         *       "type": "message",
-         *       "payload": {
-         *         "type": "chat.user",
-         *         "payload": {
-         *           "content": "Create a AgentMC task for tomorrow at 9:00 AM to review the outage timeline.",
-         *           "message_id": 1842,
-         *           "timezone": "America/Los_Angeles",
-         *           "source": "agentmc_chat",
-         *           "intent_scope": "agentmc"
-         *         }
-         *       }
-         *     }
-         */
-        StoreAgentRealtimeSignalApiRequest: {
-            /**
-             * @description Realtime signal type. For chat/files channel traffic use `message`.
-             * @example message
-             */
-            type: string;
-            /**
-             * @description Realtime signal payload. Keep this small enough for websocket broadcast (about 48KB by default). Split oversized snapshots across multiple ordered signals.
-             * @example {
-             *       "type": "chat.user",
-             *       "payload": {
-             *         "content": "Add a calendar event Friday at 2pm for sprint retrospective.",
-             *         "message_id": 1843,
-             *         "timezone": "America/New_York",
-             *         "source": "agentmc_chat",
-             *         "intent_scope": "agentmc"
-             *       }
-             *     }
-             */
-            payload?: ({
-                [key: string]: unknown;
-            } | {
-                [key: string]: unknown;
-            }[]) | null;
-        };
-        /**
-         * @description Payload for creating a board.
-         * @example {
-         *       "name": "Example Name",
-         *       "description": "Example description text.",
-         *       "visibility": "team",
-         *       "personal_owner_user_id": 42
-         *     }
-         */
-        StoreBoardApiRequest: {
-            /**
-             * @description Human-readable name.
-             * @example Example Name
-             */
-            name: string;
-            /**
-             * @description Optional long-form description.
-             * @example Example description text.
-             */
-            description?: string | null;
-            /**
-             * @description Visibility scope for this item. Allowed values: team, personal.
-             * @example team
-             * @enum {string|null}
-             */
-            visibility?: "team" | "personal" | null;
-            /**
-             * @description Private board owner user id. Required when `visibility=personal` and no owner fallback is available.
-             * @example 42
-             */
-            personal_owner_user_id?: number | null;
-        };
-        /**
-         * @description Payload for creating a board column.
-         * @example {
-         *       "name": "Example Name",
-         *       "position": 1
-         *     }
-         */
-        StoreBoardColumnApiRequest: {
-            /**
-             * @description Human-readable name.
-             * @example Example Name
-             */
-            name: string;
-            /**
-             * @description Position.
-             * @example 1
-             */
-            position?: number | null;
-        };
-        /**
-         * @description Payload for creating a calendar item (event/task).
-         * @example {
-         *       "type": "event",
-         *       "title": "Example Title",
-         *       "description": "Example description text.",
-         *       "start_at": "2026-02-22T17:21:00Z",
-         *       "assignees": [
-         *         {
-         *           "key": "value"
-         *         }
-         *       ]
-         *     }
-         */
-        StoreCalendarItemApiRequest: {
-            /**
-             * @description Type discriminator for this record. Allowed values: event, task.
-             * @example event
-             * @enum {string}
-             */
-            type: "event" | "task";
-            /**
-             * @description Human-readable title.
-             * @example Example Title
-             */
-            title: string;
-            /**
-             * @description Long-form description. Supports Markdown formatting and file embeds like `![alt](/api/v1/files/{id}/preview)`.
-             * @example Example description text.
-             */
-            description?: string | null;
-            /**
-             * Format: date-time
-             * @description ISO-8601 start timestamp. Required when `type=event`.
-             * @example 2026-02-22T17:21:00Z
-             */
-            start_at?: string | null;
-            /**
-             * Format: date-time
-             * @description ISO-8601 end timestamp. Required when `type=event`.
-             * @example 2026-02-22T17:21:00Z
-             */
-            end_at?: string | null;
-            /**
-             * Format: date-time
-             * @description ISO-8601 due timestamp.
-             * @example 2026-02-22T17:21:00Z
-             */
-            due_at?: string | null;
-            /**
-             * @description True when this item spans the full day.
-             * @example false
-             */
-            all_day?: boolean | null;
-            /**
-             * @description Location.
-             * @example example
-             */
-            location?: string | null;
-            /**
-             * @description IANA timezone identifier.
-             * @example America/Los_Angeles
-             */
-            timezone?: string | null;
-            /**
-             * @description Current lifecycle status for this record. Allowed values: todo, in_progress, blocked, done, canceled.
-             * @example todo
-             * @enum {string|null}
-             */
-            status?: "todo" | "in_progress" | "blocked" | "done" | "canceled" | null;
-            /**
-             * @description Priority level for this record. Allowed values: low, medium, high, urgent.
-             * @example low
-             * @enum {string|null}
-             */
-            priority?: "low" | "medium" | "high" | "urgent" | null;
-            /**
-             * @description Visibility scope for this item. Allowed values: team, private.
-             * @example team
-             * @enum {string|null}
-             */
-            visibility?: "team" | "private" | null;
-            /**
-             * @description Assignees.
-             * @example [
-             *       {
-             *         "key": "value"
-             *       }
-             *     ]
-             */
-            assignees: ({
-                /**
-                 * @description Assignee type for this entry. Required for each assignee item.
-                 * @example user
-                 * @enum {string}
-                 */
-                assignee_type: "user" | "agent";
-                /**
-                 * @description Assignee identifier for this entry. Required for each assignee item.
-                 * @example 42
-                 */
-                assignee_id: number;
-                /**
-                 * @description Allowed values: owner, collaborator, watcher.
-                 * @example owner
-                 * @enum {string|null}
-                 */
-                role?: "owner" | "collaborator" | "watcher" | null;
-            } & ({
-                [key: string]: unknown;
-            } | {
-                [key: string]: unknown;
-            }[]))[] | null;
-        };
-        /**
-         * @description Payload for adding a comment to a calendar item.
-         * @example {
-         *       "body": "Example content.",
-         *       "actor_type": "user",
-         *       "actor_id": 42
-         *     }
-         */
-        StoreCalendarItemCommentApiRequest: {
-            /**
-             * @description Markdown comment body. Include file embeds as `![alt](/api/v1/files/{id}/preview)`.
-             * @example Example content.
-             */
-            body: string;
-            /**
-             * @description Allowed values: user, agent, api_key.
-             * @example user
-             * @enum {string|null}
-             */
-            actor_type?: "user" | "agent" | "api_key" | null;
-            /**
-             * @description Identifier for actor.
-             * @example 42
-             */
-            actor_id?: number | null;
-        };
-        /**
-         * @description Store Team File Api Request request schema.
-         * @example {
-         *       "upload_id": "example",
-         *       "display_name": "Example Name",
-         *       "folder_id": 42,
-         *       "owner_agent_id": 42
-         *     }
-         */
-        StoreTeamFileApiRequest: {
-            /**
-             * @description Identifier for upload.
-             * @example example
-             */
-            upload_id: string;
-            /**
-             * @description Display name.
-             * @example Example Name
-             */
-            display_name?: string | null;
-            /**
-             * @description Identifier for folder.
-             * @example 42
-             */
-            folder_id?: number | null;
-            /**
-             * @description Identifier for owner agent.
-             * @example 42
-             */
-            owner_agent_id?: number | null;
-        };
-        /**
-         * @description Store Team File Folder Api Request request schema.
-         * @example {
-         *       "name": "Example Name",
-         *       "parent_id": 42
-         *     }
-         */
-        StoreTeamFileFolderApiRequest: {
-            /**
-             * @description Human-readable name.
-             * @example Example Name
-             */
-            name: string;
-            /**
-             * @description Identifier for parent.
-             * @example 42
-             */
-            parent_id?: number | null;
-        };
-        /**
-         * @description Payload for adding a comment to a task.
-         * @example {
-         *       "body": "Example content.",
-         *       "actor_type": "user",
-         *       "actor_id": 42
-         *     }
-         */
-        StoreTaskCommentApiRequest: {
-            /**
-             * @description Markdown comment body. Include file embeds as `![alt](/api/v1/files/{id}/preview)`.
-             * @example Example content.
-             */
-            body: string;
-            /**
-             * @description Allowed values: user, agent, api_key.
-             * @example user
-             * @enum {string|null}
-             */
-            actor_type?: "user" | "agent" | "api_key" | null;
-            /**
-             * @description Identifier for actor.
-             * @example 42
-             */
-            actor_id?: number | null;
-        };
-        /**
-         * @description Payload for creating a team task.
-         * @example {
-         *       "board_id": 42,
-         *       "column_id": 42,
-         *       "title": "Example Title",
-         *       "description": "Example description text."
-         *     }
-         */
-        StoreTaskApiRequest: {
-            /**
-             * @description Board identifier.
-             * @example 42
-             */
-            board_id: number;
-            /**
-             * @description Board column identifier.
-             * @example 42
-             */
-            column_id: number;
-            /**
-             * @description Human-readable title.
-             * @example Example Title
-             */
-            title: string;
-            /**
-             * @description Long-form description. Supports Markdown formatting and file embeds like `![alt](/api/v1/files/{id}/preview)`.
-             * @example Example description text.
-             */
-            description: string;
-            /**
-             * Format: date-time
-             * @description ISO-8601 timestamp when this task was archived. Null means active.
-             * @example 2026-02-22T17:21:00Z
-             */
-            archived_at?: string | null;
-            /**
-             * @description Position.
-             * @example 1
-             */
-            position?: number | null;
-            /**
-             * Format: date-time
-             * @description ISO-8601 due timestamp.
-             * @example 2026-02-22T17:21:00Z
-             */
-            due_at?: string | null;
-            /**
-             * @description Identifier for assigned to user.
-             * @example 42
-             */
-            assigned_to_user_id?: number | null;
-            /**
-             * @description Identifier for assigned to agent.
-             * @example 42
-             */
-            assigned_to_agent_id?: number | null;
-        };
-        /**
-         * @description Payload for patching one brief parent and optionally appending a child entry.
-         * @example {
-         *       "brief": {
-         *         "key": "value"
-         *       },
-         *       "source": {
-         *         "key": "value"
-         *       }
-         *     }
-         */
-        UpdateAgentBriefApiRequest: {
-            /**
-             * @description Brief.
-             * @example {
-             *       "key": "value"
-             *     }
-             */
-            brief: {
-                /**
-                 * @description Stable mention key composed from mention type and identifier.
-                 * @example example
-                 */
-                key?: string;
-                /**
-                 * @description Optional external provider identifier.
-                 * @example ops-brief-2026-02-22
-                 */
-                external_id?: string | null;
-                /**
-                 * @description Human-readable name.
-                 * @example Example Name
-                 */
-                name?: string;
-                /**
-                 * @description IANA timezone identifier.
-                 * @example America/Los_Angeles
-                 */
-                timezone?: string | null;
-                /**
-                 * @description Optional short summary.
-                 * @example Morning operations handoff digest.
-                 */
-                summary?: string | null;
-                /**
-                 * @description Sections.
-                 * @example {
-                 *       "key": "value"
-                 *     }
-                 */
-                sections?: ({
-                    [key: string]: unknown;
-                } | {
-                    [key: string]: unknown;
-                }[]) | null;
-                /**
-                 * @description Headline.
-                 * @example 3 overdue tasks | 4 upcoming events
-                 */
-                headline?: string | null;
-                /**
-                 * @description Markdown body content. Include file embeds as `![alt](/api/v1/files/{id}/preview)`.
-                 * @example ## Highlights
-                 *     - Elevated API error rate
-                 */
-                content_markdown?: string | null;
-                /**
-                 * @description Structured JSON content.
-                 * @example {
-                 *       "key": "value"
-                 *     }
-                 */
-                content_json?: ({
-                    [key: string]: unknown;
-                } | {
-                    [key: string]: unknown;
-                }[]) | null;
-                /**
-                 * Format: date-time
-                 * @description ISO-8601 generation timestamp.
-                 * @example 2026-02-22T17:21:00Z
-                 */
-                generated_at?: string | null;
-                /**
-                 * @description Arbitrary JSON metadata object.
-                 * @example {
-                 *       "key": "value"
-                 *     }
-                 */
-                meta?: ({
-                    [key: string]: unknown;
-                } | {
-                    [key: string]: unknown;
-                }[]) | null;
-            } & ({
-                [key: string]: unknown;
-            } | {
-                [key: string]: unknown;
-            }[]);
-            /**
-             * @description Source.
-             * @example {
-             *       "key": "value"
-             *     }
-             */
-            source?: ({
-                /**
-                 * @description Source agent identifier. Required when using an unscoped API key without agent context.
-                 * @example 42
-                 */
-                agent_id?: number | null;
-                /**
-                 * @description Arbitrary JSON metadata object.
-                 * @example {
-                 *       "key": "value"
-                 *     }
-                 */
-                meta?: ({
-                    [key: string]: unknown;
-                } | {
-                    [key: string]: unknown;
-                }[]) | null;
-            } & ({
-                [key: string]: unknown;
-            } | {
-                [key: string]: unknown;
-            }[])) | null;
-        };
-        /**
-         * @description Payload for patching a board.
-         * @example {
-         *       "name": "Example Name",
-         *       "description": "Example description text.",
-         *       "visibility": "team",
-         *       "personal_owner_user_id": 42
-         *     }
-         */
-        UpdateBoardApiRequest: {
-            /**
-             * @description Human-readable name.
-             * @example Example Name
-             */
-            name?: string;
-            /**
-             * @description Optional long-form description.
-             * @example Example description text.
-             */
-            description?: string | null;
-            /**
-             * @description Visibility scope for this item. Allowed values: team, personal.
-             * @example team
-             * @enum {string}
-             */
-            visibility?: "team" | "personal";
-            /**
-             * @description Private board owner user id. Required when `visibility=personal` and no owner fallback is available.
-             * @example 42
-             */
-            personal_owner_user_id?: number | null;
-        };
-        /**
-         * @description Payload for patching one board column.
-         * @example {
-         *       "column_id": 42,
-         *       "name": "Example Name",
-         *       "position": 1
-         *     }
-         */
-        UpdateBoardColumnApiRequest: {
-            /**
-             * @description Board column identifier.
-             * @example 42
-             */
-            column_id: number;
-            /**
-             * @description Human-readable name.
-             * @example Example Name
-             */
-            name?: string;
-            /**
-             * @description Position.
-             * @example 1
-             */
-            position?: number;
-        };
-        /**
-         * @description Payload for patching a calendar item.
-         * @example {
-         *       "title": "Example Title",
-         *       "description": "Example description text.",
-         *       "start_at": "2026-02-22T17:21:00Z",
-         *       "end_at": "2026-02-22T17:21:00Z"
-         *     }
-         */
-        UpdateCalendarItemApiRequest: {
-            /**
-             * @description Human-readable title.
-             * @example Example Title
-             */
-            title?: string;
-            /**
-             * @description Long-form description. Supports Markdown formatting and file embeds like `![alt](/api/v1/files/{id}/preview)`.
-             * @example Example description text.
-             */
-            description?: string | null;
-            /**
-             * Format: date-time
-             * @description ISO-8601 start timestamp.
-             * @example 2026-02-22T17:21:00Z
-             */
-            start_at?: string | null;
-            /**
-             * Format: date-time
-             * @description ISO-8601 end timestamp.
-             * @example 2026-02-22T17:21:00Z
-             */
-            end_at?: string | null;
-            /**
-             * Format: date-time
-             * @description ISO-8601 due timestamp.
-             * @example 2026-02-22T17:21:00Z
-             */
-            due_at?: string | null;
-            /**
-             * @description True when this item spans the full day.
-             * @example false
-             */
-            all_day?: boolean;
-            /**
-             * @description Location.
-             * @example example
-             */
-            location?: string | null;
-            /**
-             * @description IANA timezone identifier.
-             * @example America/Los_Angeles
-             */
-            timezone?: string | null;
-            /**
-             * @description Current lifecycle status for this record. Allowed values: todo, in_progress, blocked, done, canceled.
-             * @example todo
-             * @enum {string|null}
-             */
-            status?: "todo" | "in_progress" | "blocked" | "done" | "canceled" | null;
-            /**
-             * @description Priority level for this record. Allowed values: low, medium, high, urgent.
-             * @example low
-             * @enum {string|null}
-             */
-            priority?: "low" | "medium" | "high" | "urgent" | null;
-            /**
-             * @description Visibility scope for this item. Allowed values: team, private.
-             * @example team
-             * @enum {string}
-             */
-            visibility?: "team" | "private";
-        };
-        /**
-         * @description Update Team File Api Request request schema.
-         * @example {
-         *       "display_name": "Example Name",
-         *       "folder_id": 42,
-         *       "owner_agent_id": 42
-         *     }
-         */
-        UpdateTeamFileApiRequest: {
-            /**
-             * @description Display name.
-             * @example Example Name
-             */
-            display_name?: string;
-            /**
-             * @description Identifier for folder.
-             * @example 42
-             */
-            folder_id?: number | null;
-            /**
-             * @description Identifier for owner agent.
-             * @example 42
-             */
-            owner_agent_id?: number | null;
-        };
-        /**
-         * @description Update Team File Folder Api Request request schema.
-         * @example {
-         *       "name": "Example Name",
-         *       "parent_id": 42
-         *     }
-         */
-        UpdateTeamFileFolderApiRequest: {
-            /**
-             * @description Human-readable name.
-             * @example Example Name
-             */
-            name?: string | null;
-            /**
-             * @description Identifier for parent.
-             * @example 42
-             */
-            parent_id?: number | null;
-        };
-        /**
-         * @description Payload for editing a comment on a task.
-         * @example {
-         *       "body": "Example content."
-         *     }
-         */
-        UpdateTaskCommentApiRequest: {
-            /**
-             * @description Markdown comment body. Include file embeds as `![alt](/api/v1/files/{id}/preview)`.
-             * @example Example content.
-             */
-            body: string;
-        };
-        /**
-         * @description Payload for patching a team task.
-         * @example {
-         *       "column_id": 42,
-         *       "title": "Example Title",
-         *       "description": "Example description text.",
-         *       "archived_at": "2026-02-22T17:21:00Z"
-         *     }
-         */
-        UpdateTaskApiRequest: {
-            /**
-             * @description Board column identifier.
-             * @example 42
-             */
-            column_id?: number;
-            /**
-             * @description Human-readable title.
-             * @example Example Title
-             */
-            title?: string;
-            /**
-             * @description Long-form description. Supports Markdown formatting and file embeds like `![alt](/api/v1/files/{id}/preview)`.
-             * @example Example description text.
-             */
-            description?: string;
-            /**
-             * Format: date-time
-             * @description ISO-8601 timestamp when this task was archived. Null means active.
-             * @example 2026-02-22T17:21:00Z
-             */
-            archived_at?: string | null;
-            /**
-             * @description Position.
-             * @example 1
-             */
-            position?: number;
-            /**
-             * Format: date-time
-             * @description ISO-8601 due timestamp.
-             * @example 2026-02-22T17:21:00Z
-             */
-            due_at?: string | null;
-            /**
-             * @description Identifier for assigned to user.
-             * @example 42
-             */
-            assigned_to_user_id?: number | null;
-            /**
-             * @description Identifier for assigned to agent.
-             * @example 42
-             */
-            assigned_to_agent_id?: number | null;
-        };
-        /**
-         * @description Delete Board Column Request request schema.
-         * @example {
-         *       "column_id": 42
-         *     }
-         */
-        DeleteBoardColumnRequest: {
-            /**
-             * @description Board column identifier.
-             * @example 42
-             */
-            column_id: number;
-        };
-    };
-    responses: {
-        /** @description Heartbeat accepted. */
-        AgentHeartbeatResponse: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                /**
-                 * @example {
-                 *       "ok": true,
-                 *       "server_time": "2026-02-22T17:21:02Z",
-                 *       "host": {
-                 *         "id": 12,
-                 *         "team_id": 7,
-                 *         "name": "worker-01",
-                 *         "fingerprint": "a3f56f330f311a2159f8c101eaf1439a29f1d57f007375d56aa79f304bc4f112",
-                 *         "status": "online",
-                 *         "last_seen_at": "2026-02-22T17:21:02Z",
-                 *         "meta": {
-                 *           "hostname": "worker-01",
-                 *           "os": "Ubuntu",
-                 *           "arch": "x86_64",
-                 *           "runtime": {
-                 *             "name": "codex",
-                 *             "version": "2026.02.1"
-                 *           }
-                 *         },
-                 *         "created_by_user_id": 1,
-                 *         "agents_total": 1,
-                 *         "agents_online": 1,
-                 *         "created_at": "2026-02-22T17:21:02Z",
-                 *         "updated_at": "2026-02-22T17:21:02Z"
-                 *       },
-                 *       "host_realtime": {
-                 *         "connection": {
-                 *           "driver": "reverb",
-                 *           "key": "local-app-key",
-                 *           "cluster": "mt1",
-                 *           "host": "agentmc.ai",
-                 *           "port": 443,
-                 *           "scheme": "https",
-                 *           "path": ""
-                 *         },
-                 *         "channel": "private-agent-realtime-host.12",
-                 *         "event": "agent.realtime.host.session.requested",
-                 *         "auth_endpoint": "https://agentmc.ai/api/v1/hosts/realtime/socket-auth"
-                 *       },
-                 *       "agent": {
-                 *         "id": 42,
-                 *         "name": "Solomon",
-                 *         "type": "openclaw"
-                 *       }
-                 *     }
-                 */
-                "application/json": components["schemas"]["AgentHeartbeatResponse"];
-            };
-        };
-        /** @description Instruction bundle returned. */
-        AgentInstructionsResponse: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                /**
-                 * @example {
-                 *       "ok": true,
-                 *       "changed": true,
-                 *       "bundle_version": "bundle_2fa07fcadd6575cc",
-                 *       "generated_at": "2026-02-25T14:10:00Z",
-                 *       "defaults": {
-                 *         "heartbeat_interval_seconds": 60
-                 *       },
-                 *       "agent": {
-                 *         "id": 42
-                 *       },
-                 *       "files": [
-                 *         {
-                 *           "id": "skill.md",
-                 *           "path": ".agentmc/skills/skill.md",
-                 *           "content": "# AgentMC Skill\n",
-                 *           "sha256": "f96c95bd27dc9f3415cc0f4d817b5ec6f14185b6fcb5db9f6b6f14f648f8e9e4"
-                 *         }
-                 *       ]
-                 *     }
-                 */
-                "application/json": components["schemas"]["AgentInstructionsResponse"];
-            };
-        };
-        /** @description Due recurring task runs claimed. */
-        AgentRecurringTaskDueRunsResponse: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                /**
-                 * @example {
-                 *       "data": [
-                 *         {
-                 *           "run_id": 42,
-                 *           "task_id": 42,
-                 *           "prompt": "example",
-                 *           "scheduled_for": "2026-02-22T17:21:00Z",
-                 *           "claim_token": "example",
-                 *           "agent_id": 42
-                 *         }
-                 *       ]
-                 *     }
-                 */
-                "application/json": components["schemas"]["AgentRecurringTaskDueRunsResponse"];
-            };
-        };
-        /** @description Recurring task run completion recorded. */
-        AgentRecurringTaskRunResponse: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                /**
-                 * @example {
-                 *       "data": {
-                 *         "id": 42,
-                 *         "team_id": 42,
-                 *         "agent_id": 42,
-                 *         "agent_recurring_task_id": 42,
-                 *         "scheduled_for": "2026-02-22T17:21:00Z",
-                 *         "status": "running",
-                 *         "claim_token": "example",
-                 *         "prompt_snapshot": "example",
-                 *         "schedule_snapshot": {
-                 *           "key": "value"
-                 *         },
-                 *         "started_at": "2026-02-22T17:21:00Z",
-                 *         "finished_at": "2026-02-22T17:21:00Z",
-                 *         "summary": "Morning operations handoff digest.",
-                 *         "error_message": "example",
-                 *         "runtime_meta": {
-                 *           "key": "value"
-                 *         },
-                 *         "created_at": "2026-02-22T17:21:00Z",
-                 *         "updated_at": "2026-02-22T17:21:00Z"
-                 *       }
-                 *     }
-                 */
-                "application/json": components["schemas"]["AgentRecurringTaskRunResponse"];
-            };
-        };
-        /** @description Brief upserted. */
-        AgentBriefResponse: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                /**
-                 * @example {
-                 *       "brief": {
-                 *         "id": 42,
-                 *         "team_id": 42,
-                 *         "agent_id": 42,
-                 *         "external_key": "daily-operations",
-                 *         "external_id": "ops-brief-2026-02-22",
-                 *         "name": "Example Name",
-                 *         "timezone": "America/Los_Angeles",
-                 *         "summary": "Morning operations handoff digest.",
-                 *         "include_sections": [
-                 *           {
-                 *             "key": "value"
-                 *           }
-                 *         ],
-                 *         "headline": "3 overdue tasks | 4 upcoming events",
-                 *         "content_markdown": "## Highlights\n- Elevated API error rate",
-                 *         "content_json": {
-                 *           "key": "value"
-                 *         },
-                 *         "source_meta": {
-                 *           "key": "value"
-                 *         },
-                 *         "attachments": [
-                 *           {
-                 *             "id": 45,
-                 *             "team_file_id": 101,
-                 *             "preview_url": "/api/v1/files/101/preview",
-                 *             "download_url": "/api/v1/files/101/download",
-                 *             "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-                 *             "file": {
-                 *               "id": 101,
-                 *               "display_name": "incident-timeline.png",
-                 *               "original_filename": "incident-timeline.png",
-                 *               "mime_type": "image/png",
-                 *               "size_bytes": 144220,
-                 *               "preview_kind": "image",
-                 *               "created_at": "2026-02-27T17:20:00Z",
-                 *               "updated_at": "2026-02-27T17:24:00Z"
-                 *             }
-                 *           }
-                 *         ],
-                 *         "received_at": "2026-02-22T17:21:00Z",
-                 *         "generated_at": "2026-02-22T17:21:00Z",
-                 *         "read_by_user_id": 42,
-                 *         "latest_entry_id": 42,
-                 *         "entries_count": 0,
-                 *         "latest_entry": {
-                 *           "id": 42,
-                 *           "agent_id": 42,
-                 *           "external_id": "ops-brief-2026-02-22",
-                 *           "name": "Example Name",
-                 *           "timezone": "America/Los_Angeles",
-                 *           "summary": "Morning operations handoff digest.",
-                 *           "include_sections": [
-                 *             {
-                 *               "key": "value"
-                 *             }
-                 *           ],
-                 *           "headline": "3 overdue tasks | 4 upcoming events",
-                 *           "content_markdown": "## Highlights\n- Elevated API error rate",
-                 *           "content_json": {
-                 *             "key": "value"
-                 *           },
-                 *           "source_meta": {
-                 *             "key": "value"
-                 *           },
-                 *           "attachments": [
-                 *             {
-                 *               "id": 45,
-                 *               "team_file_id": 101,
-                 *               "preview_url": "/api/v1/files/101/preview",
-                 *               "download_url": "/api/v1/files/101/download",
-                 *               "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-                 *               "file": {
-                 *                 "id": 101,
-                 *                 "display_name": "incident-timeline.png",
-                 *                 "original_filename": "incident-timeline.png",
-                 *                 "mime_type": "image/png",
-                 *                 "size_bytes": 144220,
-                 *                 "preview_kind": "image",
-                 *                 "created_at": "2026-02-27T17:20:00Z",
-                 *                 "updated_at": "2026-02-27T17:24:00Z"
-                 *               }
-                 *             }
-                 *           ],
-                 *           "received_at": "2026-02-22T17:21:00Z",
-                 *           "generated_at": "2026-02-22T17:21:00Z",
-                 *           "created_at": "2026-02-22T17:21:00Z",
-                 *           "updated_at": "2026-02-22T17:21:00Z"
-                 *         },
-                 *         "created_at": "2026-02-22T17:21:00Z",
-                 *         "updated_at": "2026-02-22T17:21:00Z"
-                 *       }
-                 *     }
-                 */
-                "application/json": components["schemas"]["AgentBriefResponse"];
-            };
-        };
-        /** @description Brief record updated. */
-        AgentBriefRecordResponse: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                /**
-                 * @example {
-                 *       "brief": {
-                 *         "id": 42,
-                 *         "team_id": 42,
-                 *         "agent_id": 42,
-                 *         "external_key": "daily-operations",
-                 *         "external_id": "ops-brief-2026-02-22",
-                 *         "name": "Example Name",
-                 *         "timezone": "America/Los_Angeles",
-                 *         "summary": "Morning operations handoff digest.",
-                 *         "include_sections": [
-                 *           {
-                 *             "key": "value"
-                 *           }
-                 *         ],
-                 *         "headline": "3 overdue tasks | 4 upcoming events",
-                 *         "content_markdown": "## Highlights\n- Elevated API error rate",
-                 *         "content_json": {
-                 *           "key": "value"
-                 *         },
-                 *         "source_meta": {
-                 *           "key": "value"
-                 *         },
-                 *         "attachments": [
-                 *           {
-                 *             "id": 45,
-                 *             "team_file_id": 101,
-                 *             "preview_url": "/api/v1/files/101/preview",
-                 *             "download_url": "/api/v1/files/101/download",
-                 *             "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-                 *             "file": {
-                 *               "id": 101,
-                 *               "display_name": "incident-timeline.png",
-                 *               "original_filename": "incident-timeline.png",
-                 *               "mime_type": "image/png",
-                 *               "size_bytes": 144220,
-                 *               "preview_kind": "image",
-                 *               "created_at": "2026-02-27T17:20:00Z",
-                 *               "updated_at": "2026-02-27T17:24:00Z"
-                 *             }
-                 *           }
-                 *         ],
-                 *         "received_at": "2026-02-22T17:21:00Z",
-                 *         "generated_at": "2026-02-22T17:21:00Z",
-                 *         "read_by_user_id": 42,
-                 *         "latest_entry_id": 42,
-                 *         "entries_count": 0,
-                 *         "latest_entry": {
-                 *           "id": 42,
-                 *           "agent_id": 42,
-                 *           "external_id": "ops-brief-2026-02-22",
-                 *           "name": "Example Name",
-                 *           "timezone": "America/Los_Angeles",
-                 *           "summary": "Morning operations handoff digest.",
-                 *           "include_sections": [
-                 *             {
-                 *               "key": "value"
-                 *             }
-                 *           ],
-                 *           "headline": "3 overdue tasks | 4 upcoming events",
-                 *           "content_markdown": "## Highlights\n- Elevated API error rate",
-                 *           "content_json": {
-                 *             "key": "value"
-                 *           },
-                 *           "source_meta": {
-                 *             "key": "value"
-                 *           },
-                 *           "attachments": [
-                 *             {
-                 *               "id": 45,
-                 *               "team_file_id": 101,
-                 *               "preview_url": "/api/v1/files/101/preview",
-                 *               "download_url": "/api/v1/files/101/download",
-                 *               "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-                 *               "file": {
-                 *                 "id": 101,
-                 *                 "display_name": "incident-timeline.png",
-                 *                 "original_filename": "incident-timeline.png",
-                 *                 "mime_type": "image/png",
-                 *                 "size_bytes": 144220,
-                 *                 "preview_kind": "image",
-                 *                 "created_at": "2026-02-27T17:20:00Z",
-                 *                 "updated_at": "2026-02-27T17:24:00Z"
-                 *               }
-                 *             }
-                 *           ],
-                 *           "received_at": "2026-02-22T17:21:00Z",
-                 *           "generated_at": "2026-02-22T17:21:00Z",
-                 *           "created_at": "2026-02-22T17:21:00Z",
-                 *           "updated_at": "2026-02-22T17:21:00Z"
-                 *         },
-                 *         "created_at": "2026-02-22T17:21:00Z",
-                 *         "updated_at": "2026-02-22T17:21:00Z"
-                 *       }
-                 *     }
-                 */
-                "application/json": components["schemas"]["AgentBriefRecordResponse"];
-            };
-        };
-        /** @description Brief list returned. */
-        PaginatedRecurringBriefSummaryResponse: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                /**
-                 * @example {
-                 *       "data": [
-                 *         {
-                 *           "id": 42,
-                 *           "team_id": 42,
-                 *           "agent_id": 42,
-                 *           "external_key": "daily-operations",
-                 *           "external_id": "ops-brief-2026-02-22",
-                 *           "name": "Example Name",
-                 *           "timezone": "America/Los_Angeles",
-                 *           "summary": "Morning operations handoff digest.",
-                 *           "include_sections": [
-                 *             {
-                 *               "key": "value"
-                 *             }
-                 *           ],
-                 *           "headline": "3 overdue tasks | 4 upcoming events",
-                 *           "content_markdown": "## Highlights\n- Elevated API error rate",
-                 *           "content_json": {
-                 *             "key": "value"
-                 *           },
-                 *           "source_meta": {
-                 *             "key": "value"
-                 *           },
-                 *           "attachments": [
-                 *             {
-                 *               "id": 45,
-                 *               "team_file_id": 101,
-                 *               "preview_url": "/api/v1/files/101/preview",
-                 *               "download_url": "/api/v1/files/101/download",
-                 *               "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-                 *               "file": {
-                 *                 "id": 101,
-                 *                 "display_name": "incident-timeline.png",
-                 *                 "original_filename": "incident-timeline.png",
-                 *                 "mime_type": "image/png",
-                 *                 "size_bytes": 144220,
-                 *                 "preview_kind": "image",
-                 *                 "created_at": "2026-02-27T17:20:00Z",
-                 *                 "updated_at": "2026-02-27T17:24:00Z"
-                 *               }
-                 *             }
-                 *           ],
-                 *           "received_at": "2026-02-22T17:21:00Z",
-                 *           "generated_at": "2026-02-22T17:21:00Z",
-                 *           "read_by_user_id": 42,
-                 *           "latest_entry_id": 42,
-                 *           "entries_count": 0,
-                 *           "latest_entry": {
-                 *             "id": 42,
-                 *             "agent_id": 42,
-                 *             "external_id": "ops-brief-2026-02-22",
-                 *             "name": "Example Name",
-                 *             "timezone": "America/Los_Angeles",
-                 *             "summary": "Morning operations handoff digest.",
-                 *             "include_sections": [
-                 *               {
-                 *                 "key": "value"
-                 *               }
-                 *             ],
-                 *             "headline": "3 overdue tasks | 4 upcoming events",
-                 *             "content_markdown": "## Highlights\n- Elevated API error rate",
-                 *             "content_json": {
-                 *               "key": "value"
-                 *             },
-                 *             "source_meta": {
-                 *               "key": "value"
-                 *             },
-                 *             "attachments": [
-                 *               {
-                 *                 "id": 45,
-                 *                 "team_file_id": 101,
-                 *                 "preview_url": "/api/v1/files/101/preview",
-                 *                 "download_url": "/api/v1/files/101/download",
-                 *                 "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-                 *                 "file": {
-                 *                   "id": 101,
-                 *                   "display_name": "incident-timeline.png",
-                 *                   "original_filename": "incident-timeline.png",
-                 *                   "mime_type": "image/png",
-                 *                   "size_bytes": 144220,
-                 *                   "preview_kind": "image",
-                 *                   "created_at": "2026-02-27T17:20:00Z",
-                 *                   "updated_at": "2026-02-27T17:24:00Z"
-                 *                 }
-                 *               }
-                 *             ],
-                 *             "received_at": "2026-02-22T17:21:00Z",
-                 *             "generated_at": "2026-02-22T17:21:00Z",
-                 *             "created_at": "2026-02-22T17:21:00Z",
-                 *             "updated_at": "2026-02-22T17:21:00Z"
-                 *           },
-                 *           "created_at": "2026-02-22T17:21:00Z",
-                 *           "updated_at": "2026-02-22T17:21:00Z"
-                 *         }
-                 *       ],
-                 *       "links": {
-                 *         "first": "example",
-                 *         "last": "example",
-                 *         "prev": "example",
-                 *         "next": "example"
-                 *       },
-                 *       "meta": {
-                 *         "current_page": 1,
-                 *         "from": 1,
-                 *         "last_page": 1,
-                 *         "links": [
-                 *           {
-                 *             "url": "https://agentmc.example.com/docs/incident-123",
-                 *             "label": "example",
-                 *             "active": true
-                 *           }
-                 *         ],
-                 *         "path": "notes/daily-ops.md",
-                 *         "per_page": 25,
-                 *         "total": 0
-                 *       }
-                 *     }
-                 */
-                "application/json": components["schemas"]["PaginatedRecurringBriefSummaryResponse"];
-            };
-        };
-        /** @description Claimable realtime sessions returned. */
-        AgentRealtimeRequestedSessionsResponse: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                /**
-                 * @example {
-                 *       "data": [
-                 *         {
-                 *           "id": 42,
-                 *           "team_id": 42,
-                 *           "agent_id": 42,
-                 *           "requested_by_user_id": 42,
-                 *           "status": "requested",
-                 *           "claimed_at": "2026-02-22T17:21:00Z",
-                 *           "opened_at": "2026-02-22T17:21:00Z",
-                 *           "closed_at": "2026-02-22T17:21:00Z",
-                 *           "expires_at": "2026-02-22T17:21:00Z",
-                 *           "last_browser_heartbeat_at": "2026-02-22T17:21:00Z",
-                 *           "last_agent_heartbeat_at": "2026-02-22T17:21:00Z",
-                 *           "meta": {
-                 *             "key": "value"
-                 *           },
-                 *           "created_at": "2026-02-22T17:21:00Z",
-                 *           "updated_at": "2026-02-22T17:21:00Z"
-                 *         }
-                 *       ]
-                 *     }
-                 */
-                "application/json": components["schemas"]["AgentRealtimeRequestedSessionsResponse"];
-            };
-        };
-        /** @description Realtime session returned. */
-        AgentRealtimeSessionResponse: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                /**
-                 * @example {
-                 *       "data": {
-                 *         "id": 42,
-                 *         "team_id": 42,
-                 *         "agent_id": 42,
-                 *         "requested_by_user_id": 42,
-                 *         "status": "requested",
-                 *         "claimed_at": "2026-02-22T17:21:00Z",
-                 *         "opened_at": "2026-02-22T17:21:00Z",
-                 *         "closed_at": "2026-02-22T17:21:00Z",
-                 *         "expires_at": "2026-02-22T17:21:00Z",
-                 *         "last_browser_heartbeat_at": "2026-02-22T17:21:00Z",
-                 *         "last_agent_heartbeat_at": "2026-02-22T17:21:00Z",
-                 *         "meta": {
-                 *           "key": "value"
-                 *         },
-                 *         "created_at": "2026-02-22T17:21:00Z",
-                 *         "updated_at": "2026-02-22T17:21:00Z"
-                 *       }
-                 *     }
-                 */
-                "application/json": components["schemas"]["AgentRealtimeSessionResponse"];
-            };
-        };
-        /** @description Realtime signals returned. */
-        AgentRealtimeSignalsResponse: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                /**
-                 * @example {
-                 *       "data": [
-                 *         {
-                 *           "id": 42,
-                 *           "team_id": 42,
-                 *           "agent_id": 42,
-                 *           "session_id": 42,
-                 *           "sender": "agent",
-                 *           "type": "example",
-                 *           "payload": {
-                 *             "key": "value"
-                 *           },
-                 *           "created_at": "2026-02-22T17:21:00Z",
-                 *           "updated_at": "2026-02-22T17:21:00Z"
-                 *         }
-                 *       ],
-                 *       "session": {
-                 *         "id": 42,
-                 *         "team_id": 42,
-                 *         "agent_id": 42,
-                 *         "requested_by_user_id": 42,
-                 *         "status": "requested",
-                 *         "claimed_at": "2026-02-22T17:21:00Z",
-                 *         "opened_at": "2026-02-22T17:21:00Z",
-                 *         "closed_at": "2026-02-22T17:21:00Z",
-                 *         "expires_at": "2026-02-22T17:21:00Z",
-                 *         "last_browser_heartbeat_at": "2026-02-22T17:21:00Z",
-                 *         "last_agent_heartbeat_at": "2026-02-22T17:21:00Z",
-                 *         "meta": {
-                 *           "key": "value"
-                 *         },
-                 *         "created_at": "2026-02-22T17:21:00Z",
-                 *         "updated_at": "2026-02-22T17:21:00Z"
-                 *       }
-                 *     }
-                 */
-                "application/json": components["schemas"]["AgentRealtimeSignalsResponse"];
-            };
-        };
-        /** @description Realtime signal accepted. */
-        AgentRealtimeSignalResponse: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                /**
-                 * @example {
-                 *       "data": {
-                 *         "id": 42,
-                 *         "team_id": 42,
-                 *         "agent_id": 42,
-                 *         "session_id": 42,
-                 *         "sender": "agent",
-                 *         "type": "example",
-                 *         "payload": {
-                 *           "key": "value"
-                 *         },
-                 *         "created_at": "2026-02-22T17:21:00Z",
-                 *         "updated_at": "2026-02-22T17:21:00Z"
-                 *       },
-                 *       "session": {
-                 *         "id": 42,
-                 *         "team_id": 42,
-                 *         "agent_id": 42,
-                 *         "requested_by_user_id": 42,
-                 *         "status": "requested",
-                 *         "claimed_at": "2026-02-22T17:21:00Z",
-                 *         "opened_at": "2026-02-22T17:21:00Z",
-                 *         "closed_at": "2026-02-22T17:21:00Z",
-                 *         "expires_at": "2026-02-22T17:21:00Z",
-                 *         "last_browser_heartbeat_at": "2026-02-22T17:21:00Z",
-                 *         "last_agent_heartbeat_at": "2026-02-22T17:21:00Z",
-                 *         "meta": {
-                 *           "key": "value"
-                 *         },
-                 *         "created_at": "2026-02-22T17:21:00Z",
-                 *         "updated_at": "2026-02-22T17:21:00Z"
-                 *       }
-                 *     }
-                 */
-                "application/json": components["schemas"]["AgentRealtimeSignalResponse"];
-            };
-        };
-        /** @description Realtime socket subscription authorized. */
-        AgentRealtimeSocketAuthResponse: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                /**
-                 * @example {
-                 *       "auth": "example"
-                 *     }
-                 */
-                "application/json": components["schemas"]["AgentRealtimeSocketAuthResponse"];
-            };
-        };
-        /** @description Host returned. */
-        HostDetailResponse: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                /**
-                 * @example {
-                 *       "data": {
-                 *         "id": 42,
-                 *         "team_id": 42,
-                 *         "name": "Example Name",
-                 *         "fingerprint": "a3f56f330f311a2159f8c101eaf1439a29f1d57f007375d56aa79f304bc4f112",
-                 *         "status": "online",
-                 *         "last_seen_at": "2026-02-22T17:21:00Z",
-                 *         "meta": {
-                 *           "hostname": "worker-01",
-                 *           "ip": "10.0.2.15",
-                 *           "os": "Ubuntu",
-                 *           "arch": "x86_64",
-                 *           "cpu": "Intel Xeon",
-                 *           "ram_gb": 32,
-                 *           "runtime": {
-                 *             "name": "openclaw",
-                 *             "version": "1.14.2"
-                 *           }
-                 *         },
-                 *         "created_by_user_id": 42,
-                 *         "agents_total": 1,
-                 *         "agents_online": 1,
-                 *         "created_at": "2026-02-22T17:21:00Z",
-                 *         "updated_at": "2026-02-22T17:21:00Z"
-                 *       },
-                 *       "agents": [
-                 *         {
-                 *           "id": 42,
-                 *           "team_id": 42,
-                 *           "host_id": 42,
-                 *           "name": "Example Name",
-                 *           "status": "online",
-                 *           "meta": {
-                 *             "key": "value"
-                 *           },
-                 *           "tasks_count": 0,
-                 *           "last_seen_at": "2026-02-22T17:21:00Z",
-                 *           "created_at": "2026-02-22T17:21:00Z",
-                 *           "updated_at": "2026-02-22T17:21:00Z"
-                 *         }
-                 *       ],
-                 *       "agents_meta": {
-                 *         "current_page": 1,
-                 *         "last_page": 1,
-                 *         "per_page": 25,
-                 *         "total": 0
-                 *       }
-                 *     }
-                 */
-                "application/json": components["schemas"]["HostDetailResponse"];
-            };
-        };
-        /** @description File list returned. */
-        PaginatedTeamFileResponse: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                /**
-                 * @example {
-                 *       "data": [
-                 *         {
-                 *           "id": 101,
-                 *           "team_id": 7,
-                 *           "owner_agent_id": 42,
-                 *           "folder_id": 12,
-                 *           "display_name": "incident-timeline.md",
-                 *           "original_filename": "incident-timeline.md",
-                 *           "extension": "md",
-                 *           "mime_type": "text/markdown",
-                 *           "size_bytes": 14220,
-                 *           "checksum_sha256": null,
-                 *           "preview_kind": "markdown",
-                 *           "uploaded_by_user_id": 8,
-                 *           "uploaded_by_agent_id": null,
-                 *           "created_at": "2026-02-27T17:20:00Z",
-                 *           "updated_at": "2026-02-27T17:24:00Z",
-                 *           "folder": {
-                 *             "id": 12,
-                 *             "team_id": 7,
-                 *             "parent_id": null,
-                 *             "name": "Runbooks",
-                 *             "path_cache": "Runbooks",
-                 *             "created_at": "2026-02-27T17:10:00Z",
-                 *             "updated_at": "2026-02-27T17:10:00Z"
-                 *           }
-                 *         }
-                 *       ],
-                 *       "links": {
-                 *         "first": "example",
-                 *         "last": "example",
-                 *         "prev": "example",
-                 *         "next": "example"
-                 *       },
-                 *       "meta": {
-                 *         "current_page": 1,
-                 *         "from": 1,
-                 *         "last_page": 1,
-                 *         "links": [
-                 *           {
-                 *             "url": "https://agentmc.example.com/docs/incident-123",
-                 *             "label": "example",
-                 *             "active": true
-                 *           }
-                 *         ],
-                 *         "path": "notes/daily-ops.md",
-                 *         "per_page": 25,
-                 *         "total": 0
-                 *       }
-                 *     }
-                 */
-                "application/json": components["schemas"]["PaginatedTeamFileResponse"];
-            };
-        };
-        /** @description File returned. */
-        TeamFileResponse: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                /**
-                 * @example {
-                 *       "data": {
-                 *         "id": 101,
-                 *         "team_id": 7,
-                 *         "owner_agent_id": 42,
-                 *         "folder_id": 12,
-                 *         "display_name": "incident-timeline.md",
-                 *         "original_filename": "incident-timeline.md",
-                 *         "extension": "md",
-                 *         "mime_type": "text/markdown",
-                 *         "size_bytes": 14220,
-                 *         "checksum_sha256": null,
-                 *         "preview_kind": "markdown",
-                 *         "uploaded_by_user_id": 8,
-                 *         "uploaded_by_agent_id": null,
-                 *         "created_at": "2026-02-27T17:20:00Z",
-                 *         "updated_at": "2026-02-27T17:24:00Z",
-                 *         "folder": {
-                 *           "id": 12,
-                 *           "team_id": 7,
-                 *           "parent_id": null,
-                 *           "name": "Runbooks",
-                 *           "path_cache": "Runbooks",
-                 *           "created_at": "2026-02-27T17:10:00Z",
-                 *           "updated_at": "2026-02-27T17:10:00Z"
-                 *         }
-                 *       }
-                 *     }
-                 */
-                "application/json": components["schemas"]["TeamFileResponse"];
-            };
-        };
-        /** @description Upload ticket created. */
-        TeamFileUploadTicketResponse: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                /**
-                 * @example {
-                 *       "data": {
-                 *         "upload_id": "tup_8f4f7f3f836d43d28c4f7311a48258f5",
-                 *         "object_key": "teams/7/files/2026/02/27/tup_8f4f7f3f836d43d28c4f7311a48258f5.md",
-                 *         "upload_url": "https://storage.example.com/bucket/teams/7/files/2026/02/27/tup_8f4f7f3f836d43d28c4f7311a48258f5.md?...",
-                 *         "upload_method": "PUT",
-                 *         "upload_headers": {
-                 *           "Content-Type": "text/markdown"
-                 *         },
-                 *         "expires_at": "2026-02-27T17:30:00Z"
-                 *       }
-                 *     }
-                 */
-                "application/json": components["schemas"]["TeamFileUploadTicketResponse"];
-            };
-        };
-        /** @description Folder returned. */
-        TeamFileFolderResponse: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                /**
-                 * @example {
-                 *       "data": {
-                 *         "id": 12,
-                 *         "team_id": 7,
-                 *         "parent_id": null,
-                 *         "name": "Runbooks",
-                 *         "path_cache": "Runbooks",
-                 *         "created_at": "2026-02-27T17:10:00Z",
-                 *         "updated_at": "2026-02-27T17:10:00Z"
-                 *       }
-                 *     }
-                 */
-                "application/json": components["schemas"]["TeamFileFolderResponse"];
-            };
-        };
-        /** @description Folder list returned. */
-        TeamFileFolderListResponse: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                /**
-                 * @example {
-                 *       "data": [
-                 *         {
-                 *           "id": 12,
-                 *           "team_id": 7,
-                 *           "parent_id": null,
-                 *           "name": "Runbooks",
-                 *           "path_cache": "Runbooks",
-                 *           "created_at": "2026-02-27T17:10:00Z",
-                 *           "updated_at": "2026-02-27T17:10:00Z"
-                 *         }
-                 *       ],
-                 *       "tree": [
-                 *         {
-                 *           "key": "value"
-                 *         }
-                 *       ]
-                 *     }
-                 */
-                "application/json": components["schemas"]["TeamFileFolderListResponse"];
-            };
-        };
-        /** @description Missing or invalid credentials. */
-        ApiError401: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                /**
-                 * @example {
-                 *       "error": {
-                 *         "code": "validation.failed",
-                 *         "message": "Validation failed.",
-                 *         "details": {
-                 *           "fields": {
-                 *             "title": [
-                 *               "The title field is required."
-                 *             ]
-                 *           }
-                 *         }
-                 *       }
-                 *     }
-                 */
-                "application/json": components["schemas"]["ApiError"];
-            };
-        };
-        /** @description Plan limit reached. */
-        ApiError402: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                /**
-                 * @example {
-                 *       "error": {
-                 *         "code": "validation.failed",
-                 *         "message": "Validation failed.",
-                 *         "details": {
-                 *           "fields": {
-                 *             "title": [
-                 *               "The title field is required."
-                 *             ]
-                 *           }
-                 *         }
-                 *       }
-                 *     }
-                 */
-                "application/json": components["schemas"]["ApiError"];
-            };
-        };
-        /** @description Forbidden. */
-        ApiError403: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                /**
-                 * @example {
-                 *       "error": {
-                 *         "code": "validation.failed",
-                 *         "message": "Validation failed.",
-                 *         "details": {
-                 *           "fields": {
-                 *             "title": [
-                 *               "The title field is required."
-                 *             ]
-                 *           }
-                 *         }
-                 *       }
-                 *     }
-                 */
-                "application/json": components["schemas"]["ApiError"];
-            };
-        };
-        /** @description Resource not found. */
-        ApiError404: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                /**
-                 * @example {
-                 *       "error": {
-                 *         "code": "validation.failed",
-                 *         "message": "Validation failed.",
-                 *         "details": {
-                 *           "fields": {
-                 *             "title": [
-                 *               "The title field is required."
-                 *             ]
-                 *           }
-                 *         }
-                 *       }
-                 *     }
-                 */
-                "application/json": components["schemas"]["ApiError"];
-            };
-        };
-        /** @description Conflict. */
-        ApiError409: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                /**
-                 * @example {
-                 *       "error": {
-                 *         "code": "validation.failed",
-                 *         "message": "Validation failed.",
-                 *         "details": {
-                 *           "fields": {
-                 *             "title": [
-                 *               "The title field is required."
-                 *             ]
-                 *           }
-                 *         }
-                 *       }
-                 *     }
-                 */
-                "application/json": components["schemas"]["ApiError"];
-            };
-        };
-        /** @description Validation failed. */
-        ApiError422: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                /**
-                 * @example {
-                 *       "error": {
-                 *         "code": "validation.failed",
-                 *         "message": "Validation failed.",
-                 *         "details": {
-                 *           "fields": {
-                 *             "title": [
-                 *               "The title field is required."
-                 *             ]
-                 *           }
-                 *         }
-                 *       }
-                 *     }
-                 */
-                "application/json": components["schemas"]["ApiError"];
-            };
-        };
-        /** @description Service unavailable. */
-        ApiError503: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                /**
-                 * @example {
-                 *       "error": {
-                 *         "code": "validation.failed",
-                 *         "message": "Validation failed.",
-                 *         "details": {
-                 *           "fields": {
-                 *             "title": [
-                 *               "The title field is required."
-                 *             ]
-                 *           }
-                 *         }
-                 *       }
-                 *     }
-                 */
-                "application/json": components["schemas"]["ApiError"];
-            };
-        };
-    };
+    schemas: never;
+    responses: never;
     parameters: never;
-    requestBodies: {
-        AuthenticateAgentRealtimeSocketApiRequest: {
-            content: {
-                /**
-                 * @example {
-                 *       "socket_id": "1234.567890",
-                 *       "channel_name": "private-agent-realtime.7.42"
-                 *     }
-                 */
-                "application/json": components["schemas"]["AuthenticateAgentRealtimeSocketApiRequest"];
-            };
-        };
-        AuthenticateHostRealtimeSocketApiRequest: {
-            content: {
-                /**
-                 * @example {
-                 *       "socket_id": "1234.567890",
-                 *       "channel_name": "private-agent-realtime-host.12"
-                 *     }
-                 */
-                "application/json": components["schemas"]["AuthenticateHostRealtimeSocketApiRequest"];
-            };
-        };
-        ClaimAgentRealtimeSessionApiRequest: {
-            content: {
-                /**
-                 * @example {
-                 *       "owner_token": "agent-claim:16f40b2b5dfb20c9af20db9f0d6d7b61"
-                 *     }
-                 */
-                "application/json": components["schemas"]["ClaimAgentRealtimeSessionApiRequest"];
-            };
-        };
-        CloseAgentRealtimeSessionApiRequest: {
-            content: {
-                /**
-                 * @example {
-                 *       "reason": "runtime_shutdown",
-                 *       "status": "closed",
-                 *       "payload": {
-                 *         "request_id": "req_92b3f2",
-                 *         "note": "Session closed by runtime during reconnect."
-                 *       }
-                 *     }
-                 */
-                "application/json": components["schemas"]["CloseAgentRealtimeSessionApiRequest"];
-            };
-        };
-        CompleteAgentRecurringTaskRunApiRequest: {
-            content: {
-                /**
-                 * @example {
-                 *       "status": "success",
-                 *       "claim_token": "e3ec996c-c53f-4bfa-89e3-5d9cbf71397f",
-                 *       "summary": "Scheduled review completed and updated 2 tasks.",
-                 *       "runtime_meta": {
-                 *         "provider": "openclaw",
-                 *         "request_id": "req_01JBPXXRM6JYAVY82ECAQ7QNA4"
-                 *       }
-                 *     }
-                 */
-                "application/json": components["schemas"]["CompleteAgentRecurringTaskRunApiRequest"];
-            };
-        };
-        CreateTeamFileUploadApiRequest: {
-            content: {
-                /**
-                 * @example {
-                 *       "filename": "incident-timeline.md",
-                 *       "byte_size": 14220,
-                 *       "mime_type": "text/markdown",
-                 *       "checksum_sha256": "43f88f3c4bf62933800d6f65dc8d9e2fbb2d930fd6134fc4ead6222b5d5f3bc5"
-                 *     }
-                 */
-                "application/json": components["schemas"]["CreateTeamFileUploadApiRequest"];
-            };
-        };
-        StoreAgentHeartbeatApiRequest: {
-            content: {
-                /**
-                 * @example {
-                 *       "meta": {
-                 *         "runtime": {
-                 *           "name": "openclaw",
-                 *           "version": "2026.2.26",
-                 *           "build": "bc50708",
-                 *           "mode": "openclaw"
-                 *         },
-                 *         "openclaw_version": "2026.2.26",
-                 *         "openclaw_build": "bc50708",
-                 *         "models": [
-                 *           "openai/gpt-5-codex"
-                 *         ],
-                 *         "node_version": "v25.7.0",
-                 *         "agentmc_node_package_version": "0.14.2",
-                 *         "runtime_mode": "openclaw",
-                 *         "tool_availability": {
-                 *           "chat_realtime": true,
-                 *           "files_realtime": true,
-                 *           "notifications_realtime": true
-                 *         }
-                 *       },
-                 *       "host": {
-                 *         "fingerprint": "a3f56f330f311a2159f8c101eaf1439a29f1d57f007375d56aa79f304bc4f112",
-                 *         "name": "worker-01",
-                 *         "meta": {
-                 *           "hostname": "worker-01",
-                 *           "ip": "10.0.2.15",
-                 *           "network": {
-                 *             "private_ip": "10.0.2.15",
-                 *             "public_ip": "34.222.10.10"
-                 *           },
-                 *           "os": "Ubuntu",
-                 *           "os_version": "24.04",
-                 *           "arch": "x86_64",
-                 *           "cpu": "Intel Xeon",
-                 *           "cpu_cores": 8,
-                 *           "ram_gb": 32,
-                 *           "disk": {
-                 *             "total_bytes": 536870912000,
-                 *             "free_bytes": 322122547200
-                 *           },
-                 *           "uptime_seconds": 86400,
-                 *           "runtime": {
-                 *             "name": "codex",
-                 *             "version": "2026.02.1"
-                 *           }
-                 *         }
-                 *       },
-                 *       "agent": {
-                 *         "name": "Jarvis",
-                 *         "identity": {
-                 *           "name": "Jarvis",
-                 *           "agent_key": "solomon",
-                 *           "creature": "robot",
-                 *           "vibe": "calm"
-                 *         }
-                 *       }
-                 *     }
-                 */
-                "application/json": components["schemas"]["StoreAgentHeartbeatApiRequest"];
-            };
-        };
-        StoreAgentBriefApiRequest: {
-            content: {
-                /**
-                 * @example {
-                 *       "brief": {
-                 *         "key": "daily-operations",
-                 *         "name": "Daily Operations Brief",
-                 *         "summary": "Operations handoff digest for the morning window.",
-                 *         "timezone": "America/Los_Angeles",
-                 *         "headline": "3 overdue tasks | 4 upcoming events",
-                 *         "content_markdown": "## Highlights\n- Elevated API error rate\n- Two incidents resolved\n\n![ops-dashboard](/api/v1/files/101/preview)",
-                 *         "meta": {
-                 *           "external_source": "daily-ops-job",
-                 *           "schedule": "0 7 * * *"
-                 *         }
-                 *       },
-                 *       "source": {
-                 *         "agent_id": 42,
-                 *         "meta": {
-                 *           "runtime": "codex"
-                 *         }
-                 *       }
-                 *     }
-                 */
-                "application/json": components["schemas"]["StoreAgentBriefApiRequest"];
-            };
-        };
-        StoreAgentRealtimeSignalApiRequest: {
-            content: {
-                /**
-                 * @example {
-                 *       "type": "message",
-                 *       "payload": {
-                 *         "type": "chat.user",
-                 *         "payload": {
-                 *           "content": "Create an AgentMC task for this afternoon to draft the postmortem outline.\n\n![incident-chart](/api/v1/files/101/preview)",
-                 *           "message_id": 512,
-                 *           "timezone": "America/Los_Angeles",
-                 *           "source": "agentmc_chat",
-                 *           "intent_scope": "agentmc"
-                 *         }
-                 *       }
-                 *     }
-                 */
-                "application/json": components["schemas"]["StoreAgentRealtimeSignalApiRequest"];
-            };
-        };
-        StoreBoardApiRequest: {
-            content: {
-                /**
-                 * @example {
-                 *       "name": "Incident Response",
-                 *       "description": "Tracks response tasks for active incidents.",
-                 *       "visibility": "team"
-                 *     }
-                 */
-                "application/json": components["schemas"]["StoreBoardApiRequest"];
-            };
-        };
-        StoreBoardColumnApiRequest: {
-            content: {
-                /**
-                 * @example {
-                 *       "name": "In Progress",
-                 *       "position": 2
-                 *     }
-                 */
-                "application/json": components["schemas"]["StoreBoardColumnApiRequest"];
-            };
-        };
-        StoreCalendarItemApiRequest: {
-            content: {
-                /**
-                 * @example {
-                 *       "type": "task",
-                 *       "title": "Review outage timeline",
-                 *       "description": "Confirm sequence of events with on-call notes.\n\n![timeline](/api/v1/files/101/preview)",
-                 *       "due_at": "2026-02-24T09:00:00Z",
-                 *       "timezone": "America/Los_Angeles",
-                 *       "status": "todo",
-                 *       "priority": "high",
-                 *       "visibility": "team",
-                 *       "assignees": [
-                 *         {
-                 *           "assignee_type": "user",
-                 *           "assignee_id": 8,
-                 *           "role": "owner"
-                 *         }
-                 *       ]
-                 *     }
-                 */
-                "application/json": components["schemas"]["StoreCalendarItemApiRequest"];
-            };
-        };
-        StoreCalendarItemCommentApiRequest: {
-            content: {
-                /**
-                 * @example {
-                 *       "body": "Added links to logs and timeline document.\n\n![handoff](/api/v1/files/101/preview)",
-                 *       "actor_type": "agent",
-                 *       "actor_id": 42
-                 *     }
-                 */
-                "application/json": components["schemas"]["StoreCalendarItemCommentApiRequest"];
-            };
-        };
-        StoreTeamFileApiRequest: {
-            content: {
-                /**
-                 * @example {
-                 *       "upload_id": "tup_8f4f7f3f836d43d28c4f7311a48258f5",
-                 *       "display_name": "incident-timeline.md",
-                 *       "folder_id": 12,
-                 *       "owner_agent_id": 42
-                 *     }
-                 */
-                "application/json": components["schemas"]["StoreTeamFileApiRequest"];
-            };
-        };
-        StoreTeamFileFolderApiRequest: {
-            content: {
-                /**
-                 * @example {
-                 *       "name": "Runbooks",
-                 *       "parent_id": null
-                 *     }
-                 */
-                "application/json": components["schemas"]["StoreTeamFileFolderApiRequest"];
-            };
-        };
-        StoreTaskCommentApiRequest: {
-            content: {
-                /**
-                 * @example {
-                 *       "body": "Posting a handoff note for [@Alex Morgan](/mentions/user/8) to review before standup.\n\n![error-budget](/api/v1/files/101/preview)",
-                 *       "actor_type": "agent",
-                 *       "actor_id": 42
-                 *     }
-                 */
-                "application/json": components["schemas"]["StoreTaskCommentApiRequest"];
-            };
-        };
-        StoreTaskApiRequest: {
-            content: {
-                /**
-                 * @example {
-                 *       "board_id": 5,
-                 *       "column_id": 13,
-                 *       "title": "Draft post-incident summary",
-                 *       "description": "Capture timeline, impact, and remediation status.\n\n![incident-graph](/api/v1/files/101/preview)",
-                 *       "archived_at": null,
-                 *       "position": 2,
-                 *       "due_at": "2026-02-24T17:00:00Z",
-                 *       "assigned_to_user_id": 8
-                 *     }
-                 */
-                "application/json": components["schemas"]["StoreTaskApiRequest"];
-            };
-        };
-        UpdateAgentBriefApiRequest: {
-            content: {
-                /**
-                 * @example {
-                 *       "brief": {
-                 *         "name": "Daily Operations Brief",
-                 *         "summary": "Operations handoff digest for the morning window.",
-                 *         "timezone": "America/Los_Angeles",
-                 *         "sections": [
-                 *           {
-                 *             "key": "incidents",
-                 *             "label": "Incidents"
-                 *           },
-                 *           {
-                 *             "key": "followups",
-                 *             "label": "Follow-ups"
-                 *           }
-                 *         ],
-                 *         "content_markdown": "## Updates\n- Incident queue cleared\n- Follow-up tasks assigned\n\n![timeline](/api/v1/files/102/preview)",
-                 *         "meta": {
-                 *           "external_source": "daily-ops-job",
-                 *           "schedule": "0 7 * * *"
-                 *         }
-                 *       },
-                 *       "source": {
-                 *         "agent_id": 42,
-                 *         "meta": {
-                 *           "runtime": "codex"
-                 *         }
-                 *       }
-                 *     }
-                 */
-                "application/json": components["schemas"]["UpdateAgentBriefApiRequest"];
-            };
-        };
-        UpdateBoardApiRequest: {
-            content: {
-                /**
-                 * @example {
-                 *       "name": "Incident Response",
-                 *       "description": "Updated board description with escalation runbook links.",
-                 *       "visibility": "personal",
-                 *       "personal_owner_user_id": 8
-                 *     }
-                 */
-                "application/json": components["schemas"]["UpdateBoardApiRequest"];
-            };
-        };
-        UpdateBoardColumnApiRequest: {
-            content: {
-                /**
-                 * @example {
-                 *       "column_id": 13,
-                 *       "name": "Review",
-                 *       "position": 3
-                 *     }
-                 */
-                "application/json": components["schemas"]["UpdateBoardColumnApiRequest"];
-            };
-        };
-        UpdateCalendarItemApiRequest: {
-            content: {
-                /**
-                 * @example {
-                 *       "title": "Review outage timeline",
-                 *       "description": "Add links to root-cause analysis notes.\n\n![rca-notes](/api/v1/files/102/preview)",
-                 *       "due_at": "2026-02-24T11:00:00Z",
-                 *       "status": "in_progress",
-                 *       "priority": "urgent",
-                 *       "visibility": "team"
-                 *     }
-                 */
-                "application/json": components["schemas"]["UpdateCalendarItemApiRequest"];
-            };
-        };
-        UpdateTeamFileApiRequest: {
-            content: {
-                /**
-                 * @example {
-                 *       "display_name": "incident-timeline-v2.md",
-                 *       "folder_id": 14,
-                 *       "owner_agent_id": null
-                 *     }
-                 */
-                "application/json": components["schemas"]["UpdateTeamFileApiRequest"];
-            };
-        };
-        UpdateTeamFileFolderApiRequest: {
-            content: {
-                /**
-                 * @example {
-                 *       "name": "Incident Runbooks",
-                 *       "parent_id": null
-                 *     }
-                 */
-                "application/json": components["schemas"]["UpdateTeamFileFolderApiRequest"];
-            };
-        };
-        UpdateTaskCommentApiRequest: {
-            content: {
-                /**
-                 * @example {
-                 *       "body": "Updated handoff note with the latest timeline and log links."
-                 *     }
-                 */
-                "application/json": components["schemas"]["UpdateTaskCommentApiRequest"];
-            };
-        };
-        UpdateTaskApiRequest: {
-            content: {
-                /**
-                 * @example {
-                 *       "title": "Draft post-incident summary",
-                 *       "archived_at": "2026-02-25T12:45:00Z",
-                 *       "due_at": "2026-02-24T19:00:00Z",
-                 *       "assigned_to_agent_id": 42
-                 *     }
-                 */
-                "application/json": components["schemas"]["UpdateTaskApiRequest"];
-            };
-        };
-        DeleteBoardColumnRequest: {
-            content: {
-                /**
-                 * @example {
-                 *       "column_id": 13
-                 *     }
-                 */
-                "application/json": components["schemas"]["DeleteBoardColumnRequest"];
-            };
-        };
-        EmptyRequest: {
-            content: {
-                /** @example {} */
-                "application/json": components["schemas"]["EmptyRequest"];
-            };
-        };
-    };
+    requestBodies: never;
     headers: never;
     pathItems: never;
 }
@@ -10598,90 +693,34 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody: components["requestBodies"]["StoreAgentHeartbeatApiRequest"];
+        requestBody?: never;
         responses: {
             /** @description Heartbeat accepted. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    /**
-                     * @example {
-                     *       "ok": true,
-                     *       "server_time": "2026-02-22T17:21:02Z",
-                     *       "host": {
-                     *         "id": 12,
-                     *         "team_id": 7,
-                     *         "name": "worker-01",
-                     *         "fingerprint": "a3f56f330f311a2159f8c101eaf1439a29f1d57f007375d56aa79f304bc4f112",
-                     *         "status": "online",
-                     *         "last_seen_at": "2026-02-22T17:21:02Z",
-                     *         "meta": {
-                     *           "hostname": "worker-01",
-                     *           "os": "Ubuntu",
-                     *           "arch": "x86_64",
-                     *           "runtime": {
-                     *             "name": "codex",
-                     *             "version": "2026.02.1"
-                     *           }
-                     *         },
-                     *         "created_by_user_id": 1,
-                     *         "agents_total": 1,
-                     *         "agents_online": 1,
-                     *         "created_at": "2026-02-22T17:21:02Z",
-                     *         "updated_at": "2026-02-22T17:21:02Z"
-                     *       },
-                     *       "host_realtime": {
-                     *         "connection": {
-                     *           "driver": "reverb",
-                     *           "key": "local-app-key",
-                     *           "cluster": "mt1",
-                     *           "host": "agentmc.ai",
-                     *           "port": 443,
-                     *           "scheme": "https",
-                     *           "path": ""
-                     *         },
-                     *         "channel": "private-agent-realtime-host.12",
-                     *         "event": "agent.realtime.host.session.requested",
-                     *         "auth_endpoint": "https://agentmc.ai/api/v1/hosts/realtime/socket-auth"
-                     *       },
-                     *       "agent": {
-                     *         "id": 42,
-                     *         "name": "Solomon",
-                     *         "type": "openclaw"
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["AgentHeartbeatResponse"];
-                };
+                content?: never;
             };
-            401: components["responses"]["ApiError401"];
-            402: components["responses"]["ApiError402"];
-            403: components["responses"]["ApiError403"];
-            404: components["responses"]["ApiError404"];
-            422: components["responses"]["ApiError422"];
+            /** @description Missing or invalid API key. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     listHosts: {
         parameters: {
-            query?: {
-                /**
-                 * @description Page size for paginated responses.
-                 * @example 25
-                 */
-                per_page?: number | null;
-                /**
-                 * @description Current lifecycle status for this record. Allowed values: online, offline.
-                 * @example online
-                 */
-                status?: "online" | "offline" | null;
-                /**
-                 * @description Case-insensitive text search query.
-                 * @example operations
-                 */
-                search?: string | null;
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
@@ -10693,81 +732,23 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    /**
-                     * @example {
-                     *       "data": [
-                     *         {
-                     *           "id": 42,
-                     *           "team_id": 42,
-                     *           "name": "Example Name",
-                     *           "fingerprint": "a3f56f330f311a2159f8c101eaf1439a29f1d57f007375d56aa79f304bc4f112",
-                     *           "status": "online",
-                     *           "last_seen_at": "2026-02-22T17:21:00Z",
-                     *           "meta": {
-                     *             "hostname": "worker-01",
-                     *             "ip": "10.0.2.15",
-                     *             "os": "Ubuntu",
-                     *             "arch": "x86_64",
-                     *             "cpu": "Intel Xeon",
-                     *             "ram_gb": 32,
-                     *             "runtime": {
-                     *               "name": "openclaw",
-                     *               "version": "1.14.2"
-                     *             }
-                     *           },
-                     *           "created_by_user_id": 42,
-                     *           "agents_total": 1,
-                     *           "agents_online": 1,
-                     *           "created_at": "2026-02-22T17:21:00Z",
-                     *           "updated_at": "2026-02-22T17:21:00Z"
-                     *         }
-                     *       ],
-                     *       "links": {
-                     *         "first": "example",
-                     *         "last": "example",
-                     *         "prev": "example",
-                     *         "next": "example"
-                     *       },
-                     *       "meta": {
-                     *         "current_page": 1,
-                     *         "from": 1,
-                     *         "last_page": 1,
-                     *         "links": [
-                     *           {
-                     *             "url": "https://agentmc.example.com/docs/incident-123",
-                     *             "label": "example",
-                     *             "active": true
-                     *           }
-                     *         ],
-                     *         "path": "notes/daily-ops.md",
-                     *         "per_page": 25,
-                     *         "total": 0
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["PaginatedHostResponse"];
-                };
+                content?: never;
             };
-            401: components["responses"]["ApiError401"];
-            403: components["responses"]["ApiError403"];
+            /** @description Error response. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     showHost: {
         parameters: {
-            query?: {
-                /**
-                 * @description Agents per page.
-                 * @example 25
-                 */
-                agents_per_page?: number;
-            };
+            query?: never;
             header?: never;
             path: {
-                /**
-                 * @description Host identifier.
-                 * @example 42
-                 */
+                /** @description Host identifier. */
                 id: number;
             };
             cookie?: never;
@@ -10779,97 +760,21 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    /**
-                     * @example {
-                     *       "data": {
-                     *         "id": 42,
-                     *         "team_id": 42,
-                     *         "name": "Example Name",
-                     *         "fingerprint": "a3f56f330f311a2159f8c101eaf1439a29f1d57f007375d56aa79f304bc4f112",
-                     *         "status": "online",
-                     *         "last_seen_at": "2026-02-22T17:21:00Z",
-                     *         "meta": {
-                     *           "hostname": "worker-01",
-                     *           "ip": "10.0.2.15",
-                     *           "os": "Ubuntu",
-                     *           "arch": "x86_64",
-                     *           "cpu": "Intel Xeon",
-                     *           "ram_gb": 32,
-                     *           "runtime": {
-                     *             "name": "openclaw",
-                     *             "version": "1.14.2"
-                     *           }
-                     *         },
-                     *         "created_by_user_id": 42,
-                     *         "agents_total": 1,
-                     *         "agents_online": 1,
-                     *         "created_at": "2026-02-22T17:21:00Z",
-                     *         "updated_at": "2026-02-22T17:21:00Z"
-                     *       },
-                     *       "agents": [
-                     *         {
-                     *           "id": 42,
-                     *           "team_id": 42,
-                     *           "host_id": 42,
-                     *           "name": "Example Name",
-                     *           "status": "online",
-                     *           "meta": {
-                     *             "key": "value"
-                     *           },
-                     *           "tasks_count": 0,
-                     *           "last_seen_at": "2026-02-22T17:21:00Z",
-                     *           "created_at": "2026-02-22T17:21:00Z",
-                     *           "updated_at": "2026-02-22T17:21:00Z"
-                     *         }
-                     *       ],
-                     *       "agents_meta": {
-                     *         "current_page": 1,
-                     *         "last_page": 1,
-                     *         "per_page": 25,
-                     *         "total": 0
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["HostDetailResponse"];
-                };
+                content?: never;
             };
-            401: components["responses"]["ApiError401"];
-            403: components["responses"]["ApiError403"];
-            404: components["responses"]["ApiError404"];
+            /** @description Error response. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     listAgentBriefs: {
         parameters: {
-            query?: {
-                /**
-                 * @description Case-insensitive text search query.
-                 * @example operations
-                 */
-                search?: string | null;
-                /**
-                 * @description Stable external key used for upsert/idempotent writes.
-                 * @example daily-operations
-                 */
-                external_key?: string | null;
-                /**
-                 * @description Optional brief agent filter. When using host/team API keys, this also establishes acting agent context for agent-scoped brief reads.
-                 * @example 42
-                 */
-                agent_id?: number;
-                /**
-                 * @description Page size for paginated responses.
-                 * @example 25
-                 */
-                per_page?: number | null;
-            };
-            header?: {
-                /**
-                 * @description Acting agent identifier for host/team API key requests. Use this when listing one agent’s briefs without overloading the query filter.
-                 * @example 1
-                 */
-                "X-Agent-Id"?: number;
-            };
+            query?: never;
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -10880,477 +785,102 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    /**
-                     * @example {
-                     *       "data": [
-                     *         {
-                     *           "id": 42,
-                     *           "team_id": 42,
-                     *           "agent_id": 42,
-                     *           "external_key": "daily-operations",
-                     *           "external_id": "ops-brief-2026-02-22",
-                     *           "name": "Example Name",
-                     *           "timezone": "America/Los_Angeles",
-                     *           "summary": "Morning operations handoff digest.",
-                     *           "include_sections": [
-                     *             {
-                     *               "key": "value"
-                     *             }
-                     *           ],
-                     *           "headline": "3 overdue tasks | 4 upcoming events",
-                     *           "content_markdown": "## Highlights\n- Elevated API error rate",
-                     *           "content_json": {
-                     *             "key": "value"
-                     *           },
-                     *           "source_meta": {
-                     *             "key": "value"
-                     *           },
-                     *           "attachments": [
-                     *             {
-                     *               "id": 45,
-                     *               "team_file_id": 101,
-                     *               "preview_url": "/api/v1/files/101/preview",
-                     *               "download_url": "/api/v1/files/101/download",
-                     *               "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-                     *               "file": {
-                     *                 "id": 101,
-                     *                 "display_name": "incident-timeline.png",
-                     *                 "original_filename": "incident-timeline.png",
-                     *                 "mime_type": "image/png",
-                     *                 "size_bytes": 144220,
-                     *                 "preview_kind": "image",
-                     *                 "created_at": "2026-02-27T17:20:00Z",
-                     *                 "updated_at": "2026-02-27T17:24:00Z"
-                     *               }
-                     *             }
-                     *           ],
-                     *           "received_at": "2026-02-22T17:21:00Z",
-                     *           "generated_at": "2026-02-22T17:21:00Z",
-                     *           "read_by_user_id": 42,
-                     *           "latest_entry_id": 42,
-                     *           "entries_count": 0,
-                     *           "latest_entry": {
-                     *             "id": 42,
-                     *             "agent_id": 42,
-                     *             "external_id": "ops-brief-2026-02-22",
-                     *             "name": "Example Name",
-                     *             "timezone": "America/Los_Angeles",
-                     *             "summary": "Morning operations handoff digest.",
-                     *             "include_sections": [
-                     *               {
-                     *                 "key": "value"
-                     *               }
-                     *             ],
-                     *             "headline": "3 overdue tasks | 4 upcoming events",
-                     *             "content_markdown": "## Highlights\n- Elevated API error rate",
-                     *             "content_json": {
-                     *               "key": "value"
-                     *             },
-                     *             "source_meta": {
-                     *               "key": "value"
-                     *             },
-                     *             "attachments": [
-                     *               {
-                     *                 "id": 45,
-                     *                 "team_file_id": 101,
-                     *                 "preview_url": "/api/v1/files/101/preview",
-                     *                 "download_url": "/api/v1/files/101/download",
-                     *                 "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-                     *                 "file": {
-                     *                   "id": 101,
-                     *                   "display_name": "incident-timeline.png",
-                     *                   "original_filename": "incident-timeline.png",
-                     *                   "mime_type": "image/png",
-                     *                   "size_bytes": 144220,
-                     *                   "preview_kind": "image",
-                     *                   "created_at": "2026-02-27T17:20:00Z",
-                     *                   "updated_at": "2026-02-27T17:24:00Z"
-                     *                 }
-                     *               }
-                     *             ],
-                     *             "received_at": "2026-02-22T17:21:00Z",
-                     *             "generated_at": "2026-02-22T17:21:00Z",
-                     *             "created_at": "2026-02-22T17:21:00Z",
-                     *             "updated_at": "2026-02-22T17:21:00Z"
-                     *           },
-                     *           "created_at": "2026-02-22T17:21:00Z",
-                     *           "updated_at": "2026-02-22T17:21:00Z"
-                     *         }
-                     *       ],
-                     *       "links": {
-                     *         "first": "example",
-                     *         "last": "example",
-                     *         "prev": "example",
-                     *         "next": "example"
-                     *       },
-                     *       "meta": {
-                     *         "current_page": 1,
-                     *         "from": 1,
-                     *         "last_page": 1,
-                     *         "links": [
-                     *           {
-                     *             "url": "https://agentmc.example.com/docs/incident-123",
-                     *             "label": "example",
-                     *             "active": true
-                     *           }
-                     *         ],
-                     *         "path": "notes/daily-ops.md",
-                     *         "per_page": 25,
-                     *         "total": 0
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["PaginatedRecurringBriefSummaryResponse"];
-                };
+                content?: never;
             };
-            401: components["responses"]["ApiError401"];
-            403: components["responses"]["ApiError403"];
-            422: components["responses"]["ApiError422"];
+            /** @description Error response. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     createAgentBrief: {
         parameters: {
-            query?: {
-                /**
-                 * @description Alternate acting agent identifier for host/team API key brief writes.
-                 * @example 42
-                 */
-                agent_id?: number;
-            };
-            header?: {
-                /**
-                 * @description Acting agent identifier for host/team API key requests when creating or appending a brief.
-                 * @example 1
-                 */
-                "X-Agent-Id"?: number;
-            };
+            query?: never;
+            header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody: components["requestBodies"]["StoreAgentBriefApiRequest"];
+        requestBody?: never;
         responses: {
             /** @description Brief report accepted. */
             201: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    /**
-                     * @example {
-                     *       "brief": {
-                     *         "id": 42,
-                     *         "team_id": 42,
-                     *         "agent_id": 42,
-                     *         "external_key": "daily-operations",
-                     *         "external_id": "ops-brief-2026-02-22",
-                     *         "name": "Example Name",
-                     *         "timezone": "America/Los_Angeles",
-                     *         "summary": "Morning operations handoff digest.",
-                     *         "include_sections": [
-                     *           {
-                     *             "key": "value"
-                     *           }
-                     *         ],
-                     *         "headline": "3 overdue tasks | 4 upcoming events",
-                     *         "content_markdown": "## Highlights\n- Elevated API error rate",
-                     *         "content_json": {
-                     *           "key": "value"
-                     *         },
-                     *         "source_meta": {
-                     *           "key": "value"
-                     *         },
-                     *         "attachments": [
-                     *           {
-                     *             "id": 45,
-                     *             "team_file_id": 101,
-                     *             "preview_url": "/api/v1/files/101/preview",
-                     *             "download_url": "/api/v1/files/101/download",
-                     *             "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-                     *             "file": {
-                     *               "id": 101,
-                     *               "display_name": "incident-timeline.png",
-                     *               "original_filename": "incident-timeline.png",
-                     *               "mime_type": "image/png",
-                     *               "size_bytes": 144220,
-                     *               "preview_kind": "image",
-                     *               "created_at": "2026-02-27T17:20:00Z",
-                     *               "updated_at": "2026-02-27T17:24:00Z"
-                     *             }
-                     *           }
-                     *         ],
-                     *         "received_at": "2026-02-22T17:21:00Z",
-                     *         "generated_at": "2026-02-22T17:21:00Z",
-                     *         "read_by_user_id": 42,
-                     *         "latest_entry_id": 42,
-                     *         "entries_count": 0,
-                     *         "latest_entry": {
-                     *           "id": 42,
-                     *           "agent_id": 42,
-                     *           "external_id": "ops-brief-2026-02-22",
-                     *           "name": "Example Name",
-                     *           "timezone": "America/Los_Angeles",
-                     *           "summary": "Morning operations handoff digest.",
-                     *           "include_sections": [
-                     *             {
-                     *               "key": "value"
-                     *             }
-                     *           ],
-                     *           "headline": "3 overdue tasks | 4 upcoming events",
-                     *           "content_markdown": "## Highlights\n- Elevated API error rate",
-                     *           "content_json": {
-                     *             "key": "value"
-                     *           },
-                     *           "source_meta": {
-                     *             "key": "value"
-                     *           },
-                     *           "attachments": [
-                     *             {
-                     *               "id": 45,
-                     *               "team_file_id": 101,
-                     *               "preview_url": "/api/v1/files/101/preview",
-                     *               "download_url": "/api/v1/files/101/download",
-                     *               "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-                     *               "file": {
-                     *                 "id": 101,
-                     *                 "display_name": "incident-timeline.png",
-                     *                 "original_filename": "incident-timeline.png",
-                     *                 "mime_type": "image/png",
-                     *                 "size_bytes": 144220,
-                     *                 "preview_kind": "image",
-                     *                 "created_at": "2026-02-27T17:20:00Z",
-                     *                 "updated_at": "2026-02-27T17:24:00Z"
-                     *               }
-                     *             }
-                     *           ],
-                     *           "received_at": "2026-02-22T17:21:00Z",
-                     *           "generated_at": "2026-02-22T17:21:00Z",
-                     *           "created_at": "2026-02-22T17:21:00Z",
-                     *           "updated_at": "2026-02-22T17:21:00Z"
-                     *         },
-                     *         "created_at": "2026-02-22T17:21:00Z",
-                     *         "updated_at": "2026-02-22T17:21:00Z"
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["AgentBriefResponse"];
-                };
+                content?: never;
             };
-            401: components["responses"]["ApiError401"];
-            402: components["responses"]["ApiError402"];
-            403: components["responses"]["ApiError403"];
-            422: components["responses"]["ApiError422"];
+            /** @description Error response. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     deleteAgentBrief: {
         parameters: {
-            query?: {
-                /**
-                 * @description Alternate acting agent identifier for host/team API key brief deletes.
-                 * @example 42
-                 */
-                agent_id?: number;
-            };
-            header?: {
-                /**
-                 * @description Acting agent identifier for host/team API key requests when deleting a brief.
-                 * @example 1
-                 */
-                "X-Agent-Id"?: number;
-            };
+            query?: never;
+            header?: never;
             path: {
-                /**
-                 * @description Brief identifier.
-                 * @example 42
-                 */
+                /** @description Brief identifier. */
                 id: number;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description No content. */
+            /** @description Brief deleted. */
             204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    /**
-                     * @example {
-                     *       "data": {
-                     *         "key": "value"
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["GenericDataResponse"];
-                };
+                content?: never;
             };
-            401: components["responses"]["ApiError401"];
-            403: components["responses"]["ApiError403"];
-            404: components["responses"]["ApiError404"];
-            422: components["responses"]["ApiError422"];
+            /** @description Error response. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     updateAgentBrief: {
         parameters: {
-            query?: {
-                /**
-                 * @description Alternate acting agent identifier for host/team API key brief updates.
-                 * @example 42
-                 */
-                agent_id?: number;
-            };
-            header?: {
-                /**
-                 * @description Acting agent identifier for host/team API key requests when updating a brief.
-                 * @example 1
-                 */
-                "X-Agent-Id"?: number;
-            };
+            query?: never;
+            header?: never;
             path: {
-                /**
-                 * @description Brief identifier.
-                 * @example 42
-                 */
+                /** @description Brief identifier. */
                 id: number;
             };
             cookie?: never;
         };
-        requestBody: components["requestBodies"]["UpdateAgentBriefApiRequest"];
+        requestBody?: never;
         responses: {
             /** @description Brief record updated. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    /**
-                     * @example {
-                     *       "brief": {
-                     *         "id": 42,
-                     *         "team_id": 42,
-                     *         "agent_id": 42,
-                     *         "external_key": "daily-operations",
-                     *         "external_id": "ops-brief-2026-02-22",
-                     *         "name": "Example Name",
-                     *         "timezone": "America/Los_Angeles",
-                     *         "summary": "Morning operations handoff digest.",
-                     *         "include_sections": [
-                     *           {
-                     *             "key": "value"
-                     *           }
-                     *         ],
-                     *         "headline": "3 overdue tasks | 4 upcoming events",
-                     *         "content_markdown": "## Highlights\n- Elevated API error rate",
-                     *         "content_json": {
-                     *           "key": "value"
-                     *         },
-                     *         "source_meta": {
-                     *           "key": "value"
-                     *         },
-                     *         "attachments": [
-                     *           {
-                     *             "id": 45,
-                     *             "team_file_id": 101,
-                     *             "preview_url": "/api/v1/files/101/preview",
-                     *             "download_url": "/api/v1/files/101/download",
-                     *             "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-                     *             "file": {
-                     *               "id": 101,
-                     *               "display_name": "incident-timeline.png",
-                     *               "original_filename": "incident-timeline.png",
-                     *               "mime_type": "image/png",
-                     *               "size_bytes": 144220,
-                     *               "preview_kind": "image",
-                     *               "created_at": "2026-02-27T17:20:00Z",
-                     *               "updated_at": "2026-02-27T17:24:00Z"
-                     *             }
-                     *           }
-                     *         ],
-                     *         "received_at": "2026-02-22T17:21:00Z",
-                     *         "generated_at": "2026-02-22T17:21:00Z",
-                     *         "read_by_user_id": 42,
-                     *         "latest_entry_id": 42,
-                     *         "entries_count": 0,
-                     *         "latest_entry": {
-                     *           "id": 42,
-                     *           "agent_id": 42,
-                     *           "external_id": "ops-brief-2026-02-22",
-                     *           "name": "Example Name",
-                     *           "timezone": "America/Los_Angeles",
-                     *           "summary": "Morning operations handoff digest.",
-                     *           "include_sections": [
-                     *             {
-                     *               "key": "value"
-                     *             }
-                     *           ],
-                     *           "headline": "3 overdue tasks | 4 upcoming events",
-                     *           "content_markdown": "## Highlights\n- Elevated API error rate",
-                     *           "content_json": {
-                     *             "key": "value"
-                     *           },
-                     *           "source_meta": {
-                     *             "key": "value"
-                     *           },
-                     *           "attachments": [
-                     *             {
-                     *               "id": 45,
-                     *               "team_file_id": 101,
-                     *               "preview_url": "/api/v1/files/101/preview",
-                     *               "download_url": "/api/v1/files/101/download",
-                     *               "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-                     *               "file": {
-                     *                 "id": 101,
-                     *                 "display_name": "incident-timeline.png",
-                     *                 "original_filename": "incident-timeline.png",
-                     *                 "mime_type": "image/png",
-                     *                 "size_bytes": 144220,
-                     *                 "preview_kind": "image",
-                     *                 "created_at": "2026-02-27T17:20:00Z",
-                     *                 "updated_at": "2026-02-27T17:24:00Z"
-                     *               }
-                     *             }
-                     *           ],
-                     *           "received_at": "2026-02-22T17:21:00Z",
-                     *           "generated_at": "2026-02-22T17:21:00Z",
-                     *           "created_at": "2026-02-22T17:21:00Z",
-                     *           "updated_at": "2026-02-22T17:21:00Z"
-                     *         },
-                     *         "created_at": "2026-02-22T17:21:00Z",
-                     *         "updated_at": "2026-02-22T17:21:00Z"
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["AgentBriefRecordResponse"];
-                };
+                content?: never;
             };
-            401: components["responses"]["ApiError401"];
-            403: components["responses"]["ApiError403"];
-            404: components["responses"]["ApiError404"];
-            422: components["responses"]["ApiError422"];
+            /** @description Error response. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     listAgentRealtimeRequestedSessions: {
         parameters: {
-            query?: {
-                /**
-                 * @description Maximum number of records to return.
-                 * @example 20
-                 */
-                limit?: number | null;
-                /**
-                 * @description Alternate acting agent identifier for explicit single-agent requested-session routing.
-                 * @example 42
-                 */
-                agent_id?: number;
-            };
-            header?: {
-                /**
-                 * @description Optional acting agent identifier for host/team API key requests. Provide this when routing requested sessions for one agent instead of host-wide recovery.
-                 * @example 1
-                 */
-                "X-Agent-Id"?: number;
-            };
+            query?: never;
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -11361,136 +891,56 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    /**
-                     * @example {
-                     *       "data": [
-                     *         {
-                     *           "id": 42,
-                     *           "team_id": 42,
-                     *           "agent_id": 42,
-                     *           "requested_by_user_id": 42,
-                     *           "status": "requested",
-                     *           "claimed_at": "2026-02-22T17:21:00Z",
-                     *           "opened_at": "2026-02-22T17:21:00Z",
-                     *           "closed_at": "2026-02-22T17:21:00Z",
-                     *           "expires_at": "2026-02-22T17:21:00Z",
-                     *           "last_browser_heartbeat_at": "2026-02-22T17:21:00Z",
-                     *           "last_agent_heartbeat_at": "2026-02-22T17:21:00Z",
-                     *           "meta": {
-                     *             "key": "value"
-                     *           },
-                     *           "created_at": "2026-02-22T17:21:00Z",
-                     *           "updated_at": "2026-02-22T17:21:00Z"
-                     *         }
-                     *       ]
-                     *     }
-                     */
-                    "application/json": components["schemas"]["AgentRealtimeRequestedSessionsResponse"];
-                };
+                content?: never;
             };
-            401: components["responses"]["ApiError401"];
-            403: components["responses"]["ApiError403"];
-            404: components["responses"]["ApiError404"];
-            422: components["responses"]["ApiError422"];
+            /** @description Error response. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     claimAgentRealtimeSession: {
         parameters: {
-            query?: {
-                /**
-                 * @description Alternate acting agent identifier for explicit single-agent session claim routing.
-                 * @example 42
-                 */
-                agent_id?: number;
-            };
-            header?: {
-                /**
-                 * @description Optional acting agent identifier for explicit single-agent routing when claiming a session with host/team API keys.
-                 * @example 1
-                 */
-                "X-Agent-Id"?: number;
-            };
+            query?: never;
+            header?: never;
             path: {
-                /**
-                 * @description Realtime session identifier.
-                 * @example 1
-                 */
+                /** @description Realtime session identifier. */
                 session: number;
             };
             cookie?: never;
         };
-        requestBody: components["requestBodies"]["ClaimAgentRealtimeSessionApiRequest"];
+        requestBody?: never;
         responses: {
             /** @description Realtime session claimed. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    /**
-                     * @example {
-                     *       "data": {
-                     *         "id": 42,
-                     *         "team_id": 42,
-                     *         "agent_id": 42,
-                     *         "requested_by_user_id": 42,
-                     *         "status": "requested",
-                     *         "claimed_at": "2026-02-22T17:21:00Z",
-                     *         "opened_at": "2026-02-22T17:21:00Z",
-                     *         "closed_at": "2026-02-22T17:21:00Z",
-                     *         "expires_at": "2026-02-22T17:21:00Z",
-                     *         "last_browser_heartbeat_at": "2026-02-22T17:21:00Z",
-                     *         "last_agent_heartbeat_at": "2026-02-22T17:21:00Z",
-                     *         "meta": {
-                     *           "key": "value"
-                     *         },
-                     *         "created_at": "2026-02-22T17:21:00Z",
-                     *         "updated_at": "2026-02-22T17:21:00Z"
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["AgentRealtimeSessionResponse"];
-                };
+                content?: never;
             };
-            401: components["responses"]["ApiError401"];
-            403: components["responses"]["ApiError403"];
-            404: components["responses"]["ApiError404"];
-            409: components["responses"]["ApiError409"];
-            422: components["responses"]["ApiError422"];
+            /** @description Error response. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     listAgentRealtimeSignals: {
         parameters: {
             query?: {
-                /**
-                 * @description Return only records with id greater than this value.
-                 * @example 120
-                 */
-                after_id?: number | null;
-                /**
-                 * @description Maximum number of records to return.
-                 * @example 20
-                 */
-                limit?: number | null;
-                /**
-                 * @description Alternate acting agent identifier for explicit single-agent session signal routing.
-                 * @example 42
-                 */
-                agent_id?: number;
+                /** @description Only return signals with id greater than this value. */
+                after_id?: number;
+                /** @description Maximum number of signals to return. */
+                limit?: number;
             };
-            header?: {
-                /**
-                 * @description Optional acting agent identifier for explicit single-agent routing when listing session signals with host/team API keys.
-                 * @example 1
-                 */
-                "X-Agent-Id"?: number;
-            };
+            header?: never;
             path: {
-                /**
-                 * @description Realtime session identifier.
-                 * @example 1
-                 */
+                /** @description Realtime session identifier. */
                 session: number;
             };
             cookie?: never;
@@ -11502,257 +952,99 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    /**
-                     * @example {
-                     *       "data": [
-                     *         {
-                     *           "id": 42,
-                     *           "team_id": 42,
-                     *           "agent_id": 42,
-                     *           "session_id": 42,
-                     *           "sender": "agent",
-                     *           "type": "example",
-                     *           "payload": {
-                     *             "key": "value"
-                     *           },
-                     *           "created_at": "2026-02-22T17:21:00Z",
-                     *           "updated_at": "2026-02-22T17:21:00Z"
-                     *         }
-                     *       ],
-                     *       "session": {
-                     *         "id": 42,
-                     *         "team_id": 42,
-                     *         "agent_id": 42,
-                     *         "requested_by_user_id": 42,
-                     *         "status": "requested",
-                     *         "claimed_at": "2026-02-22T17:21:00Z",
-                     *         "opened_at": "2026-02-22T17:21:00Z",
-                     *         "closed_at": "2026-02-22T17:21:00Z",
-                     *         "expires_at": "2026-02-22T17:21:00Z",
-                     *         "last_browser_heartbeat_at": "2026-02-22T17:21:00Z",
-                     *         "last_agent_heartbeat_at": "2026-02-22T17:21:00Z",
-                     *         "meta": {
-                     *           "key": "value"
-                     *         },
-                     *         "created_at": "2026-02-22T17:21:00Z",
-                     *         "updated_at": "2026-02-22T17:21:00Z"
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["AgentRealtimeSignalsResponse"];
-                };
+                content?: never;
             };
-            401: components["responses"]["ApiError401"];
-            403: components["responses"]["ApiError403"];
-            404: components["responses"]["ApiError404"];
-            409: components["responses"]["ApiError409"];
-            422: components["responses"]["ApiError422"];
+            /** @description Error response. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     createAgentRealtimeSignal: {
         parameters: {
-            query?: {
-                /**
-                 * @description Alternate acting agent identifier for explicit single-agent realtime publish routing.
-                 * @example 42
-                 */
-                agent_id?: number;
-            };
-            header?: {
-                /**
-                 * @description Optional acting agent identifier for explicit single-agent routing when publishing to a session with host/team API keys.
-                 * @example 1
-                 */
-                "X-Agent-Id"?: number;
-            };
+            query?: never;
+            header?: never;
             path: {
-                /**
-                 * @description Realtime session identifier.
-                 * @example 1
-                 */
+                /** @description Realtime session identifier. */
                 session: number;
             };
             cookie?: never;
         };
-        requestBody: components["requestBodies"]["StoreAgentRealtimeSignalApiRequest"];
+        requestBody?: never;
         responses: {
             /** @description Realtime signal accepted. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    /**
-                     * @example {
-                     *       "data": {
-                     *         "id": 42,
-                     *         "team_id": 42,
-                     *         "agent_id": 42,
-                     *         "session_id": 42,
-                     *         "sender": "agent",
-                     *         "type": "example",
-                     *         "payload": {
-                     *           "key": "value"
-                     *         },
-                     *         "created_at": "2026-02-22T17:21:00Z",
-                     *         "updated_at": "2026-02-22T17:21:00Z"
-                     *       },
-                     *       "session": {
-                     *         "id": 42,
-                     *         "team_id": 42,
-                     *         "agent_id": 42,
-                     *         "requested_by_user_id": 42,
-                     *         "status": "requested",
-                     *         "claimed_at": "2026-02-22T17:21:00Z",
-                     *         "opened_at": "2026-02-22T17:21:00Z",
-                     *         "closed_at": "2026-02-22T17:21:00Z",
-                     *         "expires_at": "2026-02-22T17:21:00Z",
-                     *         "last_browser_heartbeat_at": "2026-02-22T17:21:00Z",
-                     *         "last_agent_heartbeat_at": "2026-02-22T17:21:00Z",
-                     *         "meta": {
-                     *           "key": "value"
-                     *         },
-                     *         "created_at": "2026-02-22T17:21:00Z",
-                     *         "updated_at": "2026-02-22T17:21:00Z"
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["AgentRealtimeSignalResponse"];
-                };
+                content?: never;
             };
-            401: components["responses"]["ApiError401"];
-            403: components["responses"]["ApiError403"];
-            404: components["responses"]["ApiError404"];
-            409: components["responses"]["ApiError409"];
-            422: components["responses"]["ApiError422"];
+            /** @description Error response. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     closeAgentRealtimeSession: {
         parameters: {
-            query?: {
-                /**
-                 * @description Alternate acting agent identifier for explicit single-agent session close routing.
-                 * @example 42
-                 */
-                agent_id?: number;
-            };
-            header?: {
-                /**
-                 * @description Optional acting agent identifier for explicit single-agent routing when closing a session with host/team API keys.
-                 * @example 1
-                 */
-                "X-Agent-Id"?: number;
-            };
+            query?: never;
+            header?: never;
             path: {
-                /**
-                 * @description Realtime session identifier.
-                 * @example 1
-                 */
+                /** @description Realtime session identifier. */
                 session: number;
             };
             cookie?: never;
         };
-        requestBody?: {
-            content: {
-                /**
-                 * @example {
-                 *       "reason": "runtime_shutdown",
-                 *       "status": "closed",
-                 *       "payload": {
-                 *         "request_id": "req_92b3f2",
-                 *         "note": "Session closed by runtime during reconnect."
-                 *       }
-                 *     }
-                 */
-                "application/json": components["schemas"]["CloseAgentRealtimeSessionApiRequest"];
-            };
-        };
+        requestBody?: never;
         responses: {
             /** @description Realtime session closed. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    /**
-                     * @example {
-                     *       "data": {
-                     *         "id": 42,
-                     *         "team_id": 42,
-                     *         "agent_id": 42,
-                     *         "requested_by_user_id": 42,
-                     *         "status": "requested",
-                     *         "claimed_at": "2026-02-22T17:21:00Z",
-                     *         "opened_at": "2026-02-22T17:21:00Z",
-                     *         "closed_at": "2026-02-22T17:21:00Z",
-                     *         "expires_at": "2026-02-22T17:21:00Z",
-                     *         "last_browser_heartbeat_at": "2026-02-22T17:21:00Z",
-                     *         "last_agent_heartbeat_at": "2026-02-22T17:21:00Z",
-                     *         "meta": {
-                     *           "key": "value"
-                     *         },
-                     *         "created_at": "2026-02-22T17:21:00Z",
-                     *         "updated_at": "2026-02-22T17:21:00Z"
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["AgentRealtimeSessionResponse"];
-                };
+                content?: never;
             };
-            401: components["responses"]["ApiError401"];
-            403: components["responses"]["ApiError403"];
-            404: components["responses"]["ApiError404"];
-            409: components["responses"]["ApiError409"];
-            422: components["responses"]["ApiError422"];
+            /** @description Error response. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     authenticateAgentRealtimeSocket: {
         parameters: {
-            query?: {
-                /**
-                 * @description Alternate acting agent identifier for explicit single-agent websocket subscription routing.
-                 * @example 42
-                 */
-                agent_id?: number;
-            };
-            header?: {
-                /**
-                 * @description Optional acting agent identifier for explicit single-agent routing when authorizing a session websocket subscription with host/team API keys.
-                 * @example 1
-                 */
-                "X-Agent-Id"?: number;
-            };
+            query?: never;
+            header?: never;
             path: {
-                /**
-                 * @description Realtime session identifier.
-                 * @example 1
-                 */
+                /** @description Realtime session identifier. */
                 session: number;
             };
             cookie?: never;
         };
-        requestBody: components["requestBodies"]["AuthenticateAgentRealtimeSocketApiRequest"];
+        requestBody?: never;
         responses: {
             /** @description Socket subscription authorized. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    /**
-                     * @example {
-                     *       "auth": "example"
-                     *     }
-                     */
-                    "application/json": components["schemas"]["AgentRealtimeSocketAuthResponse"];
-                };
+                content?: never;
             };
-            401: components["responses"]["ApiError401"];
-            403: components["responses"]["ApiError403"];
-            404: components["responses"]["ApiError404"];
-            409: components["responses"]["ApiError409"];
-            422: components["responses"]["ApiError422"];
+            /** @description Error response. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     authenticateHostRealtimeSocket: {
@@ -11762,48 +1054,27 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody: components["requestBodies"]["AuthenticateHostRealtimeSocketApiRequest"];
+        requestBody?: never;
         responses: {
             /** @description Host socket subscription authorized. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    /**
-                     * @example {
-                     *       "auth": "example"
-                     *     }
-                     */
-                    "application/json": components["schemas"]["AgentRealtimeSocketAuthResponse"];
-                };
+                content?: never;
             };
-            401: components["responses"]["ApiError401"];
-            403: components["responses"]["ApiError403"];
-            404: components["responses"]["ApiError404"];
-            409: components["responses"]["ApiError409"];
-            422: components["responses"]["ApiError422"];
+            /** @description Error response. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     listBoards: {
         parameters: {
-            query?: {
-                /**
-                 * @description Page size for paginated responses.
-                 * @example 25
-                 */
-                per_page?: number;
-                /**
-                 * @description Allowed values: all, mine, team, personal.
-                 * @example all
-                 */
-                scope?: "all" | "mine" | "team" | "personal";
-                /**
-                 * @description Identifier for the private board owner user.
-                 * @example 42
-                 */
-                personal_owner_user_id?: number;
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
@@ -11815,50 +1086,15 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    /**
-                     * @example {
-                     *       "data": [
-                     *         {
-                     *           "id": 42,
-                     *           "team_id": 42,
-                     *           "name": "Example Name",
-                     *           "description": "Example description text.",
-                     *           "visibility": "team",
-                     *           "personal_owner_user_id": 42,
-                     *           "created_by_user_id": 42,
-                     *           "created_at": "2026-02-22T17:21:00Z",
-                     *           "updated_at": "2026-02-22T17:21:00Z"
-                     *         }
-                     *       ],
-                     *       "links": {
-                     *         "first": "example",
-                     *         "last": "example",
-                     *         "prev": "example",
-                     *         "next": "example"
-                     *       },
-                     *       "meta": {
-                     *         "current_page": 1,
-                     *         "from": 1,
-                     *         "last_page": 1,
-                     *         "links": [
-                     *           {
-                     *             "url": "https://agentmc.example.com/docs/incident-123",
-                     *             "label": "example",
-                     *             "active": true
-                     *           }
-                     *         ],
-                     *         "path": "notes/daily-ops.md",
-                     *         "per_page": 25,
-                     *         "total": 0
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["PaginatedBoardResponse"];
-                };
+                content?: never;
             };
-            401: components["responses"]["ApiError401"];
-            403: components["responses"]["ApiError403"];
+            /** @description Error response. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     createBoard: {
@@ -11868,36 +1104,22 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody: components["requestBodies"]["StoreBoardApiRequest"];
+        requestBody?: never;
         responses: {
             /** @description Board created. */
             201: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    /**
-                     * @example {
-                     *       "data": {
-                     *         "id": 42,
-                     *         "team_id": 42,
-                     *         "name": "Example Name",
-                     *         "description": "Example description text.",
-                     *         "visibility": "team",
-                     *         "personal_owner_user_id": 42,
-                     *         "created_by_user_id": 42,
-                     *         "created_at": "2026-02-22T17:21:00Z",
-                     *         "updated_at": "2026-02-22T17:21:00Z"
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["BoardResponse"];
-                };
+                content?: never;
             };
-            401: components["responses"]["ApiError401"];
-            402: components["responses"]["ApiError402"];
-            403: components["responses"]["ApiError403"];
-            422: components["responses"]["ApiError422"];
+            /** @description Error response. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     showBoard: {
@@ -11905,10 +1127,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /**
-                 * @description Board identifier.
-                 * @example 42
-                 */
+                /** @description Board identifier. */
                 id: number;
             };
             cookie?: never;
@@ -11920,28 +1139,15 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    /**
-                     * @example {
-                     *       "data": {
-                     *         "id": 42,
-                     *         "team_id": 42,
-                     *         "name": "Example Name",
-                     *         "description": "Example description text.",
-                     *         "visibility": "team",
-                     *         "personal_owner_user_id": 42,
-                     *         "created_by_user_id": 42,
-                     *         "created_at": "2026-02-22T17:21:00Z",
-                     *         "updated_at": "2026-02-22T17:21:00Z"
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["BoardResponse"];
-                };
+                content?: never;
             };
-            401: components["responses"]["ApiError401"];
-            403: components["responses"]["ApiError403"];
-            404: components["responses"]["ApiError404"];
+            /** @description Error response. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     deleteBoard: {
@@ -11949,35 +1155,27 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /**
-                 * @description Board identifier.
-                 * @example 42
-                 */
+                /** @description Board identifier. */
                 id: number;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description No content. */
+            /** @description Board deleted. */
             204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    /**
-                     * @example {
-                     *       "data": {
-                     *         "key": "value"
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["GenericDataResponse"];
-                };
+                content?: never;
             };
-            401: components["responses"]["ApiError401"];
-            403: components["responses"]["ApiError403"];
-            404: components["responses"]["ApiError404"];
+            /** @description Error response. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     updateBoard: {
@@ -11985,56 +1183,27 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /**
-                 * @description Board identifier.
-                 * @example 42
-                 */
+                /** @description Board identifier. */
                 id: number;
             };
             cookie?: never;
         };
-        requestBody?: {
-            content: {
-                /**
-                 * @example {
-                 *       "name": "Incident Response",
-                 *       "description": "Updated board description with escalation runbook links.",
-                 *       "visibility": "personal",
-                 *       "personal_owner_user_id": 8
-                 *     }
-                 */
-                "application/json": components["schemas"]["UpdateBoardApiRequest"];
-            };
-        };
+        requestBody?: never;
         responses: {
             /** @description Board updated. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    /**
-                     * @example {
-                     *       "data": {
-                     *         "id": 42,
-                     *         "team_id": 42,
-                     *         "name": "Example Name",
-                     *         "description": "Example description text.",
-                     *         "visibility": "team",
-                     *         "personal_owner_user_id": 42,
-                     *         "created_by_user_id": 42,
-                     *         "created_at": "2026-02-22T17:21:00Z",
-                     *         "updated_at": "2026-02-22T17:21:00Z"
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["BoardResponse"];
-                };
+                content?: never;
             };
-            401: components["responses"]["ApiError401"];
-            403: components["responses"]["ApiError403"];
-            404: components["responses"]["ApiError404"];
-            422: components["responses"]["ApiError422"];
+            /** @description Error response. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     createBoardColumn: {
@@ -12042,42 +1211,27 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /**
-                 * @description Board identifier.
-                 * @example 1
-                 */
+                /** @description Board identifier. */
                 board: number;
             };
             cookie?: never;
         };
-        requestBody: components["requestBodies"]["StoreBoardColumnApiRequest"];
+        requestBody?: never;
         responses: {
             /** @description Column created. */
             201: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    /**
-                     * @example {
-                     *       "data": {
-                     *         "id": 42,
-                     *         "board_id": 42,
-                     *         "team_id": 42,
-                     *         "name": "Example Name",
-                     *         "position": 1,
-                     *         "created_at": "2026-02-22T17:21:00Z",
-                     *         "updated_at": "2026-02-22T17:21:00Z"
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["BoardColumnResponse"];
-                };
+                content?: never;
             };
-            401: components["responses"]["ApiError401"];
-            403: components["responses"]["ApiError403"];
-            404: components["responses"]["ApiError404"];
-            422: components["responses"]["ApiError422"];
+            /** @description Error response. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     deleteBoardColumn: {
@@ -12085,36 +1239,27 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /**
-                 * @description Board identifier.
-                 * @example 1
-                 */
+                /** @description Board identifier. */
                 board: number;
             };
             cookie?: never;
         };
-        requestBody: components["requestBodies"]["DeleteBoardColumnRequest"];
+        requestBody?: never;
         responses: {
-            /** @description No content. */
+            /** @description Column deleted. */
             204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    /**
-                     * @example {
-                     *       "data": {
-                     *         "key": "value"
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["GenericDataResponse"];
-                };
+                content?: never;
             };
-            401: components["responses"]["ApiError401"];
-            403: components["responses"]["ApiError403"];
-            404: components["responses"]["ApiError404"];
-            422: components["responses"]["ApiError422"];
+            /** @description Error response. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     updateBoardColumn: {
@@ -12122,106 +1267,33 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /**
-                 * @description Board identifier.
-                 * @example 1
-                 */
+                /** @description Board identifier. */
                 board: number;
             };
             cookie?: never;
         };
-        requestBody?: {
-            content: {
-                /**
-                 * @example {
-                 *       "column_id": 13,
-                 *       "name": "Review",
-                 *       "position": 3
-                 *     }
-                 */
-                "application/json": components["schemas"]["UpdateBoardColumnApiRequest"];
-            };
-        };
+        requestBody?: never;
         responses: {
             /** @description Columns updated. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    /**
-                     * @example {
-                     *       "data": {
-                     *         "id": 42,
-                     *         "board_id": 42,
-                     *         "team_id": 42,
-                     *         "name": "Example Name",
-                     *         "position": 1,
-                     *         "created_at": "2026-02-22T17:21:00Z",
-                     *         "updated_at": "2026-02-22T17:21:00Z"
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["BoardColumnResponse"];
-                };
+                content?: never;
             };
-            401: components["responses"]["ApiError401"];
-            403: components["responses"]["ApiError403"];
-            404: components["responses"]["ApiError404"];
-            422: components["responses"]["ApiError422"];
+            /** @description Error response. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     listTasks: {
         parameters: {
-            query?: {
-                /**
-                 * @description Board identifier.
-                 * @example 42
-                 */
-                board_id?: number;
-                /**
-                 * @description Filter tasks by archive state. Accepts true/false (and 1/0).
-                 * @example true
-                 */
-                archived?: boolean;
-                /**
-                 * @description Identifier for assigned to user.
-                 * @example 42
-                 */
-                assigned_to_user_id?: number;
-                /**
-                 * @description Assigned to agent.
-                 * @example 1
-                 */
-                assigned_to_agent?: number;
-                /**
-                 * @description Optional assigned-agent filter. When using host/team API keys, this also establishes acting agent context for private-board access.
-                 * @example 42
-                 */
-                agent_id?: number;
-                /**
-                 * @description Due from.
-                 * @example 2026-02-22T17:21:00Z
-                 */
-                due_from?: string;
-                /**
-                 * @description Due to.
-                 * @example 2026-02-22T17:21:00Z
-                 */
-                due_to?: string;
-                /**
-                 * @description Page size for paginated responses.
-                 * @example 25
-                 */
-                per_page?: number;
-            };
-            header?: {
-                /**
-                 * @description Acting agent identifier for host/team API key requests. Use this when task visibility depends on agent-private board access.
-                 * @example 1
-                 */
-                "X-Agent-Id"?: number;
-            };
+            query?: never;
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -12232,177 +1304,48 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    /**
-                     * @example {
-                     *       "data": [
-                     *         {
-                     *           "id": 42,
-                     *           "team_id": 42,
-                     *           "board_id": 42,
-                     *           "column_id": 42,
-                     *           "title": "Example Title",
-                     *           "description": "Example description text.",
-                     *           "archived_at": "2026-02-22T17:21:00Z",
-                     *           "is_archived": true,
-                     *           "position": 1,
-                     *           "due_at": "2026-02-22T17:21:00Z",
-                     *           "created_by_user_id": 42,
-                     *           "assigned_to_user_id": 42,
-                     *           "assigned_to_agent_id": 42,
-                     *           "attachments": [
-                     *             {
-                     *               "id": 45,
-                     *               "team_file_id": 101,
-                     *               "preview_url": "/api/v1/files/101/preview",
-                     *               "download_url": "/api/v1/files/101/download",
-                     *               "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-                     *               "file": {
-                     *                 "id": 101,
-                     *                 "display_name": "incident-timeline.png",
-                     *                 "original_filename": "incident-timeline.png",
-                     *                 "mime_type": "image/png",
-                     *                 "size_bytes": 144220,
-                     *                 "preview_kind": "image",
-                     *                 "created_at": "2026-02-27T17:20:00Z",
-                     *                 "updated_at": "2026-02-27T17:24:00Z"
-                     *               }
-                     *             }
-                     *           ],
-                     *           "assignee_type": "human",
-                     *           "created_at": "2026-02-22T17:21:00Z",
-                     *           "updated_at": "2026-02-22T17:21:00Z"
-                     *         }
-                     *       ],
-                     *       "links": {
-                     *         "first": "example",
-                     *         "last": "example",
-                     *         "prev": "example",
-                     *         "next": "example"
-                     *       },
-                     *       "meta": {
-                     *         "current_page": 1,
-                     *         "from": 1,
-                     *         "last_page": 1,
-                     *         "links": [
-                     *           {
-                     *             "url": "https://agentmc.example.com/docs/incident-123",
-                     *             "label": "example",
-                     *             "active": true
-                     *           }
-                     *         ],
-                     *         "path": "notes/daily-ops.md",
-                     *         "per_page": 25,
-                     *         "total": 0
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["PaginatedTaskResponse"];
-                };
+                content?: never;
             };
-            401: components["responses"]["ApiError401"];
-            403: components["responses"]["ApiError403"];
+            /** @description Error response. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     createTask: {
         parameters: {
-            query?: {
-                /**
-                 * @description Alternate acting agent identifier for host/team API key task creation.
-                 * @example 42
-                 */
-                agent_id?: number;
-            };
-            header?: {
-                /**
-                 * @description Acting agent identifier for host/team API key requests when creating a task.
-                 * @example 1
-                 */
-                "X-Agent-Id"?: number;
-            };
+            query?: never;
+            header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody: components["requestBodies"]["StoreTaskApiRequest"];
+        requestBody?: never;
         responses: {
             /** @description Task created. */
             201: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    /**
-                     * @example {
-                     *       "data": {
-                     *         "id": 42,
-                     *         "team_id": 42,
-                     *         "board_id": 42,
-                     *         "column_id": 42,
-                     *         "title": "Example Title",
-                     *         "description": "Example description text.",
-                     *         "archived_at": "2026-02-22T17:21:00Z",
-                     *         "is_archived": true,
-                     *         "position": 1,
-                     *         "due_at": "2026-02-22T17:21:00Z",
-                     *         "created_by_user_id": 42,
-                     *         "assigned_to_user_id": 42,
-                     *         "assigned_to_agent_id": 42,
-                     *         "attachments": [
-                     *           {
-                     *             "id": 45,
-                     *             "team_file_id": 101,
-                     *             "preview_url": "/api/v1/files/101/preview",
-                     *             "download_url": "/api/v1/files/101/download",
-                     *             "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-                     *             "file": {
-                     *               "id": 101,
-                     *               "display_name": "incident-timeline.png",
-                     *               "original_filename": "incident-timeline.png",
-                     *               "mime_type": "image/png",
-                     *               "size_bytes": 144220,
-                     *               "preview_kind": "image",
-                     *               "created_at": "2026-02-27T17:20:00Z",
-                     *               "updated_at": "2026-02-27T17:24:00Z"
-                     *             }
-                     *           }
-                     *         ],
-                     *         "assignee_type": "human",
-                     *         "created_at": "2026-02-22T17:21:00Z",
-                     *         "updated_at": "2026-02-22T17:21:00Z"
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["TaskResponse"];
-                };
+                content?: never;
             };
-            401: components["responses"]["ApiError401"];
-            402: components["responses"]["ApiError402"];
-            403: components["responses"]["ApiError403"];
-            404: components["responses"]["ApiError404"];
-            422: components["responses"]["ApiError422"];
+            /** @description Error response. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     showTask: {
         parameters: {
-            query?: {
-                /**
-                 * @description Alternate acting agent identifier for host/team API key task reads.
-                 * @example 42
-                 */
-                agent_id?: number;
-            };
-            header?: {
-                /**
-                 * @description Acting agent identifier for host/team API key requests when resolving task visibility.
-                 * @example 1
-                 */
-                "X-Agent-Id"?: number;
-            };
+            query?: never;
+            header?: never;
             path: {
-                /**
-                 * @description Task identifier.
-                 * @example 1
-                 */
+                /** @description Task identifier. */
                 task: number;
             };
             cookie?: never;
@@ -12414,214 +1357,79 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    /**
-                     * @example {
-                     *       "data": {
-                     *         "id": 42,
-                     *         "team_id": 42,
-                     *         "board_id": 42,
-                     *         "column_id": 42,
-                     *         "title": "Example Title",
-                     *         "description": "Example description text.",
-                     *         "archived_at": "2026-02-22T17:21:00Z",
-                     *         "is_archived": true,
-                     *         "position": 1,
-                     *         "due_at": "2026-02-22T17:21:00Z",
-                     *         "created_by_user_id": 42,
-                     *         "assigned_to_user_id": 42,
-                     *         "assigned_to_agent_id": 42,
-                     *         "attachments": [
-                     *           {
-                     *             "id": 45,
-                     *             "team_file_id": 101,
-                     *             "preview_url": "/api/v1/files/101/preview",
-                     *             "download_url": "/api/v1/files/101/download",
-                     *             "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-                     *             "file": {
-                     *               "id": 101,
-                     *               "display_name": "incident-timeline.png",
-                     *               "original_filename": "incident-timeline.png",
-                     *               "mime_type": "image/png",
-                     *               "size_bytes": 144220,
-                     *               "preview_kind": "image",
-                     *               "created_at": "2026-02-27T17:20:00Z",
-                     *               "updated_at": "2026-02-27T17:24:00Z"
-                     *             }
-                     *           }
-                     *         ],
-                     *         "assignee_type": "human",
-                     *         "created_at": "2026-02-22T17:21:00Z",
-                     *         "updated_at": "2026-02-22T17:21:00Z"
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["TaskResponse"];
-                };
+                content?: never;
             };
-            401: components["responses"]["ApiError401"];
-            403: components["responses"]["ApiError403"];
-            404: components["responses"]["ApiError404"];
+            /** @description Error response. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     deleteTask: {
         parameters: {
-            query?: {
-                /**
-                 * @description Alternate acting agent identifier for host/team API key task deletes.
-                 * @example 42
-                 */
-                agent_id?: number;
-            };
-            header?: {
-                /**
-                 * @description Acting agent identifier for host/team API key requests when deleting a task.
-                 * @example 1
-                 */
-                "X-Agent-Id"?: number;
-            };
+            query?: never;
+            header?: never;
             path: {
-                /**
-                 * @description Task identifier.
-                 * @example 1
-                 */
+                /** @description Task identifier. */
                 task: number;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description No content. */
+            /** @description Task deleted. */
             204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    /**
-                     * @example {
-                     *       "data": {
-                     *         "key": "value"
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["GenericDataResponse"];
-                };
+                content?: never;
             };
-            401: components["responses"]["ApiError401"];
-            403: components["responses"]["ApiError403"];
-            404: components["responses"]["ApiError404"];
+            /** @description Error response. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     updateTask: {
         parameters: {
-            query?: {
-                /**
-                 * @description Alternate acting agent identifier for host/team API key task updates.
-                 * @example 42
-                 */
-                agent_id?: number;
-            };
-            header?: {
-                /**
-                 * @description Acting agent identifier for host/team API key requests when updating a task.
-                 * @example 1
-                 */
-                "X-Agent-Id"?: number;
-            };
+            query?: never;
+            header?: never;
             path: {
-                /**
-                 * @description Task identifier.
-                 * @example 1
-                 */
+                /** @description Task identifier. */
                 task: number;
             };
             cookie?: never;
         };
-        requestBody?: {
-            content: {
-                /**
-                 * @example {
-                 *       "title": "Draft post-incident summary",
-                 *       "archived_at": "2026-02-25T12:45:00Z",
-                 *       "due_at": "2026-02-24T19:00:00Z",
-                 *       "assigned_to_agent_id": 42
-                 *     }
-                 */
-                "application/json": components["schemas"]["UpdateTaskApiRequest"];
-            };
-        };
+        requestBody?: never;
         responses: {
             /** @description Task updated. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    /**
-                     * @example {
-                     *       "data": {
-                     *         "id": 42,
-                     *         "team_id": 42,
-                     *         "board_id": 42,
-                     *         "column_id": 42,
-                     *         "title": "Example Title",
-                     *         "description": "Example description text.",
-                     *         "archived_at": "2026-02-22T17:21:00Z",
-                     *         "is_archived": true,
-                     *         "position": 1,
-                     *         "due_at": "2026-02-22T17:21:00Z",
-                     *         "created_by_user_id": 42,
-                     *         "assigned_to_user_id": 42,
-                     *         "assigned_to_agent_id": 42,
-                     *         "attachments": [
-                     *           {
-                     *             "id": 45,
-                     *             "team_file_id": 101,
-                     *             "preview_url": "/api/v1/files/101/preview",
-                     *             "download_url": "/api/v1/files/101/download",
-                     *             "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-                     *             "file": {
-                     *               "id": 101,
-                     *               "display_name": "incident-timeline.png",
-                     *               "original_filename": "incident-timeline.png",
-                     *               "mime_type": "image/png",
-                     *               "size_bytes": 144220,
-                     *               "preview_kind": "image",
-                     *               "created_at": "2026-02-27T17:20:00Z",
-                     *               "updated_at": "2026-02-27T17:24:00Z"
-                     *             }
-                     *           }
-                     *         ],
-                     *         "assignee_type": "human",
-                     *         "created_at": "2026-02-22T17:21:00Z",
-                     *         "updated_at": "2026-02-22T17:21:00Z"
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["TaskResponse"];
-                };
+                content?: never;
             };
-            401: components["responses"]["ApiError401"];
-            403: components["responses"]["ApiError403"];
-            404: components["responses"]["ApiError404"];
-            422: components["responses"]["ApiError422"];
+            /** @description Error response. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     listTaskComments: {
         parameters: {
-            query?: {
-                /**
-                 * @description Page size for paginated responses.
-                 * @example 25
-                 */
-                per_page?: number;
-            };
+            query?: never;
             header?: never;
             path: {
-                /**
-                 * @description Task identifier.
-                 * @example 1
-                 */
+                /** @description Task identifier. */
                 task: number;
             };
             cookie?: never;
@@ -12633,323 +1441,126 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    /**
-                     * @example {
-                     *       "data": [
-                     *         {
-                     *           "id": 42,
-                     *           "task_id": 42,
-                     *           "actor_type": "user",
-                     *           "actor_id": 42,
-                     *           "actor_name": "Example Name",
-                     *           "body": "Example content.",
-                     *           "mentions": [
-                     *             {
-                     *               "key": "example",
-                     *               "type": "user",
-                     *               "id": 42,
-                     *               "label": "example",
-                     *               "handle": "example",
-                     *               "token": "example"
-                     *             }
-                     *           ],
-                     *           "attachments": [
-                     *             {
-                     *               "id": 45,
-                     *               "team_file_id": 101,
-                     *               "preview_url": "/api/v1/files/101/preview",
-                     *               "download_url": "/api/v1/files/101/download",
-                     *               "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-                     *               "file": {
-                     *                 "id": 101,
-                     *                 "display_name": "incident-timeline.png",
-                     *                 "original_filename": "incident-timeline.png",
-                     *                 "mime_type": "image/png",
-                     *                 "size_bytes": 144220,
-                     *                 "preview_kind": "image",
-                     *                 "created_at": "2026-02-27T17:20:00Z",
-                     *                 "updated_at": "2026-02-27T17:24:00Z"
-                     *               }
-                     *             }
-                     *           ],
-                     *           "edited_at": "2026-02-22T17:21:00Z",
-                     *           "created_at": "2026-02-22T17:21:00Z"
-                     *         }
-                     *       ],
-                     *       "links": {
-                     *         "first": "example",
-                     *         "last": "example",
-                     *         "prev": "example",
-                     *         "next": "example"
-                     *       },
-                     *       "meta": {
-                     *         "current_page": 1,
-                     *         "from": 1,
-                     *         "last_page": 1,
-                     *         "links": [
-                     *           {
-                     *             "url": "https://agentmc.example.com/docs/incident-123",
-                     *             "label": "example",
-                     *             "active": true
-                     *           }
-                     *         ],
-                     *         "path": "notes/daily-ops.md",
-                     *         "per_page": 25,
-                     *         "total": 0
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["PaginatedTaskCommentResponse"];
-                };
+                content?: never;
             };
-            401: components["responses"]["ApiError401"];
-            403: components["responses"]["ApiError403"];
-            404: components["responses"]["ApiError404"];
+            /** @description Error response. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     createTaskComment: {
         parameters: {
             query?: {
-                /**
-                 * @description Alternate acting agent identifier for host-authenticated comment writes.
-                 * @example 42
-                 */
+                /** @description Alternate acting agent identifier for host-authenticated comment writes. */
                 agent_id?: number;
             };
             header?: {
-                /**
-                 * @description Acting agent identifier for host-authenticated comment writes when the host cannot be auto-resolved to a single agent.
-                 * @example 1
-                 */
+                /** @description Acting agent identifier for host-authenticated comment writes when the host cannot be auto-resolved to a single agent. */
                 "X-Agent-Id"?: number;
             };
             path: {
-                /**
-                 * @description Task identifier.
-                 * @example 1
-                 */
+                /** @description Task identifier. */
                 task: number;
             };
             cookie?: never;
         };
-        requestBody: components["requestBodies"]["StoreTaskCommentApiRequest"];
+        requestBody?: never;
         responses: {
             /** @description Task comment created. */
             201: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    /**
-                     * @example {
-                     *       "data": {
-                     *         "id": 42,
-                     *         "task_id": 42,
-                     *         "actor_type": "user",
-                     *         "actor_id": 42,
-                     *         "actor_name": "Example Name",
-                     *         "body": "Example content.",
-                     *         "mentions": [
-                     *           {
-                     *             "key": "example",
-                     *             "type": "user",
-                     *             "id": 42,
-                     *             "label": "example",
-                     *             "handle": "example",
-                     *             "token": "example"
-                     *           }
-                     *         ],
-                     *         "attachments": [
-                     *           {
-                     *             "id": 45,
-                     *             "team_file_id": 101,
-                     *             "preview_url": "/api/v1/files/101/preview",
-                     *             "download_url": "/api/v1/files/101/download",
-                     *             "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-                     *             "file": {
-                     *               "id": 101,
-                     *               "display_name": "incident-timeline.png",
-                     *               "original_filename": "incident-timeline.png",
-                     *               "mime_type": "image/png",
-                     *               "size_bytes": 144220,
-                     *               "preview_kind": "image",
-                     *               "created_at": "2026-02-27T17:20:00Z",
-                     *               "updated_at": "2026-02-27T17:24:00Z"
-                     *             }
-                     *           }
-                     *         ],
-                     *         "edited_at": "2026-02-22T17:21:00Z",
-                     *         "created_at": "2026-02-22T17:21:00Z"
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["TaskCommentResponse"];
-                };
+                content?: never;
             };
-            401: components["responses"]["ApiError401"];
-            403: components["responses"]["ApiError403"];
-            404: components["responses"]["ApiError404"];
-            422: components["responses"]["ApiError422"];
+            /** @description Error response. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     deleteTaskComment: {
         parameters: {
             query?: {
-                /**
-                 * @description Alternate acting agent identifier for host-authenticated comment writes.
-                 * @example 42
-                 */
+                /** @description Alternate acting agent identifier for host-authenticated comment writes. */
                 agent_id?: number;
             };
             header?: {
-                /**
-                 * @description Acting agent identifier for host-authenticated comment writes when the host cannot be auto-resolved to a single agent.
-                 * @example 1
-                 */
+                /** @description Acting agent identifier for host-authenticated comment writes when the host cannot be auto-resolved to a single agent. */
                 "X-Agent-Id"?: number;
             };
             path: {
-                /**
-                 * @description Task identifier.
-                 * @example 1
-                 */
+                /** @description Task identifier. */
                 task: number;
-                /**
-                 * @description Task comment identifier.
-                 * @example 1
-                 */
+                /** @description Task comment identifier. */
                 comment: number;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description No content. */
+            /** @description Task comment deleted. */
             204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    /**
-                     * @example {
-                     *       "data": {
-                     *         "key": "value"
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["GenericDataResponse"];
-                };
+                content?: never;
             };
-            401: components["responses"]["ApiError401"];
-            403: components["responses"]["ApiError403"];
-            404: components["responses"]["ApiError404"];
+            /** @description Error response. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     updateTaskComment: {
         parameters: {
             query?: {
-                /**
-                 * @description Alternate acting agent identifier for host-authenticated comment writes.
-                 * @example 42
-                 */
+                /** @description Alternate acting agent identifier for host-authenticated comment writes. */
                 agent_id?: number;
             };
             header?: {
-                /**
-                 * @description Acting agent identifier for host-authenticated comment writes when the host cannot be auto-resolved to a single agent.
-                 * @example 1
-                 */
+                /** @description Acting agent identifier for host-authenticated comment writes when the host cannot be auto-resolved to a single agent. */
                 "X-Agent-Id"?: number;
             };
             path: {
-                /**
-                 * @description Task identifier.
-                 * @example 1
-                 */
+                /** @description Task identifier. */
                 task: number;
-                /**
-                 * @description Task comment identifier.
-                 * @example 1
-                 */
+                /** @description Task comment identifier. */
                 comment: number;
             };
             cookie?: never;
         };
-        requestBody: components["requestBodies"]["UpdateTaskCommentApiRequest"];
+        requestBody?: never;
         responses: {
             /** @description Task comment updated. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    /**
-                     * @example {
-                     *       "data": {
-                     *         "id": 42,
-                     *         "task_id": 42,
-                     *         "actor_type": "user",
-                     *         "actor_id": 42,
-                     *         "actor_name": "Example Name",
-                     *         "body": "Example content.",
-                     *         "mentions": [
-                     *           {
-                     *             "key": "example",
-                     *             "type": "user",
-                     *             "id": 42,
-                     *             "label": "example",
-                     *             "handle": "example",
-                     *             "token": "example"
-                     *           }
-                     *         ],
-                     *         "attachments": [
-                     *           {
-                     *             "id": 45,
-                     *             "team_file_id": 101,
-                     *             "preview_url": "/api/v1/files/101/preview",
-                     *             "download_url": "/api/v1/files/101/download",
-                     *             "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-                     *             "file": {
-                     *               "id": 101,
-                     *               "display_name": "incident-timeline.png",
-                     *               "original_filename": "incident-timeline.png",
-                     *               "mime_type": "image/png",
-                     *               "size_bytes": 144220,
-                     *               "preview_kind": "image",
-                     *               "created_at": "2026-02-27T17:20:00Z",
-                     *               "updated_at": "2026-02-27T17:24:00Z"
-                     *             }
-                     *           }
-                     *         ],
-                     *         "edited_at": "2026-02-22T17:21:00Z",
-                     *         "created_at": "2026-02-22T17:21:00Z"
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["TaskCommentResponse"];
-                };
+                content?: never;
             };
-            401: components["responses"]["ApiError401"];
-            403: components["responses"]["ApiError403"];
-            404: components["responses"]["ApiError404"];
-            422: components["responses"]["ApiError422"];
+            /** @description Error response. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     listAgents: {
         parameters: {
-            query?: {
-                /**
-                 * @description Page size for paginated responses.
-                 * @example 25
-                 */
-                per_page?: number | null;
-                /**
-                 * @description Case-insensitive text search query.
-                 * @example operations
-                 */
-                search?: string | null;
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
@@ -12961,82 +1572,20 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    /**
-                     * @example {
-                     *       "data": [
-                     *         {
-                     *           "id": 42,
-                     *           "team_id": 7,
-                     *           "host_id": 11,
-                     *           "host": {
-                     *             "id": 11,
-                     *             "name": "worker-01"
-                     *           },
-                     *           "name": "codex-runtime-prod",
-                     *           "type": "openclaw",
-                     *           "status": "online",
-                     *           "meta": {
-                     *             "runtime_host": "worker-01",
-                     *             "runtime_version": "2026.02.1",
-                     *             "runtime": "codex",
-                     *             "models": [
-                     *               {
-                     *                 "model_id": "openai/gpt-5-codex",
-                     *                 "provider": "openai"
-                     *               }
-                     *             ]
-                     *           },
-                     *           "last_seen_at": "2026-02-24T02:11:00Z",
-                     *           "tasks_count": 3,
-                     *           "created_at": "2026-02-24T01:56:00Z",
-                     *           "updated_at": "2026-02-24T02:11:00Z"
-                     *         }
-                     *       ],
-                     *       "links": {
-                     *         "first": "example",
-                     *         "last": "example",
-                     *         "prev": "example",
-                     *         "next": "example"
-                     *       },
-                     *       "meta": {
-                     *         "current_page": 1,
-                     *         "from": 1,
-                     *         "last_page": 1,
-                     *         "links": [
-                     *           {
-                     *             "url": "https://agentmc.example.com/docs/incident-123",
-                     *             "label": "example",
-                     *             "active": true
-                     *           }
-                     *         ],
-                     *         "path": "notes/daily-ops.md",
-                     *         "per_page": 25,
-                     *         "total": 0
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["PaginatedTeamAgentResponse"];
-                };
+                content?: never;
             };
-            401: components["responses"]["ApiError401"];
-            403: components["responses"]["ApiError403"];
+            /** @description Error response. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     listTeamMembers: {
         parameters: {
-            query?: {
-                /**
-                 * @description Page size for paginated responses.
-                 * @example 25
-                 */
-                per_page?: number | null;
-                /**
-                 * @description Case-insensitive text search query.
-                 * @example operations
-                 */
-                search?: string | null;
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
@@ -13048,58 +1597,20 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    /**
-                     * @example {
-                     *       "data": [
-                     *         {
-                     *           "id": 42,
-                     *           "name": "Example Name",
-                     *           "email": "agent@example.com",
-                     *           "assignee_type": "human",
-                     *           "team_role": "example",
-                     *           "is_owner": true
-                     *         }
-                     *       ],
-                     *       "links": {
-                     *         "first": "example",
-                     *         "last": "example",
-                     *         "prev": "example",
-                     *         "next": "example"
-                     *       },
-                     *       "meta": {
-                     *         "current_page": 1,
-                     *         "from": 1,
-                     *         "last_page": 1,
-                     *         "links": [
-                     *           {
-                     *             "url": "https://agentmc.example.com/docs/incident-123",
-                     *             "label": "example",
-                     *             "active": true
-                     *           }
-                     *         ],
-                     *         "path": "notes/daily-ops.md",
-                     *         "per_page": 25,
-                     *         "total": 0
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["PaginatedTeamMemberResponse"];
-                };
+                content?: never;
             };
-            401: components["responses"]["ApiError401"];
-            403: components["responses"]["ApiError403"];
+            /** @description Error response. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     listLogs: {
         parameters: {
-            query?: {
-                /**
-                 * @description Page size for paginated responses.
-                 * @example 25
-                 */
-                per_page?: number;
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
@@ -13111,105 +1622,21 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    /**
-                     * @example {
-                     *       "data": [
-                     *         {
-                     *           "id": 42,
-                     *           "team_id": 42,
-                     *           "actor_type": "example",
-                     *           "actor_id": 42,
-                     *           "action": "example",
-                     *           "subject_type": "example",
-                     *           "subject_id": 42,
-                     *           "meta": {
-                     *             "key": "value"
-                     *           },
-                     *           "created_at": "2026-02-22T17:21:00Z"
-                     *         }
-                     *       ],
-                     *       "links": {
-                     *         "first": "example",
-                     *         "last": "example",
-                     *         "prev": "example",
-                     *         "next": "example"
-                     *       },
-                     *       "meta": {
-                     *         "current_page": 1,
-                     *         "from": 1,
-                     *         "last_page": 1,
-                     *         "links": [
-                     *           {
-                     *             "url": "https://agentmc.example.com/docs/incident-123",
-                     *             "label": "example",
-                     *             "active": true
-                     *           }
-                     *         ],
-                     *         "path": "notes/daily-ops.md",
-                     *         "per_page": 25,
-                     *         "total": 0
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["PaginatedLogResponse"];
-                };
+                content?: never;
             };
-            401: components["responses"]["ApiError401"];
-            403: components["responses"]["ApiError403"];
+            /** @description Error response. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     listFiles: {
         parameters: {
-            query?: {
-                /**
-                 * @description Case-insensitive text search query.
-                 * @example retro
-                 */
-                q?: string | null;
-                /**
-                 * @description Identifier for folder.
-                 * @example 42
-                 */
-                folder_id?: number | null;
-                /**
-                 * @description Identifier for owner agent.
-                 * @example 42
-                 */
-                owner_agent_id?: number | null;
-                /**
-                 * @description Allowed values: text, markdown, image, pdf, other.
-                 * @example text
-                 */
-                mime_group?: "text" | "markdown" | "image" | "pdf" | "other" | null;
-                /**
-                 * @description Allowed values: updated_at, display_name, size_bytes.
-                 * @example updated_at
-                 */
-                sort?: "updated_at" | "display_name" | "size_bytes" | null;
-                /**
-                 * @description Allowed values: asc, desc.
-                 * @example asc
-                 */
-                direction?: "asc" | "desc" | null;
-                /**
-                 * @description Page size for paginated responses.
-                 * @example 25
-                 */
-                per_page?: number | null;
-                /**
-                 * @description Alternate acting agent identifier for host/team API key file listing.
-                 * @example 42
-                 */
-                agent_id?: number;
-            };
-            header?: {
-                /**
-                 * @description Acting agent identifier for host/team API key requests when listing agent-scoped files.
-                 * @example 1
-                 */
-                "X-Agent-Id"?: number;
-            };
+            query?: never;
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -13220,208 +1647,73 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    /**
-                     * @example {
-                     *       "data": [
-                     *         {
-                     *           "id": 101,
-                     *           "team_id": 7,
-                     *           "owner_agent_id": 42,
-                     *           "folder_id": 12,
-                     *           "display_name": "incident-timeline.md",
-                     *           "original_filename": "incident-timeline.md",
-                     *           "extension": "md",
-                     *           "mime_type": "text/markdown",
-                     *           "size_bytes": 14220,
-                     *           "checksum_sha256": null,
-                     *           "preview_kind": "markdown",
-                     *           "uploaded_by_user_id": 8,
-                     *           "uploaded_by_agent_id": null,
-                     *           "created_at": "2026-02-27T17:20:00Z",
-                     *           "updated_at": "2026-02-27T17:24:00Z",
-                     *           "folder": {
-                     *             "id": 12,
-                     *             "team_id": 7,
-                     *             "parent_id": null,
-                     *             "name": "Runbooks",
-                     *             "path_cache": "Runbooks",
-                     *             "created_at": "2026-02-27T17:10:00Z",
-                     *             "updated_at": "2026-02-27T17:10:00Z"
-                     *           }
-                     *         }
-                     *       ],
-                     *       "links": {
-                     *         "first": "example",
-                     *         "last": "example",
-                     *         "prev": "example",
-                     *         "next": "example"
-                     *       },
-                     *       "meta": {
-                     *         "current_page": 1,
-                     *         "from": 1,
-                     *         "last_page": 1,
-                     *         "links": [
-                     *           {
-                     *             "url": "https://agentmc.example.com/docs/incident-123",
-                     *             "label": "example",
-                     *             "active": true
-                     *           }
-                     *         ],
-                     *         "path": "notes/daily-ops.md",
-                     *         "per_page": 25,
-                     *         "total": 0
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["PaginatedTeamFileResponse"];
-                };
+                content?: never;
             };
-            401: components["responses"]["ApiError401"];
-            403: components["responses"]["ApiError403"];
-            422: components["responses"]["ApiError422"];
+            /** @description Error response. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     createFile: {
         parameters: {
-            query?: {
-                /**
-                 * @description Alternate acting agent identifier for host/team API key file finalization.
-                 * @example 42
-                 */
-                agent_id?: number;
-            };
-            header?: {
-                /**
-                 * @description Acting agent identifier for host/team API key requests when finalizing a file upload.
-                 * @example 1
-                 */
-                "X-Agent-Id"?: number;
-            };
+            query?: never;
+            header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody: components["requestBodies"]["StoreTeamFileApiRequest"];
+        requestBody?: never;
         responses: {
             /** @description File created. */
             201: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    /**
-                     * @example {
-                     *       "data": {
-                     *         "id": 101,
-                     *         "team_id": 7,
-                     *         "owner_agent_id": 42,
-                     *         "folder_id": 12,
-                     *         "display_name": "incident-timeline.md",
-                     *         "original_filename": "incident-timeline.md",
-                     *         "extension": "md",
-                     *         "mime_type": "text/markdown",
-                     *         "size_bytes": 14220,
-                     *         "checksum_sha256": null,
-                     *         "preview_kind": "markdown",
-                     *         "uploaded_by_user_id": 8,
-                     *         "uploaded_by_agent_id": null,
-                     *         "created_at": "2026-02-27T17:20:00Z",
-                     *         "updated_at": "2026-02-27T17:24:00Z",
-                     *         "folder": {
-                     *           "id": 12,
-                     *           "team_id": 7,
-                     *           "parent_id": null,
-                     *           "name": "Runbooks",
-                     *           "path_cache": "Runbooks",
-                     *           "created_at": "2026-02-27T17:10:00Z",
-                     *           "updated_at": "2026-02-27T17:10:00Z"
-                     *         }
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["TeamFileResponse"];
-                };
+                content?: never;
             };
-            401: components["responses"]["ApiError401"];
-            402: components["responses"]["ApiError402"];
-            403: components["responses"]["ApiError403"];
-            404: components["responses"]["ApiError404"];
-            422: components["responses"]["ApiError422"];
-            503: components["responses"]["ApiError503"];
+            /** @description Error response. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     createFileUpload: {
         parameters: {
-            query?: {
-                /**
-                 * @description Alternate acting agent identifier for host/team API key upload ticket creation.
-                 * @example 42
-                 */
-                agent_id?: number;
-            };
-            header?: {
-                /**
-                 * @description Acting agent identifier for host/team API key requests when creating an upload ticket.
-                 * @example 1
-                 */
-                "X-Agent-Id"?: number;
-            };
+            query?: never;
+            header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody: components["requestBodies"]["CreateTeamFileUploadApiRequest"];
+        requestBody?: never;
         responses: {
             /** @description Upload ticket created. */
             201: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    /**
-                     * @example {
-                     *       "data": {
-                     *         "upload_id": "tup_8f4f7f3f836d43d28c4f7311a48258f5",
-                     *         "object_key": "teams/7/files/2026/02/27/tup_8f4f7f3f836d43d28c4f7311a48258f5.md",
-                     *         "upload_url": "https://storage.example.com/bucket/teams/7/files/2026/02/27/tup_8f4f7f3f836d43d28c4f7311a48258f5.md?...",
-                     *         "upload_method": "PUT",
-                     *         "upload_headers": {
-                     *           "Content-Type": "text/markdown"
-                     *         },
-                     *         "expires_at": "2026-02-27T17:30:00Z"
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["TeamFileUploadTicketResponse"];
-                };
+                content?: never;
             };
-            401: components["responses"]["ApiError401"];
-            402: components["responses"]["ApiError402"];
-            403: components["responses"]["ApiError403"];
-            422: components["responses"]["ApiError422"];
-            503: components["responses"]["ApiError503"];
+            /** @description Error response. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     showFile: {
         parameters: {
-            query?: {
-                /**
-                 * @description Alternate acting agent identifier for host/team API key file reads.
-                 * @example 42
-                 */
-                agent_id?: number;
-            };
-            header?: {
-                /**
-                 * @description Acting agent identifier for host/team API key requests when reading a file.
-                 * @example 1
-                 */
-                "X-Agent-Id"?: number;
-            };
+            query?: never;
+            header?: never;
             path: {
-                /**
-                 * @description File identifier.
-                 * @example 42
-                 */
+                /** @description File identifier. */
                 id: number;
             };
             cookie?: never;
@@ -13433,278 +1725,133 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    /**
-                     * @example {
-                     *       "data": {
-                     *         "id": 101,
-                     *         "team_id": 7,
-                     *         "owner_agent_id": 42,
-                     *         "folder_id": 12,
-                     *         "display_name": "incident-timeline.md",
-                     *         "original_filename": "incident-timeline.md",
-                     *         "extension": "md",
-                     *         "mime_type": "text/markdown",
-                     *         "size_bytes": 14220,
-                     *         "checksum_sha256": null,
-                     *         "preview_kind": "markdown",
-                     *         "uploaded_by_user_id": 8,
-                     *         "uploaded_by_agent_id": null,
-                     *         "created_at": "2026-02-27T17:20:00Z",
-                     *         "updated_at": "2026-02-27T17:24:00Z",
-                     *         "folder": {
-                     *           "id": 12,
-                     *           "team_id": 7,
-                     *           "parent_id": null,
-                     *           "name": "Runbooks",
-                     *           "path_cache": "Runbooks",
-                     *           "created_at": "2026-02-27T17:10:00Z",
-                     *           "updated_at": "2026-02-27T17:10:00Z"
-                     *         }
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["TeamFileResponse"];
-                };
+                content?: never;
             };
-            401: components["responses"]["ApiError401"];
-            403: components["responses"]["ApiError403"];
-            404: components["responses"]["ApiError404"];
+            /** @description Error response. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     deleteFile: {
         parameters: {
-            query?: {
-                /**
-                 * @description Alternate acting agent identifier for host/team API key file deletes.
-                 * @example 42
-                 */
-                agent_id?: number;
-            };
-            header?: {
-                /**
-                 * @description Acting agent identifier for host/team API key requests when deleting a file.
-                 * @example 1
-                 */
-                "X-Agent-Id"?: number;
-            };
+            query?: never;
+            header?: never;
             path: {
-                /**
-                 * @description File identifier.
-                 * @example 42
-                 */
+                /** @description File identifier. */
                 id: number;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description No content. */
+            /** @description File deleted. */
             204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    /**
-                     * @example {
-                     *       "data": {
-                     *         "key": "value"
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["GenericDataResponse"];
-                };
+                content?: never;
             };
-            401: components["responses"]["ApiError401"];
-            403: components["responses"]["ApiError403"];
-            404: components["responses"]["ApiError404"];
-            503: components["responses"]["ApiError503"];
+            /** @description Error response. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     updateFile: {
         parameters: {
-            query?: {
-                /**
-                 * @description Alternate acting agent identifier for host/team API key file updates.
-                 * @example 42
-                 */
-                agent_id?: number;
-            };
-            header?: {
-                /**
-                 * @description Acting agent identifier for host/team API key requests when updating a file.
-                 * @example 1
-                 */
-                "X-Agent-Id"?: number;
-            };
+            query?: never;
+            header?: never;
             path: {
-                /**
-                 * @description File identifier.
-                 * @example 42
-                 */
+                /** @description File identifier. */
                 id: number;
             };
             cookie?: never;
         };
-        requestBody?: {
-            content: {
-                /**
-                 * @example {
-                 *       "display_name": "incident-timeline-v2.md",
-                 *       "folder_id": 14,
-                 *       "owner_agent_id": null
-                 *     }
-                 */
-                "application/json": components["schemas"]["UpdateTeamFileApiRequest"];
-            };
-        };
+        requestBody?: never;
         responses: {
             /** @description File updated. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    /**
-                     * @example {
-                     *       "data": {
-                     *         "id": 101,
-                     *         "team_id": 7,
-                     *         "owner_agent_id": 42,
-                     *         "folder_id": 12,
-                     *         "display_name": "incident-timeline.md",
-                     *         "original_filename": "incident-timeline.md",
-                     *         "extension": "md",
-                     *         "mime_type": "text/markdown",
-                     *         "size_bytes": 14220,
-                     *         "checksum_sha256": null,
-                     *         "preview_kind": "markdown",
-                     *         "uploaded_by_user_id": 8,
-                     *         "uploaded_by_agent_id": null,
-                     *         "created_at": "2026-02-27T17:20:00Z",
-                     *         "updated_at": "2026-02-27T17:24:00Z",
-                     *         "folder": {
-                     *           "id": 12,
-                     *           "team_id": 7,
-                     *           "parent_id": null,
-                     *           "name": "Runbooks",
-                     *           "path_cache": "Runbooks",
-                     *           "created_at": "2026-02-27T17:10:00Z",
-                     *           "updated_at": "2026-02-27T17:10:00Z"
-                     *         }
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["TeamFileResponse"];
-                };
+                content?: never;
             };
-            401: components["responses"]["ApiError401"];
-            403: components["responses"]["ApiError403"];
-            404: components["responses"]["ApiError404"];
-            422: components["responses"]["ApiError422"];
+            /** @description Error response. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     downloadFile: {
         parameters: {
-            query?: {
-                /**
-                 * @description Alternate acting agent identifier for host/team API key file downloads.
-                 * @example 42
-                 */
-                agent_id?: number;
-            };
-            header?: {
-                /**
-                 * @description Acting agent identifier for host/team API key requests when downloading a file.
-                 * @example 1
-                 */
-                "X-Agent-Id"?: number;
-            };
+            query?: never;
+            header?: never;
             path: {
-                /**
-                 * @description File identifier.
-                 * @example 42
-                 */
+                /** @description File identifier. */
                 id: number;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Redirect to a short-lived signed download URL. */
+            /** @description Redirect to signed download URL. */
             302: {
                 headers: {
-                    /** @description Temporary object storage URL. */
-                    Location?: string;
                     [name: string]: unknown;
                 };
                 content?: never;
             };
-            401: components["responses"]["ApiError401"];
-            403: components["responses"]["ApiError403"];
-            404: components["responses"]["ApiError404"];
-            503: components["responses"]["ApiError503"];
+            /** @description Error response. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     previewFile: {
         parameters: {
-            query?: {
-                /**
-                 * @description Alternate acting agent identifier for host/team API key file previews.
-                 * @example 42
-                 */
-                agent_id?: number;
-            };
-            header?: {
-                /**
-                 * @description Acting agent identifier for host/team API key requests when previewing a file.
-                 * @example 1
-                 */
-                "X-Agent-Id"?: number;
-            };
+            query?: never;
+            header?: never;
             path: {
-                /**
-                 * @description File identifier.
-                 * @example 42
-                 */
+                /** @description File identifier. */
                 id: number;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Redirect to a short-lived signed inline preview URL. */
+            /** @description Redirect to signed preview URL. */
             302: {
                 headers: {
-                    /** @description Temporary object storage URL. */
-                    Location?: string;
                     [name: string]: unknown;
                 };
                 content?: never;
             };
-            401: components["responses"]["ApiError401"];
-            403: components["responses"]["ApiError403"];
-            404: components["responses"]["ApiError404"];
-            422: components["responses"]["ApiError422"];
-            503: components["responses"]["ApiError503"];
+            /** @description Error response. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     listFileFolders: {
         parameters: {
-            query?: {
-                /**
-                 * @description Alternate acting agent identifier for host/team API key folder reads.
-                 * @example 42
-                 */
-                agent_id?: number;
-            };
-            header?: {
-                /**
-                 * @description Acting agent identifier for host/team API key requests when listing folders.
-                 * @example 1
-                 */
-                "X-Agent-Id"?: number;
-            };
+            query?: never;
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -13715,226 +1862,102 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    /**
-                     * @example {
-                     *       "data": [
-                     *         {
-                     *           "id": 12,
-                     *           "team_id": 7,
-                     *           "parent_id": null,
-                     *           "name": "Runbooks",
-                     *           "path_cache": "Runbooks",
-                     *           "created_at": "2026-02-27T17:10:00Z",
-                     *           "updated_at": "2026-02-27T17:10:00Z"
-                     *         }
-                     *       ],
-                     *       "tree": [
-                     *         {
-                     *           "key": "value"
-                     *         }
-                     *       ]
-                     *     }
-                     */
-                    "application/json": components["schemas"]["TeamFileFolderListResponse"];
-                };
+                content?: never;
             };
-            401: components["responses"]["ApiError401"];
-            403: components["responses"]["ApiError403"];
+            /** @description Error response. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     createFileFolder: {
         parameters: {
-            query?: {
-                /**
-                 * @description Alternate acting agent identifier for host/team API key folder creation.
-                 * @example 42
-                 */
-                agent_id?: number;
-            };
-            header?: {
-                /**
-                 * @description Acting agent identifier for host/team API key requests when creating a folder.
-                 * @example 1
-                 */
-                "X-Agent-Id"?: number;
-            };
+            query?: never;
+            header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody: components["requestBodies"]["StoreTeamFileFolderApiRequest"];
+        requestBody?: never;
         responses: {
             /** @description Folder created. */
             201: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    /**
-                     * @example {
-                     *       "data": {
-                     *         "id": 12,
-                     *         "team_id": 7,
-                     *         "parent_id": null,
-                     *         "name": "Runbooks",
-                     *         "path_cache": "Runbooks",
-                     *         "created_at": "2026-02-27T17:10:00Z",
-                     *         "updated_at": "2026-02-27T17:10:00Z"
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["TeamFileFolderResponse"];
-                };
+                content?: never;
             };
-            401: components["responses"]["ApiError401"];
-            403: components["responses"]["ApiError403"];
-            422: components["responses"]["ApiError422"];
+            /** @description Error response. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     deleteFileFolder: {
         parameters: {
-            query?: {
-                /**
-                 * @description Alternate acting agent identifier for host/team API key folder deletes.
-                 * @example 42
-                 */
-                agent_id?: number;
-            };
-            header?: {
-                /**
-                 * @description Acting agent identifier for host/team API key requests when deleting a folder.
-                 * @example 1
-                 */
-                "X-Agent-Id"?: number;
-            };
+            query?: never;
+            header?: never;
             path: {
-                /**
-                 * @description Folder identifier.
-                 * @example 42
-                 */
+                /** @description Folder identifier. */
                 id: number;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description No content. */
+            /** @description Folder deleted. */
             204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    /**
-                     * @example {
-                     *       "data": {
-                     *         "key": "value"
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["GenericDataResponse"];
-                };
+                content?: never;
             };
-            401: components["responses"]["ApiError401"];
-            403: components["responses"]["ApiError403"];
-            404: components["responses"]["ApiError404"];
+            /** @description Error response. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     updateFileFolder: {
         parameters: {
-            query?: {
-                /**
-                 * @description Alternate acting agent identifier for host/team API key folder updates.
-                 * @example 42
-                 */
-                agent_id?: number;
-            };
-            header?: {
-                /**
-                 * @description Acting agent identifier for host/team API key requests when updating a folder.
-                 * @example 1
-                 */
-                "X-Agent-Id"?: number;
-            };
+            query?: never;
+            header?: never;
             path: {
-                /**
-                 * @description Folder identifier.
-                 * @example 42
-                 */
+                /** @description Folder identifier. */
                 id: number;
             };
             cookie?: never;
         };
-        requestBody?: {
-            content: {
-                /**
-                 * @example {
-                 *       "name": "Incident Runbooks",
-                 *       "parent_id": null
-                 *     }
-                 */
-                "application/json": components["schemas"]["UpdateTeamFileFolderApiRequest"];
-            };
-        };
+        requestBody?: never;
         responses: {
             /** @description Folder updated. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    /**
-                     * @example {
-                     *       "data": {
-                     *         "id": 12,
-                     *         "team_id": 7,
-                     *         "parent_id": null,
-                     *         "name": "Runbooks",
-                     *         "path_cache": "Runbooks",
-                     *         "created_at": "2026-02-27T17:10:00Z",
-                     *         "updated_at": "2026-02-27T17:10:00Z"
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["TeamFileFolderResponse"];
-                };
+                content?: never;
             };
-            401: components["responses"]["ApiError401"];
-            403: components["responses"]["ApiError403"];
-            404: components["responses"]["ApiError404"];
-            422: components["responses"]["ApiError422"];
+            /** @description Error response. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     listNotifications: {
         parameters: {
-            query?: {
-                /**
-                 * @description Filter unread notifications only. Accepts true/false (and 1/0).
-                 * @example true
-                 */
-                unread?: boolean | null;
-                /**
-                 * @description Page size for paginated responses.
-                 * @example 25
-                 */
-                per_page?: number | null;
-                /**
-                 * @description Page.
-                 * @example 1
-                 */
-                page?: number | null;
-                /**
-                 * @description Alternate acting agent identifier for host/team API key notification reads.
-                 * @example 42
-                 */
-                agent_id?: number;
-            };
-            header?: {
-                /**
-                 * @description Acting agent identifier for host/team API key requests when reading an agent notification inbox.
-                 * @example 1
-                 */
-                "X-Agent-Id"?: number;
-            };
+            query?: never;
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -13945,262 +1968,74 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    /**
-                     * @example {
-                     *       "data": [
-                     *         {
-                     *           "id": "c084fc57-b2c6-466c-adcb-cf6f4efca42a",
-                     *           "notification_type": "mention",
-                     *           "source_type": "App\\Notifications\\MentionedInCommentNotification",
-                     *           "team_id": 7,
-                     *           "subject_type": "task",
-                     *           "subject_id": 121,
-                     *           "subject_label": "Prepare incident postmortem",
-                     *           "actor_type": "user",
-                     *           "actor_id": 3,
-                     *           "actor_name": "Alex Morgan",
-                     *           "assignee_type": null,
-                     *           "assignee_id": null,
-                     *           "mention_handle": "@tim",
-                     *           "comment": "Can you own the timeline section before standup?",
-                     *           "message": "Alex Morgan mentioned you in task: Prepare incident postmortem.",
-                     *           "url": "/tasks/121?comment=998",
-                     *           "comment_id": 998,
-                     *           "response_action": {
-                     *             "type": "post_comment_reply",
-                     *             "method": "POST",
-                     *             "path": "/tasks/121/comments",
-                     *             "request_body": {
-                     *               "body": "Thanks, I can own the timeline section."
-                     *             }
-                     *           },
-                     *           "is_read": false,
-                     *           "read_at": null,
-                     *           "created_at": "2026-02-24T02:11:00Z",
-                     *           "updated_at": "2026-02-24T02:11:00Z"
-                     *         }
-                     *       ],
-                     *       "links": {
-                     *         "first": "example",
-                     *         "last": "example",
-                     *         "prev": "example",
-                     *         "next": "example"
-                     *       },
-                     *       "meta": {
-                     *         "current_page": 1,
-                     *         "from": 1,
-                     *         "last_page": 1,
-                     *         "links": [
-                     *           {
-                     *             "url": "https://agentmc.example.com/docs/incident-123",
-                     *             "label": "example",
-                     *             "active": true
-                     *           }
-                     *         ],
-                     *         "path": "notes/daily-ops.md",
-                     *         "per_page": 25,
-                     *         "total": 0
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["PaginatedNotificationResponse"];
-                };
+                content?: never;
             };
-            401: components["responses"]["ApiError401"];
-            403: components["responses"]["ApiError403"];
-            422: components["responses"]["ApiError422"];
+            /** @description Error response. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     markNotificationRead: {
         parameters: {
-            query?: {
-                /**
-                 * @description Alternate acting agent identifier for host/team API key notification updates.
-                 * @example 42
-                 */
-                agent_id?: number;
-            };
-            header?: {
-                /**
-                 * @description Acting agent identifier for host/team API key requests when marking an agent notification as read.
-                 * @example 1
-                 */
-                "X-Agent-Id"?: number;
-            };
+            query?: never;
+            header?: never;
             path: {
-                /**
-                 * @description Notification UUID.
-                 * @example 11111111-1111-4111-8111-111111111111
-                 */
+                /** @description Notification UUID. */
                 notification: string;
             };
             cookie?: never;
         };
-        requestBody?: {
-            content: {
-                /** @example {} */
-                "application/json": components["schemas"]["EmptyRequest"];
-            };
-        };
+        requestBody?: never;
         responses: {
             /** @description Notification updated. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    /**
-                     * @example {
-                     *       "data": {
-                     *         "id": "c084fc57-b2c6-466c-adcb-cf6f4efca42a",
-                     *         "notification_type": "mention",
-                     *         "source_type": "App\\Notifications\\MentionedInCommentNotification",
-                     *         "team_id": 7,
-                     *         "subject_type": "task",
-                     *         "subject_id": 121,
-                     *         "subject_label": "Prepare incident postmortem",
-                     *         "actor_type": "user",
-                     *         "actor_id": 3,
-                     *         "actor_name": "Alex Morgan",
-                     *         "assignee_type": null,
-                     *         "assignee_id": null,
-                     *         "mention_handle": "@tim",
-                     *         "comment": "Can you own the timeline section before standup?",
-                     *         "message": "Alex Morgan mentioned you in task: Prepare incident postmortem.",
-                     *         "url": "/tasks/121?comment=998",
-                     *         "comment_id": 998,
-                     *         "response_action": {
-                     *           "type": "post_comment_reply",
-                     *           "method": "POST",
-                     *           "path": "/tasks/121/comments",
-                     *           "request_body": {
-                     *             "body": "Thanks, I can own the timeline section."
-                     *           }
-                     *         },
-                     *         "is_read": false,
-                     *         "read_at": null,
-                     *         "created_at": "2026-02-24T02:11:00Z",
-                     *         "updated_at": "2026-02-24T02:11:00Z"
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["NotificationResponse"];
-                };
+                content?: never;
             };
-            401: components["responses"]["ApiError401"];
-            403: components["responses"]["ApiError403"];
-            404: components["responses"]["ApiError404"];
+            /** @description Error response. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     markAllNotificationsRead: {
         parameters: {
-            query?: {
-                /**
-                 * @description Alternate acting agent identifier for host/team API key notification bulk updates.
-                 * @example 42
-                 */
-                agent_id?: number;
-            };
-            header?: {
-                /**
-                 * @description Acting agent identifier for host/team API key requests when marking an agent inbox as read.
-                 * @example 1
-                 */
-                "X-Agent-Id"?: number;
-            };
+            query?: never;
+            header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody?: {
-            content: {
-                /** @example {} */
-                "application/json": components["schemas"]["EmptyRequest"];
-            };
-        };
+        requestBody?: never;
         responses: {
             /** @description Notifications updated. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    /**
-                     * @example {
-                     *       "data": {
-                     *         "updated": 4,
-                     *         "unread_count": 0
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["NotificationMarkAllReadResponse"];
-                };
+                content?: never;
             };
-            401: components["responses"]["ApiError401"];
-            403: components["responses"]["ApiError403"];
+            /** @description Error response. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     listCalendar: {
         parameters: {
-            query?: {
-                /**
-                 * @description Allowed values: month, week, list.
-                 * @example month
-                 */
-                view?: "month" | "week" | "list" | null;
-                /**
-                 * @description Start.
-                 * @example 2026-02-22T17:21:00Z
-                 */
-                start?: string | null;
-                /**
-                 * @description End.
-                 * @example 2026-02-22T17:21:00Z
-                 */
-                end?: string | null;
-                /**
-                 * @description Type discriminator for this record. Allowed values: event, task.
-                 * @example event
-                 */
-                type?: "event" | "task" | null;
-                /**
-                 * @description Current lifecycle status for this record. Allowed values: todo, in_progress, blocked, done, canceled.
-                 * @example todo
-                 */
-                status?: "todo" | "in_progress" | "blocked" | "done" | "canceled" | null;
-                /**
-                 * @description Priority level for this record. Allowed values: low, medium, high, urgent.
-                 * @example low
-                 */
-                priority?: "low" | "medium" | "high" | "urgent" | null;
-                /**
-                 * @description Assignee.
-                 * @example example
-                 */
-                assignee?: string | null;
-                /**
-                 * @description Case-insensitive text search query.
-                 * @example retro
-                 */
-                q?: string | null;
-                /**
-                 * @description Page size for paginated responses.
-                 * @example 25
-                 */
-                per_page?: number | null;
-                /**
-                 * @description Alternate acting agent identifier for host/team API key calendar reads.
-                 * @example 42
-                 */
-                agent_id?: number;
-            };
-            header?: {
-                /**
-                 * @description Acting agent identifier for host/team API key requests when resolving agent-scoped calendar access.
-                 * @example 1
-                 */
-                "X-Agent-Id"?: number;
-            };
+            query?: never;
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -14211,205 +2046,48 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    /**
-                     * @example {
-                     *       "data": [
-                     *         {
-                     *           "id": 42,
-                     *           "team_id": 42,
-                     *           "type": "event",
-                     *           "title": "Example Title",
-                     *           "description": "Example description text.",
-                     *           "start_at": "2026-02-22T17:21:00Z",
-                     *           "end_at": "2026-02-22T17:21:00Z",
-                     *           "due_at": "2026-02-22T17:21:00Z",
-                     *           "all_day": false,
-                     *           "location": "example",
-                     *           "timezone": "America/Los_Angeles",
-                     *           "status": "todo",
-                     *           "priority": "low",
-                     *           "visibility": "team",
-                     *           "created_by": 1,
-                     *           "updated_by": 1,
-                     *           "assignees": [
-                     *             {
-                     *               "id": 42,
-                     *               "assignee_type": "user",
-                     *               "assignee_id": 42,
-                     *               "role": "owner",
-                     *               "name": "Example Name",
-                     *               "created_at": "2026-02-22T17:21:00Z"
-                     *             }
-                     *           ],
-                     *           "attachments": [
-                     *             {
-                     *               "id": 45,
-                     *               "team_file_id": 101,
-                     *               "preview_url": "/api/v1/files/101/preview",
-                     *               "download_url": "/api/v1/files/101/download",
-                     *               "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-                     *               "file": {
-                     *                 "id": 101,
-                     *                 "display_name": "incident-timeline.png",
-                     *                 "original_filename": "incident-timeline.png",
-                     *                 "mime_type": "image/png",
-                     *                 "size_bytes": 144220,
-                     *                 "preview_kind": "image",
-                     *                 "created_at": "2026-02-27T17:20:00Z",
-                     *                 "updated_at": "2026-02-27T17:24:00Z"
-                     *               }
-                     *             }
-                     *           ],
-                     *           "comments_count": 1,
-                     *           "created_at": "2026-02-22T17:21:00Z",
-                     *           "updated_at": "2026-02-22T17:21:00Z",
-                     *           "deleted_at": "2026-02-22T17:21:00Z"
-                     *         }
-                     *       ],
-                     *       "links": {
-                     *         "first": "example",
-                     *         "last": "example",
-                     *         "prev": "example",
-                     *         "next": "example"
-                     *       },
-                     *       "meta": {
-                     *         "current_page": 1,
-                     *         "from": 1,
-                     *         "last_page": 1,
-                     *         "links": [
-                     *           {
-                     *             "url": "https://agentmc.example.com/docs/incident-123",
-                     *             "label": "example",
-                     *             "active": true
-                     *           }
-                     *         ],
-                     *         "path": "notes/daily-ops.md",
-                     *         "per_page": 25,
-                     *         "total": 0
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["PaginatedCalendarItemResponse"];
-                };
+                content?: never;
             };
-            401: components["responses"]["ApiError401"];
-            403: components["responses"]["ApiError403"];
+            /** @description Error response. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     createCalendarItem: {
         parameters: {
-            query?: {
-                /**
-                 * @description Alternate acting agent identifier for host/team API key calendar writes.
-                 * @example 42
-                 */
-                agent_id?: number;
-            };
-            header?: {
-                /**
-                 * @description Acting agent identifier for host/team API key requests when creating a calendar item.
-                 * @example 1
-                 */
-                "X-Agent-Id"?: number;
-            };
+            query?: never;
+            header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody: components["requestBodies"]["StoreCalendarItemApiRequest"];
+        requestBody?: never;
         responses: {
             /** @description Calendar item created. */
             201: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    /**
-                     * @example {
-                     *       "data": {
-                     *         "id": 42,
-                     *         "team_id": 42,
-                     *         "type": "event",
-                     *         "title": "Example Title",
-                     *         "description": "Example description text.",
-                     *         "start_at": "2026-02-22T17:21:00Z",
-                     *         "end_at": "2026-02-22T17:21:00Z",
-                     *         "due_at": "2026-02-22T17:21:00Z",
-                     *         "all_day": false,
-                     *         "location": "example",
-                     *         "timezone": "America/Los_Angeles",
-                     *         "status": "todo",
-                     *         "priority": "low",
-                     *         "visibility": "team",
-                     *         "created_by": 1,
-                     *         "updated_by": 1,
-                     *         "assignees": [
-                     *           {
-                     *             "id": 42,
-                     *             "assignee_type": "user",
-                     *             "assignee_id": 42,
-                     *             "role": "owner",
-                     *             "name": "Example Name",
-                     *             "created_at": "2026-02-22T17:21:00Z"
-                     *           }
-                     *         ],
-                     *         "attachments": [
-                     *           {
-                     *             "id": 45,
-                     *             "team_file_id": 101,
-                     *             "preview_url": "/api/v1/files/101/preview",
-                     *             "download_url": "/api/v1/files/101/download",
-                     *             "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-                     *             "file": {
-                     *               "id": 101,
-                     *               "display_name": "incident-timeline.png",
-                     *               "original_filename": "incident-timeline.png",
-                     *               "mime_type": "image/png",
-                     *               "size_bytes": 144220,
-                     *               "preview_kind": "image",
-                     *               "created_at": "2026-02-27T17:20:00Z",
-                     *               "updated_at": "2026-02-27T17:24:00Z"
-                     *             }
-                     *           }
-                     *         ],
-                     *         "comments_count": 1,
-                     *         "created_at": "2026-02-22T17:21:00Z",
-                     *         "updated_at": "2026-02-22T17:21:00Z",
-                     *         "deleted_at": "2026-02-22T17:21:00Z"
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["CalendarItemResponse"];
-                };
+                content?: never;
             };
-            401: components["responses"]["ApiError401"];
-            402: components["responses"]["ApiError402"];
-            403: components["responses"]["ApiError403"];
-            404: components["responses"]["ApiError404"];
-            422: components["responses"]["ApiError422"];
+            /** @description Error response. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     showCalendarItem: {
         parameters: {
-            query?: {
-                /**
-                 * @description Alternate acting agent identifier for host/team API key calendar reads.
-                 * @example 42
-                 */
-                agent_id?: number;
-            };
-            header?: {
-                /**
-                 * @description Acting agent identifier for host/team API key requests when reading a calendar item.
-                 * @example 1
-                 */
-                "X-Agent-Id"?: number;
-            };
+            query?: never;
+            header?: never;
             path: {
-                /**
-                 * @description Calendar item identifier.
-                 * @example 1
-                 */
+                /** @description Calendar item identifier. */
                 item: number;
             };
             cookie?: never;
@@ -14421,299 +2099,105 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    /**
-                     * @example {
-                     *       "data": {
-                     *         "id": 42,
-                     *         "team_id": 42,
-                     *         "type": "event",
-                     *         "title": "Example Title",
-                     *         "description": "Example description text.",
-                     *         "start_at": "2026-02-22T17:21:00Z",
-                     *         "end_at": "2026-02-22T17:21:00Z",
-                     *         "due_at": "2026-02-22T17:21:00Z",
-                     *         "all_day": false,
-                     *         "location": "example",
-                     *         "timezone": "America/Los_Angeles",
-                     *         "status": "todo",
-                     *         "priority": "low",
-                     *         "visibility": "team",
-                     *         "created_by": 1,
-                     *         "updated_by": 1,
-                     *         "assignees": [
-                     *           {
-                     *             "id": 42,
-                     *             "assignee_type": "user",
-                     *             "assignee_id": 42,
-                     *             "role": "owner",
-                     *             "name": "Example Name",
-                     *             "created_at": "2026-02-22T17:21:00Z"
-                     *           }
-                     *         ],
-                     *         "attachments": [
-                     *           {
-                     *             "id": 45,
-                     *             "team_file_id": 101,
-                     *             "preview_url": "/api/v1/files/101/preview",
-                     *             "download_url": "/api/v1/files/101/download",
-                     *             "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-                     *             "file": {
-                     *               "id": 101,
-                     *               "display_name": "incident-timeline.png",
-                     *               "original_filename": "incident-timeline.png",
-                     *               "mime_type": "image/png",
-                     *               "size_bytes": 144220,
-                     *               "preview_kind": "image",
-                     *               "created_at": "2026-02-27T17:20:00Z",
-                     *               "updated_at": "2026-02-27T17:24:00Z"
-                     *             }
-                     *           }
-                     *         ],
-                     *         "comments_count": 1,
-                     *         "created_at": "2026-02-22T17:21:00Z",
-                     *         "updated_at": "2026-02-22T17:21:00Z",
-                     *         "deleted_at": "2026-02-22T17:21:00Z"
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["CalendarItemResponse"];
-                };
+                content?: never;
             };
-            401: components["responses"]["ApiError401"];
-            403: components["responses"]["ApiError403"];
-            404: components["responses"]["ApiError404"];
+            /** @description Error response. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     updateCalendarItem: {
         parameters: {
-            query?: {
-                /**
-                 * @description Alternate acting agent identifier for host/team API key calendar updates.
-                 * @example 42
-                 */
-                agent_id?: number;
-            };
-            header?: {
-                /**
-                 * @description Acting agent identifier for host/team API key requests when updating a calendar item.
-                 * @example 1
-                 */
-                "X-Agent-Id"?: number;
-            };
+            query?: never;
+            header?: never;
             path: {
-                /**
-                 * @description Calendar item identifier.
-                 * @example 1
-                 */
-                item: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                /**
-                 * @example {
-                 *       "title": "Review outage timeline",
-                 *       "description": "Add links to root-cause analysis notes.\n\n![rca-notes](/api/v1/files/102/preview)",
-                 *       "due_at": "2026-02-24T11:00:00Z",
-                 *       "status": "in_progress",
-                 *       "priority": "urgent",
-                 *       "visibility": "team"
-                 *     }
-                 */
-                "application/json": components["schemas"]["UpdateCalendarItemApiRequest"];
-            };
-        };
-        responses: {
-            /** @description Calendar item updated. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    /**
-                     * @example {
-                     *       "data": {
-                     *         "id": 42,
-                     *         "team_id": 42,
-                     *         "type": "event",
-                     *         "title": "Example Title",
-                     *         "description": "Example description text.",
-                     *         "start_at": "2026-02-22T17:21:00Z",
-                     *         "end_at": "2026-02-22T17:21:00Z",
-                     *         "due_at": "2026-02-22T17:21:00Z",
-                     *         "all_day": false,
-                     *         "location": "example",
-                     *         "timezone": "America/Los_Angeles",
-                     *         "status": "todo",
-                     *         "priority": "low",
-                     *         "visibility": "team",
-                     *         "created_by": 1,
-                     *         "updated_by": 1,
-                     *         "assignees": [
-                     *           {
-                     *             "id": 42,
-                     *             "assignee_type": "user",
-                     *             "assignee_id": 42,
-                     *             "role": "owner",
-                     *             "name": "Example Name",
-                     *             "created_at": "2026-02-22T17:21:00Z"
-                     *           }
-                     *         ],
-                     *         "attachments": [
-                     *           {
-                     *             "id": 45,
-                     *             "team_file_id": 101,
-                     *             "preview_url": "/api/v1/files/101/preview",
-                     *             "download_url": "/api/v1/files/101/download",
-                     *             "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-                     *             "file": {
-                     *               "id": 101,
-                     *               "display_name": "incident-timeline.png",
-                     *               "original_filename": "incident-timeline.png",
-                     *               "mime_type": "image/png",
-                     *               "size_bytes": 144220,
-                     *               "preview_kind": "image",
-                     *               "created_at": "2026-02-27T17:20:00Z",
-                     *               "updated_at": "2026-02-27T17:24:00Z"
-                     *             }
-                     *           }
-                     *         ],
-                     *         "comments_count": 1,
-                     *         "created_at": "2026-02-22T17:21:00Z",
-                     *         "updated_at": "2026-02-22T17:21:00Z",
-                     *         "deleted_at": "2026-02-22T17:21:00Z"
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["CalendarItemResponse"];
-                };
-            };
-            401: components["responses"]["ApiError401"];
-            403: components["responses"]["ApiError403"];
-            404: components["responses"]["ApiError404"];
-            422: components["responses"]["ApiError422"];
-        };
-    };
-    deleteCalendarItem: {
-        parameters: {
-            query?: {
-                /**
-                 * @description Alternate acting agent identifier for host/team API key calendar deletes.
-                 * @example 42
-                 */
-                agent_id?: number;
-            };
-            header?: {
-                /**
-                 * @description Acting agent identifier for host/team API key requests when deleting a calendar item.
-                 * @example 1
-                 */
-                "X-Agent-Id"?: number;
-            };
-            path: {
-                /**
-                 * @description Calendar item identifier.
-                 * @example 1
-                 */
+                /** @description Calendar item identifier. */
                 item: number;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description No content. */
+            /** @description Calendar item updated. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error response. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deleteCalendarItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Calendar item identifier. */
+                item: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Calendar item deleted. */
             204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    /**
-                     * @example {
-                     *       "data": {
-                     *         "key": "value"
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["GenericDataResponse"];
-                };
+                content?: never;
             };
-            401: components["responses"]["ApiError401"];
-            403: components["responses"]["ApiError403"];
-            404: components["responses"]["ApiError404"];
+            /** @description Error response. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     commentCalendarItem: {
         parameters: {
             query?: {
-                /**
-                 * @description Alternate acting agent identifier for host-authenticated comment writes.
-                 * @example 42
-                 */
+                /** @description Alternate acting agent identifier for host-authenticated comment writes. */
                 agent_id?: number;
             };
             header?: {
-                /**
-                 * @description Acting agent identifier for host-authenticated comment writes when the host cannot be auto-resolved to a single agent.
-                 * @example 1
-                 */
+                /** @description Acting agent identifier for host-authenticated comment writes when the host cannot be auto-resolved to a single agent. */
                 "X-Agent-Id"?: number;
             };
             path: {
-                /**
-                 * @description Calendar item identifier.
-                 * @example 1
-                 */
+                /** @description Calendar item identifier. */
                 item: number;
             };
             cookie?: never;
         };
-        requestBody: components["requestBodies"]["StoreCalendarItemCommentApiRequest"];
+        requestBody?: never;
         responses: {
             /** @description Comment created. */
             201: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    /**
-                     * @example {
-                     *       "data": {
-                     *         "id": 42,
-                     *         "actor_type": "user",
-                     *         "actor_id": 42,
-                     *         "body": "Example content.",
-                     *         "attachments": [
-                     *           {
-                     *             "id": 45,
-                     *             "team_file_id": 101,
-                     *             "preview_url": "/api/v1/files/101/preview",
-                     *             "download_url": "/api/v1/files/101/download",
-                     *             "markdown_embed": "![incident-timeline](/api/v1/files/101/preview)",
-                     *             "file": {
-                     *               "id": 101,
-                     *               "display_name": "incident-timeline.png",
-                     *               "original_filename": "incident-timeline.png",
-                     *               "mime_type": "image/png",
-                     *               "size_bytes": 144220,
-                     *               "preview_kind": "image",
-                     *               "created_at": "2026-02-27T17:20:00Z",
-                     *               "updated_at": "2026-02-27T17:24:00Z"
-                     *             }
-                     *           }
-                     *         ],
-                     *         "created_at": "2026-02-22T17:21:00Z"
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["CalendarItemCommentResponse"];
-                };
+                content?: never;
             };
-            401: components["responses"]["ApiError401"];
-            403: components["responses"]["ApiError403"];
-            404: components["responses"]["ApiError404"];
-            422: components["responses"]["ApiError422"];
+            /** @description Error response. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
 }

@@ -184,6 +184,11 @@ interface AgentProfile {
   emoji?: string | null;
 }
 
+interface HeartbeatDefaults {
+  heartbeat_interval_seconds?: number;
+  heartbeatIntervalSeconds?: number;
+}
+
 export class AgentRuntimeProgram {
   private readonly options: AgentRuntimeProgramOptions;
   private readonly workspaceDir: string;
@@ -1375,9 +1380,23 @@ export class AgentRuntimeProgram {
     }
 
     const responsePayload = valueAsObject(response.data);
+    const responseDefaults = valueAsObject(responsePayload?.defaults) as HeartbeatDefaults | null;
     const responseHost = valueAsObject(responsePayload?.host);
     const responseAgent = valueAsObject(responsePayload?.agent);
     const responseAgentId = toPositiveInt(responseAgent?.id);
+    const serverHeartbeatIntervalSeconds = toPositiveInt(
+      responseDefaults?.heartbeat_interval_seconds ?? responseDefaults?.heartbeatIntervalSeconds
+    );
+    if (
+      serverHeartbeatIntervalSeconds !== null &&
+      serverHeartbeatIntervalSeconds !== this.heartbeatIntervalSeconds
+    ) {
+      this.heartbeatIntervalSeconds = serverHeartbeatIntervalSeconds;
+      this.emitInfo("Heartbeat interval updated", {
+        interval_seconds: serverHeartbeatIntervalSeconds,
+        source: "server_defaults"
+      });
+    }
     const nowIso = new Date().toISOString();
     await this.persistState({
       last_heartbeat_at: nowIso

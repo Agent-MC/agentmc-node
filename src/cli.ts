@@ -70,6 +70,7 @@ interface HostHeartbeatAgentRow {
 interface HostHeartbeatResult {
   agents: HostHeartbeatAgentRow[];
   hostRealtime: HostRealtimeSocketPayload | null;
+  heartbeatIntervalSeconds: number | null;
 }
 
 type HostHeartbeatRuntimeProvider = "openclaw" | "external" | "host-runtime";
@@ -1330,7 +1331,7 @@ async function runMultiAgentRuntimeFromEnv(env: NodeJS.ProcessEnv): Promise<bool
       summary: `starting ${resolved.workers.length} worker runtime(s)`
     });
 
-    const hostHeartbeatIntervalSeconds = DEFAULT_HOST_HEARTBEAT_INTERVAL_SECONDS;
+    let hostHeartbeatIntervalSeconds = DEFAULT_HOST_HEARTBEAT_INTERVAL_SECONDS;
     const hostRealtimeRouteIntervalMs = DEFAULT_HOST_REALTIME_ROUTE_INTERVAL_MS;
     const hostRealtimeRouteLimit = DEFAULT_HOST_REALTIME_ROUTE_LIMIT;
 
@@ -1347,6 +1348,7 @@ async function runMultiAgentRuntimeFromEnv(env: NodeJS.ProcessEnv): Promise<bool
     const initialHeartbeat = await sendHostHeartbeat(heartbeatClient, resolved.workers, hostFingerprint);
     applyHeartbeatAgentMapping(resolved.workers, initialHeartbeat.agents);
     let latestHostRealtimeSocket: HostRealtimeSocketPayload | null = initialHeartbeat.hostRealtime;
+    hostHeartbeatIntervalSeconds = initialHeartbeat.heartbeatIntervalSeconds ?? hostHeartbeatIntervalSeconds;
     await persistStatusSafe({
       summary: "initial host heartbeat complete"
     });
@@ -1501,8 +1503,10 @@ async function runHostHeartbeatLoop(input: {
   onAgentMappingChanged?: (changedWorkerKeys: string[]) => Promise<void> | void;
   shouldStop: () => boolean;
 }): Promise<void> {
+  let heartbeatIntervalSeconds = input.intervalSeconds;
+
   while (!input.shouldStop()) {
-    await sleepWithStop(Math.max(1_000, input.intervalSeconds * 1000), input.shouldStop);
+    await sleepWithStop(Math.max(1_000, heartbeatIntervalSeconds * 1000), input.shouldStop);
     if (input.shouldStop()) {
       break;
     }
@@ -1510,6 +1514,15 @@ async function runHostHeartbeatLoop(input: {
     try {
       const heartbeat = await sendHostHeartbeat(input.client, input.workers, input.hostFingerprint);
       const changedWorkerKeys = applyHeartbeatAgentMapping(input.workers, heartbeat.agents);
+      if (
+        heartbeat.heartbeatIntervalSeconds !== null &&
+        heartbeat.heartbeatIntervalSeconds !== heartbeatIntervalSeconds
+      ) {
+        heartbeatIntervalSeconds = heartbeat.heartbeatIntervalSeconds;
+        process.stderr.write(
+          `[agentmc-runtime] host heartbeat interval updated interval=${heartbeatIntervalSeconds}s source=server_defaults\n`
+        );
+      }
       if (input.onHostRealtimeSocketChanged) {
         await input.onHostRealtimeSocketChanged(heartbeat.hostRealtime);
       }
@@ -1984,7 +1997,11 @@ async function sendHostHeartbeat(
   }
 
   const responseData = valueAsObject(response.data);
+  const responseDefaults = valueAsObject(responseData?.defaults);
   const hostRealtime = valueAsObject(responseData?.host_realtime) as HostRealtimeSocketPayload | null;
+  const heartbeatIntervalSeconds = toPositiveInt(
+    responseDefaults?.heartbeat_interval_seconds ?? responseDefaults?.heartbeatIntervalSeconds
+  );
   const responseAgents = Array.isArray(responseData?.agents)
     ? responseData.agents
     : responseData?.agent
@@ -2016,7 +2033,8 @@ async function sendHostHeartbeat(
 
   return {
     agents: rows,
-    hostRealtime
+    hostRealtime,
+    heartbeatIntervalSeconds
   };
 }
 
