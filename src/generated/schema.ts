@@ -5184,6 +5184,7 @@ export interface components {
          *       "notification_type": "mention",
          *       "source_type": "App\\Notifications\\MentionedInCommentNotification",
          *       "team_id": 7,
+         *       "agent_id": 42,
          *       "subject_type": "task",
          *       "subject_id": 121,
          *       "subject_label": "Prepare incident postmortem",
@@ -5201,8 +5202,16 @@ export interface components {
          *         "type": "post_comment_reply",
          *         "method": "POST",
          *         "path": "/tasks/121/comments",
+         *         "headers": {
+         *           "X-Agent-Id": 42
+         *         },
+         *         "query": {
+         *           "agent_id": 42
+         *         },
          *         "request_body": {
-         *           "body": "Thanks, I can own the timeline section."
+         *           "body": "Thanks, I can own the timeline section.",
+         *           "actor_type": "agent",
+         *           "actor_id": 42
          *         }
          *       },
          *       "is_read": false,
@@ -5234,6 +5243,11 @@ export interface components {
              * @example 42
              */
             team_id: number | null;
+            /**
+             * @description Identifier for agent.
+             * @example 42
+             */
+            agent_id: number | null;
             /**
              * @description Subject type.
              * @example example
@@ -5306,8 +5320,13 @@ export interface components {
              *       "type": "post_comment_reply",
              *       "method": "POST",
              *       "path": "/tasks/121/comments",
+             *       "headers": {
+             *         "X-Agent-Id": 42
+             *       },
              *       "request_body": {
-             *         "body": "Thanks, I can own the timeline section."
+             *         "body": "Thanks, I can own the timeline section.",
+             *         "actor_type": "agent",
+             *         "actor_id": 42
              *       }
              *     }
              */
@@ -5330,9 +5349,37 @@ export interface components {
                  */
                 path: string;
                 /**
+                 * @description Headers to send with the reply API call when agent context must be explicit.
+                 * @example {
+                 *       "X-Agent-Id": 42
+                 *     }
+                 */
+                headers?: {
+                    /**
+                     * @description Resolved acting agent id to send on host/team API key reply calls.
+                     * @example 42
+                     */
+                    "X-Agent-Id"?: number;
+                } | null;
+                /**
+                 * @description Query fallback for runtimes that need explicit agent context outside headers.
+                 * @example {
+                 *       "agent_id": 42
+                 *     }
+                 */
+                query?: {
+                    /**
+                     * @description Resolved acting agent id to send as the `agent_id` query fallback.
+                     * @example 42
+                     */
+                    agent_id?: number;
+                } | null;
+                /**
                  * @description JSON payload template for the reply API call.
                  * @example {
-                 *       "body": "Thanks, I can own the timeline section."
+                 *       "body": "Thanks, I can own the timeline section.",
+                 *       "actor_type": "agent",
+                 *       "actor_id": 42
                  *     }
                  */
                 request_body: {
@@ -5341,6 +5388,17 @@ export interface components {
                      * @example Thanks, I can own the timeline section.
                      */
                     body: string;
+                    /**
+                     * @description Actor type to keep reply attribution aligned with the acting agent.
+                     * @example agent
+                     * @enum {string|null}
+                     */
+                    actor_type?: "agent" | null;
+                    /**
+                     * @description Resolved acting agent id to send in the reply payload.
+                     * @example 42
+                     */
+                    actor_id?: number | null;
                 };
             } | null;
             /**
@@ -6635,6 +6693,7 @@ export interface components {
          *         "notification_type": "mention",
          *         "source_type": "App\\Notifications\\MentionedInCommentNotification",
          *         "team_id": 7,
+         *         "agent_id": 42,
          *         "subject_type": "task",
          *         "subject_id": 121,
          *         "subject_label": "Prepare incident postmortem",
@@ -6652,8 +6711,16 @@ export interface components {
          *           "type": "post_comment_reply",
          *           "method": "POST",
          *           "path": "/tasks/121/comments",
+         *           "headers": {
+         *             "X-Agent-Id": 42
+         *           },
+         *           "query": {
+         *             "agent_id": 42
+         *           },
          *           "request_body": {
-         *             "body": "Thanks, I can own the timeline section."
+         *             "body": "Thanks, I can own the timeline section.",
+         *             "actor_type": "agent",
+         *             "actor_id": 42
          *           }
          *         },
          *         "is_read": false,
@@ -6671,6 +6738,7 @@ export interface components {
              *       "notification_type": "mention",
              *       "source_type": "App\\Notifications\\MentionedInCommentNotification",
              *       "team_id": 7,
+             *       "agent_id": 42,
              *       "subject_type": "task",
              *       "subject_id": 121,
              *       "subject_label": "Prepare incident postmortem",
@@ -6688,8 +6756,16 @@ export interface components {
              *         "type": "post_comment_reply",
              *         "method": "POST",
              *         "path": "/tasks/121/comments",
+             *         "headers": {
+             *           "X-Agent-Id": 42
+             *         },
+             *         "query": {
+             *           "agent_id": 42
+             *         },
              *         "request_body": {
-             *           "body": "Thanks, I can own the timeline section."
+             *           "body": "Thanks, I can own the timeline section.",
+             *           "actor_type": "agent",
+             *           "actor_id": 42
              *         }
              *       },
              *       "is_read": false,
@@ -7455,6 +7531,7 @@ export interface components {
          *           "notification_type": "mention",
          *           "source_type": "App\\Notifications\\MentionedInCommentNotification",
          *           "team_id": 7,
+         *           "agent_id": 42,
          *           "subject_type": "task",
          *           "subject_id": 121,
          *           "subject_label": "Prepare incident postmortem",
@@ -7472,8 +7549,16 @@ export interface components {
          *             "type": "post_comment_reply",
          *             "method": "POST",
          *             "path": "/tasks/121/comments",
+         *             "headers": {
+         *               "X-Agent-Id": 42
+         *             },
+         *             "query": {
+         *               "agent_id": 42
+         *             },
          *             "request_body": {
-         *               "body": "Thanks, I can own the timeline section."
+         *               "body": "Thanks, I can own the timeline section.",
+         *               "actor_type": "agent",
+         *               "actor_id": 42
          *             }
          *           },
          *           "is_read": false,
@@ -7514,6 +7599,7 @@ export interface components {
              *         "notification_type": "mention",
              *         "source_type": "App\\Notifications\\MentionedInCommentNotification",
              *         "team_id": 7,
+             *         "agent_id": 42,
              *         "subject_type": "task",
              *         "subject_id": 121,
              *         "subject_label": "Prepare incident postmortem",
@@ -7531,8 +7617,16 @@ export interface components {
              *           "type": "post_comment_reply",
              *           "method": "POST",
              *           "path": "/tasks/121/comments",
+             *           "headers": {
+             *             "X-Agent-Id": 42
+             *           },
+             *           "query": {
+             *             "agent_id": 42
+             *           },
              *           "request_body": {
-             *             "body": "Thanks, I can own the timeline section."
+             *             "body": "Thanks, I can own the timeline section.",
+             *             "actor_type": "agent",
+             *             "actor_id": 42
              *           }
              *         },
              *         "is_read": false,
@@ -14219,6 +14313,7 @@ export interface operations {
                      *           "notification_type": "mention",
                      *           "source_type": "App\\Notifications\\MentionedInCommentNotification",
                      *           "team_id": 7,
+                     *           "agent_id": 42,
                      *           "subject_type": "task",
                      *           "subject_id": 121,
                      *           "subject_label": "Prepare incident postmortem",
@@ -14236,8 +14331,16 @@ export interface operations {
                      *             "type": "post_comment_reply",
                      *             "method": "POST",
                      *             "path": "/tasks/121/comments",
+                     *             "headers": {
+                     *               "X-Agent-Id": 42
+                     *             },
+                     *             "query": {
+                     *               "agent_id": 42
+                     *             },
                      *             "request_body": {
-                     *               "body": "Thanks, I can own the timeline section."
+                     *               "body": "Thanks, I can own the timeline section.",
+                     *               "actor_type": "agent",
+                     *               "actor_id": 42
                      *             }
                      *           },
                      *           "is_read": false,
@@ -14322,6 +14425,7 @@ export interface operations {
                      *         "notification_type": "mention",
                      *         "source_type": "App\\Notifications\\MentionedInCommentNotification",
                      *         "team_id": 7,
+                     *         "agent_id": 42,
                      *         "subject_type": "task",
                      *         "subject_id": 121,
                      *         "subject_label": "Prepare incident postmortem",
@@ -14339,8 +14443,16 @@ export interface operations {
                      *           "type": "post_comment_reply",
                      *           "method": "POST",
                      *           "path": "/tasks/121/comments",
+                     *           "headers": {
+                     *             "X-Agent-Id": 42
+                     *           },
+                     *           "query": {
+                     *             "agent_id": 42
+                     *           },
                      *           "request_body": {
-                     *             "body": "Thanks, I can own the timeline section."
+                     *             "body": "Thanks, I can own the timeline section.",
+                     *             "actor_type": "agent",
+                     *             "actor_id": 42
                      *           }
                      *         },
                      *         "is_read": false,

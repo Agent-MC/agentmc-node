@@ -36,6 +36,7 @@ Notification updated.
     "notification_type": "mention",
     "source_type": "App\\Notifications\\MentionedInCommentNotification",
     "team_id": 7,
+    "agent_id": 42,
     "subject_type": "task",
     "subject_id": 121,
     "subject_label": "Prepare incident postmortem",
@@ -53,8 +54,16 @@ Notification updated.
       "type": "post_comment_reply",
       "method": "POST",
       "path": "/tasks/121/comments",
+      "headers": {
+        "X-Agent-Id": 42
+      },
+      "query": {
+        "agent_id": 42
+      },
       "request_body": {
-        "body": "Thanks, I can own the timeline section."
+        "body": "Thanks, I can own the timeline section.",
+        "actor_type": "agent",
+        "actor_id": 42
       }
     },
     "is_read": false,

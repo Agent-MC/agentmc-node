@@ -1019,11 +1019,13 @@ export class OpenClawAgentRuntime {
       notification: input.notification,
       notificationType: effectiveNotificationType,
       channelType: input.channelType,
-      signalId: input.signal.id
+      signalId: input.signal.id,
+      agentId: this.options.agent
     });
 
     const bridgedUserText = buildAgentMcBridgeMessage({
-      userText
+      userText,
+      agentId: this.options.agent
     });
 
     let runResult: OpenClawRunResult;
@@ -1092,21 +1094,40 @@ export class OpenClawAgentRuntime {
     }
 
     try {
-      const response = await this.options.client.operations.createTaskComment({
-        params: {
-          path: {
-            task: taskId
-          }
-        },
-        headers: {
-          "X-Agent-Id": String(this.options.agent)
-        },
-        body: {
-          body,
-          actor_type: "agent",
-          actor_id: this.options.agent
-        }
-      });
+      const actingAgentId = resolveNotificationResponseAgentId(notification, responseAction, this.options.agent);
+      const responseActionHeaders = notificationResponseHeaders(responseAction, actingAgentId);
+      const responseActionQuery = notificationResponseQuery(responseAction, actingAgentId);
+      const responseActionBodyTemplate = valueAsObject(responseAction?.request_body) ?? {};
+      const requestBody = {
+        ...responseActionBodyTemplate,
+        body,
+        actor_type: "agent" as const,
+        ...(actingAgentId > 0 ? { actor_id: actingAgentId } : {})
+      };
+      const requestParams =
+        Object.keys(responseActionQuery).length > 0
+          ? {
+              path: {
+                task: taskId
+              },
+              query: responseActionQuery
+            }
+          : {
+              path: {
+                task: taskId
+              }
+            };
+      const response =
+        Object.keys(responseActionHeaders).length > 0
+          ? await this.options.client.operations.createTaskComment({
+              params: requestParams,
+              headers: responseActionHeaders,
+              body: requestBody
+            })
+          : await this.options.client.operations.createTaskComment({
+              params: requestParams,
+              body: requestBody
+            });
 
       if (response.error) {
         await this.emitError(createOperationError("createTaskComment", response.status, response.error));
@@ -1138,16 +1159,26 @@ export class OpenClawAgentRuntime {
     }
 
     try {
-      const response = await this.options.client.operations.markNotificationRead({
-        params: {
-          path: {
-            notification: notificationId
-          }
-        },
-        headers: {
-          "X-Agent-Id": String(this.options.agent)
-        }
-      });
+      const actingAgentId = resolveNotificationResponseAgentId(notification, null, this.options.agent);
+      const response =
+        actingAgentId > 0
+          ? await this.options.client.operations.markNotificationRead({
+              params: {
+                path: {
+                  notification: notificationId
+                }
+              },
+              headers: {
+                "X-Agent-Id": String(actingAgentId)
+              }
+            })
+          : await this.options.client.operations.markNotificationRead({
+              params: {
+                path: {
+                  notification: notificationId
+                }
+              }
+            });
 
       if (response.error) {
         await this.emitError(createOperationError("markNotificationRead", response.status, response.error));
@@ -1254,7 +1285,8 @@ export class OpenClawAgentRuntime {
     });
 
     const bridgedUserText = buildAgentMcBridgeMessage({
-      userText
+      userText,
+      agentId: this.options.agent
     });
 
     let runResult: OpenClawRunResult;
@@ -4071,8 +4103,26 @@ function resolveInboundMessageId(...sources: JsonObject[]): number {
   return 0;
 }
 
-function buildAgentMcBridgeMessage(input: { userText: string }): string {
-  return input.userText;
+function buildAgentMcBridgeMessage(input: { userText: string; agentId: number | null }): string {
+  const agentId = toPositiveInteger(input.agentId);
+  if (agentId < 1) {
+    return input.userText;
+  }
+
+  const lines = [
+    "[AgentMC Acting Agent Context]",
+    `acting_agent_id=${agentId}`,
+    "acting_agent_header_name=X-Agent-Id",
+    `acting_agent_header_value=${agentId}`,
+    "acting_agent_query_name=agent_id",
+    `acting_agent_query_value=${agentId}`,
+    "Use this exact agent id on AgentMC SDK calls that are agent-scoped or mutate workspace state.",
+    "Do not claim agent context is missing when acting_agent_id is present.",
+    "",
+    input.userText
+  ];
+
+  return lines.join("\n");
 }
 
 function buildNotificationBridgeUserText(input: {
@@ -4080,12 +4130,18 @@ function buildNotificationBridgeUserText(input: {
   notificationType: MaybeNotificationType;
   channelType: string | null;
   signalId: number;
+  agentId: number | null;
 }): string {
   const notificationId = valueAsString(input.notification.id)?.trim() || "unknown";
   const notificationType =
     normalizeLowercase(input.notificationType) ||
     normalizeLowercase(input.notification.notification_type) ||
     "unknown";
+  const actingAgentId = resolveNotificationResponseAgentId(
+    input.notification,
+    valueAsObject(input.notification.response_action),
+    input.agentId
+  );
   const subjectType = valueAsString(input.notification.subject_type)?.trim() || "unknown";
   const subjectId = valueAsString(input.notification.subject_id) ?? String(toPositiveInteger(input.notification.subject_id) || "unknown");
   const subjectLabel = valueAsString(input.notification.subject_label)?.trim() || "unknown";
@@ -4108,6 +4164,7 @@ function buildNotificationBridgeUserText(input: {
     `notification_type=${notificationType}`,
     `channel_type=${input.channelType ?? "unknown"}`,
     `signal_id=${input.signalId}`,
+    `acting_agent_id=${actingAgentId > 0 ? String(actingAgentId) : "unknown"}`,
     `subject_type=${subjectType}`,
     `subject_id=${subjectId}`,
     `subject_label=${subjectLabel}`,
@@ -4138,6 +4195,61 @@ function resolveNotificationResponseTaskId(notification: JsonObject, responseAct
   }
 
   return toPositiveInteger(notification.subject_id);
+}
+
+function resolveNotificationResponseAgentId(
+  notification: JsonObject,
+  responseAction: JsonObject | null,
+  fallbackAgentId: number | null
+): number {
+  const responseActionHeaders = valueAsObject(responseAction?.headers);
+  const responseActionQuery = valueAsObject(responseAction?.query);
+  const responseActionBody = valueAsObject(responseAction?.request_body);
+  const candidates = [
+    responseActionHeaders?.["X-Agent-Id"],
+    responseActionQuery?.agent_id,
+    responseActionBody?.actor_id,
+    responseAction?.agent_id,
+    notification.agent_id,
+    fallbackAgentId
+  ];
+
+  for (const candidate of candidates) {
+    const value = toPositiveInteger(candidate);
+    if (value > 0) {
+      return value;
+    }
+  }
+
+  return 0;
+}
+
+function notificationResponseHeaders(responseAction: JsonObject | null, agentId: number): Record<string, string> {
+  const headers = valueAsObject(responseAction?.headers);
+  const explicitAgentId = toPositiveInteger(headers?.["X-Agent-Id"]);
+  const resolvedAgentId = explicitAgentId > 0 ? explicitAgentId : agentId;
+
+  if (resolvedAgentId < 1) {
+    return {};
+  }
+
+  return {
+    "X-Agent-Id": String(resolvedAgentId)
+  };
+}
+
+function notificationResponseQuery(responseAction: JsonObject | null, agentId: number): Record<string, number> {
+  const query = valueAsObject(responseAction?.query);
+  const explicitAgentId = toPositiveInteger(query?.agent_id);
+  const resolvedAgentId = explicitAgentId > 0 ? explicitAgentId : agentId;
+
+  if (resolvedAgentId < 1) {
+    return {};
+  }
+
+  return {
+    agent_id: resolvedAgentId
+  };
 }
 
 function normalizeOptionalBridgeToken(value: string | null): string | null {

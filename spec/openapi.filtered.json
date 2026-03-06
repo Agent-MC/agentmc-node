@@ -4881,6 +4881,7 @@
                       "notification_type": "mention",
                       "source_type": "App\\Notifications\\MentionedInCommentNotification",
                       "team_id": 7,
+                      "agent_id": 42,
                       "subject_type": "task",
                       "subject_id": 121,
                       "subject_label": "Prepare incident postmortem",
@@ -4898,8 +4899,16 @@
                         "type": "post_comment_reply",
                         "method": "POST",
                         "path": "/tasks/121/comments",
+                        "headers": {
+                          "X-Agent-Id": 42
+                        },
+                        "query": {
+                          "agent_id": 42
+                        },
                         "request_body": {
-                          "body": "Thanks, I can own the timeline section."
+                          "body": "Thanks, I can own the timeline section.",
+                          "actor_type": "agent",
+                          "actor_id": 42
                         }
                       },
                       "is_read": false,
@@ -5070,6 +5079,7 @@
                     "notification_type": "mention",
                     "source_type": "App\\Notifications\\MentionedInCommentNotification",
                     "team_id": 7,
+                    "agent_id": 42,
                     "subject_type": "task",
                     "subject_id": 121,
                     "subject_label": "Prepare incident postmortem",
@@ -5087,8 +5097,16 @@
                       "type": "post_comment_reply",
                       "method": "POST",
                       "path": "/tasks/121/comments",
+                      "headers": {
+                        "X-Agent-Id": 42
+                      },
+                      "query": {
+                        "agent_id": 42
+                      },
                       "request_body": {
-                        "body": "Thanks, I can own the timeline section."
+                        "body": "Thanks, I can own the timeline section.",
+                        "actor_type": "agent",
+                        "actor_id": 42
                       }
                     },
                     "is_read": false,
@@ -11342,6 +11360,7 @@
           "notification_type",
           "source_type",
           "team_id",
+          "agent_id",
           "subject_type",
           "subject_id",
           "subject_label",
@@ -11366,6 +11385,7 @@
           "notification_type": "mention",
           "source_type": "App\\Notifications\\MentionedInCommentNotification",
           "team_id": 7,
+          "agent_id": 42,
           "subject_type": "task",
           "subject_id": 121,
           "subject_label": "Prepare incident postmortem",
@@ -11383,8 +11403,16 @@
             "type": "post_comment_reply",
             "method": "POST",
             "path": "/tasks/121/comments",
+            "headers": {
+              "X-Agent-Id": 42
+            },
+            "query": {
+              "agent_id": 42
+            },
             "request_body": {
-              "body": "Thanks, I can own the timeline section."
+              "body": "Thanks, I can own the timeline section.",
+              "actor_type": "agent",
+              "actor_id": 42
             }
           },
           "is_read": false,
@@ -11418,6 +11446,12 @@
             "type": "integer",
             "nullable": true,
             "description": "Team identifier that owns this record.",
+            "example": 42
+          },
+          "agent_id": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Identifier for agent.",
             "example": 42
           },
           "subject_type": {
@@ -11532,6 +11566,38 @@
                 "description": "API path to call for posting the reply comment.",
                 "example": "/tasks/121/comments"
               },
+              "headers": {
+                "type": "object",
+                "nullable": true,
+                "description": "Headers to send with the reply API call when agent context must be explicit.",
+                "properties": {
+                  "X-Agent-Id": {
+                    "type": "integer",
+                    "description": "Resolved acting agent id to send on host/team API key reply calls.",
+                    "example": 42
+                  }
+                },
+                "additionalProperties": false,
+                "example": {
+                  "X-Agent-Id": 42
+                }
+              },
+              "query": {
+                "type": "object",
+                "nullable": true,
+                "description": "Query fallback for runtimes that need explicit agent context outside headers.",
+                "properties": {
+                  "agent_id": {
+                    "type": "integer",
+                    "description": "Resolved acting agent id to send as the `agent_id` query fallback.",
+                    "example": 42
+                  }
+                },
+                "additionalProperties": false,
+                "example": {
+                  "agent_id": 42
+                }
+              },
               "request_body": {
                 "type": "object",
                 "required": [
@@ -11543,11 +11609,28 @@
                     "type": "string",
                     "description": "Reply comment markdown body to send.",
                     "example": "Thanks, I can own the timeline section."
+                  },
+                  "actor_type": {
+                    "type": "string",
+                    "nullable": true,
+                    "enum": [
+                      "agent"
+                    ],
+                    "description": "Actor type to keep reply attribution aligned with the acting agent.",
+                    "example": "agent"
+                  },
+                  "actor_id": {
+                    "type": "integer",
+                    "nullable": true,
+                    "description": "Resolved acting agent id to send in the reply payload.",
+                    "example": 42
                   }
                 },
                 "additionalProperties": false,
                 "example": {
-                  "body": "Thanks, I can own the timeline section."
+                  "body": "Thanks, I can own the timeline section.",
+                  "actor_type": "agent",
+                  "actor_id": 42
                 }
               }
             },
@@ -11556,8 +11639,13 @@
               "type": "post_comment_reply",
               "method": "POST",
               "path": "/tasks/121/comments",
+              "headers": {
+                "X-Agent-Id": 42
+              },
               "request_body": {
-                "body": "Thanks, I can own the timeline section."
+                "body": "Thanks, I can own the timeline section.",
+                "actor_type": "agent",
+                "actor_id": 42
               }
             }
           },
@@ -13043,6 +13131,7 @@
               "notification_type": "mention",
               "source_type": "App\\Notifications\\MentionedInCommentNotification",
               "team_id": 7,
+              "agent_id": 42,
               "subject_type": "task",
               "subject_id": 121,
               "subject_label": "Prepare incident postmortem",
@@ -13060,8 +13149,16 @@
                 "type": "post_comment_reply",
                 "method": "POST",
                 "path": "/tasks/121/comments",
+                "headers": {
+                  "X-Agent-Id": 42
+                },
+                "query": {
+                  "agent_id": 42
+                },
                 "request_body": {
-                  "body": "Thanks, I can own the timeline section."
+                  "body": "Thanks, I can own the timeline section.",
+                  "actor_type": "agent",
+                  "actor_id": 42
                 }
               },
               "is_read": false,
@@ -13078,6 +13175,7 @@
             "notification_type": "mention",
             "source_type": "App\\Notifications\\MentionedInCommentNotification",
             "team_id": 7,
+            "agent_id": 42,
             "subject_type": "task",
             "subject_id": 121,
             "subject_label": "Prepare incident postmortem",
@@ -13095,8 +13193,16 @@
               "type": "post_comment_reply",
               "method": "POST",
               "path": "/tasks/121/comments",
+              "headers": {
+                "X-Agent-Id": 42
+              },
+              "query": {
+                "agent_id": 42
+              },
               "request_body": {
-                "body": "Thanks, I can own the timeline section."
+                "body": "Thanks, I can own the timeline section.",
+                "actor_type": "agent",
+                "actor_id": 42
               }
             },
             "is_read": false,
@@ -13926,6 +14032,7 @@
                 "notification_type": "mention",
                 "source_type": "App\\Notifications\\MentionedInCommentNotification",
                 "team_id": 7,
+                "agent_id": 42,
                 "subject_type": "task",
                 "subject_id": 121,
                 "subject_label": "Prepare incident postmortem",
@@ -13943,8 +14050,16 @@
                   "type": "post_comment_reply",
                   "method": "POST",
                   "path": "/tasks/121/comments",
+                  "headers": {
+                    "X-Agent-Id": 42
+                  },
+                  "query": {
+                    "agent_id": 42
+                  },
                   "request_body": {
-                    "body": "Thanks, I can own the timeline section."
+                    "body": "Thanks, I can own the timeline section.",
+                    "actor_type": "agent",
+                    "actor_id": 42
                   }
                 },
                 "is_read": false,
@@ -13992,6 +14107,7 @@
               "notification_type": "mention",
               "source_type": "App\\Notifications\\MentionedInCommentNotification",
               "team_id": 7,
+              "agent_id": 42,
               "subject_type": "task",
               "subject_id": 121,
               "subject_label": "Prepare incident postmortem",
@@ -14009,8 +14125,16 @@
                 "type": "post_comment_reply",
                 "method": "POST",
                 "path": "/tasks/121/comments",
+                "headers": {
+                  "X-Agent-Id": 42
+                },
+                "query": {
+                  "agent_id": 42
+                },
                 "request_body": {
-                  "body": "Thanks, I can own the timeline section."
+                  "body": "Thanks, I can own the timeline section.",
+                  "actor_type": "agent",
+                  "actor_id": 42
                 }
               },
               "is_read": false,
