@@ -1866,12 +1866,21 @@ function resolveClaimOwnerToken(client: AgentMCApi, options: AgentRealtimeNotifi
   }
 
   const baseUrl = client.getBaseUrl().trim().toLowerCase();
-  const apiKey = client.getConfiguredApiKey()?.trim() || "no-api-key";
+  const cwd = safeResolveRealtimeOwnerWorkingDirectory();
   const digest = createHash("sha256")
-    .update(`agent:${options.agent}|base:${baseUrl}|key:${apiKey}`)
+    .update(`agent:${options.agent}|base:${baseUrl}|cwd:${cwd}`)
     .digest("hex");
 
   return `agent-claim:${digest.slice(0, 48)}`;
+}
+
+function safeResolveRealtimeOwnerWorkingDirectory(): string {
+  try {
+    const cwd = process.cwd().trim().toLowerCase();
+    return cwd === "" ? "unknown-cwd" : cwd;
+  } catch {
+    return "unknown-cwd";
+  }
 }
 
 async function closeClaimedSessionOnSubscribeFailure(

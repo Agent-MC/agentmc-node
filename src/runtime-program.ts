@@ -1,5 +1,5 @@
 import { execFile, execFileSync } from "node:child_process";
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { mkdir, readFile, statfs, writeFile } from "node:fs/promises";
 import { arch, cpus, homedir, hostname, networkInterfaces, platform, release, totalmem, uptime } from "node:os";
@@ -168,11 +168,13 @@ export interface AgentRuntimeProgramOptions {
   recurringTaskGatewayTimeoutMs?: number;
   onInfo?: (message: string, meta?: JsonObject) => void;
   onError?: (error: Error, meta?: JsonObject) => void;
+  onFatalError?: (error: Error, meta?: JsonObject) => void | Promise<void>;
 }
 
 interface RuntimeState {
   agent_id?: number;
   last_heartbeat_at?: string;
+  realtime_claim_owner_token?: string;
   [key: string]: unknown;
 }
 
@@ -203,6 +205,8 @@ export class AgentRuntimeProgram {
 
   private running = false;
   private stopRequested = false;
+  private fatalRuntimeError: Error | null = null;
+  private fatalRuntimeErrorNotified = false;
   private loopPromise: Promise<void> | null = null;
   private realtimeRuntime: AgentRuntime | null = null;
 
@@ -341,6 +345,7 @@ export class AgentRuntimeProgram {
   private async runLoop(): Promise<void> {
     await mkdir(this.workspaceDir, { recursive: true });
     await this.loadState();
+    this.throwIfFatalRuntimeError();
 
     if (this.heartbeatEnabled) {
       this.heartbeatIntervalSeconds = this.heartbeatIntervalSeconds ?? DEFAULT_HEARTBEAT_INTERVAL_SECONDS;
@@ -381,7 +386,12 @@ export class AgentRuntimeProgram {
           }
         }
       } catch (error) {
-        this.emitError(normalizeError(error), { source: "heartbeat.startup" });
+        const normalizedError = normalizeError(error);
+        const meta = { source: "heartbeat.startup" };
+        if (this.registerFatalAuthError(normalizedError, meta)) {
+          throw this.fatalRuntimeError ?? normalizedError;
+        }
+        this.emitError(normalizedError, meta);
       }
     }
 
@@ -391,12 +401,14 @@ export class AgentRuntimeProgram {
     if (agentId !== null) {
       await this.catchUpNotificationsDuringHeartbeat(agentId);
     }
+    this.throwIfFatalRuntimeError();
 
     let nextHeartbeatAtMs = this.heartbeatEnabled
       ? Date.now() + (this.heartbeatIntervalSeconds ?? 1) * 1000
       : Number.POSITIVE_INFINITY;
 
     while (!this.stopRequested) {
+      this.throwIfFatalRuntimeError();
       const cycleNowMs = Date.now();
 
       if (this.heartbeatEnabled && this.pendingImmediateHeartbeatReason !== null) {
@@ -408,7 +420,12 @@ export class AgentRuntimeProgram {
           try {
             await this.pollRecurringTaskRuns(agentId, this.runtimeProvider);
           } catch (error) {
-            this.emitError(normalizeError(error), { source: "recurring.poll" });
+            const normalizedError = normalizeError(error);
+            const meta = { source: "recurring.poll" };
+            if (this.registerFatalAuthError(normalizedError, meta)) {
+              throw this.fatalRuntimeError ?? normalizedError;
+            }
+            this.emitError(normalizedError, meta);
           } finally {
             nextRecurringPollAtMs = Date.now() + recurringPollIntervalMs;
           }
@@ -453,7 +470,12 @@ export class AgentRuntimeProgram {
           if (immediateReason !== null) {
             this.pendingImmediateHeartbeatReason = immediateReason;
           }
-          this.emitError(normalizeError(error), { source: "heartbeat.cycle" });
+          const normalizedError = normalizeError(error);
+          const meta = { source: "heartbeat.cycle" };
+          if (this.registerFatalAuthError(normalizedError, meta)) {
+            throw this.fatalRuntimeError ?? normalizedError;
+          }
+          this.emitError(normalizedError, meta);
         } finally {
           nextHeartbeatAtMs = Date.now() + (this.heartbeatIntervalSeconds ?? 1) * 1000;
         }
@@ -468,6 +490,8 @@ export class AgentRuntimeProgram {
       const waitMs = Math.max(250, Math.min(delayToHeartbeatMs, delayToRecurringMs, 1000));
       await sleep(waitMs);
     }
+
+    this.throwIfFatalRuntimeError();
   }
 
   private async restartRealtimeRuntime(agentId: number, provider: RuntimeProviderDescriptor): Promise<void> {
@@ -511,6 +535,43 @@ export class AgentRuntimeProgram {
     await mkdir(dirname(this.statePath), { recursive: true });
     await writeFile(this.statePath, `${JSON.stringify(merged, null, 2)}\n`, "utf8");
     this.state = merged;
+  }
+
+  private async ensureRealtimeClaimOwnerToken(): Promise<string> {
+    const existing = normalizeRealtimeClaimOwnerToken(this.state.realtime_claim_owner_token);
+    if (existing) {
+      return existing;
+    }
+
+    const created = `agent-claim:${randomBytes(24).toString("hex")}`;
+    await this.persistState({
+      realtime_claim_owner_token: created
+    });
+
+    return created;
+  }
+
+  private registerFatalAuthError(error: Error, meta?: JsonObject): boolean {
+    if (!isFatalAgentMcAuthError(error)) {
+      return false;
+    }
+
+    const fatalError = toFatalAgentMcAuthError(error);
+    this.fatalRuntimeError = fatalError;
+    this.stopRequested = true;
+
+    if (!this.fatalRuntimeErrorNotified && this.options.onFatalError) {
+      this.fatalRuntimeErrorNotified = true;
+      void this.options.onFatalError(fatalError, meta);
+    }
+
+    return true;
+  }
+
+  private throwIfFatalRuntimeError(): void {
+    if (this.fatalRuntimeError) {
+      throw this.fatalRuntimeError;
+    }
   }
 
   private resolveAgentId(): number | null {
@@ -1000,10 +1061,12 @@ export class AgentRuntimeProgram {
   private async startRealtimeRuntime(agentId: number, provider: RuntimeProviderDescriptor): Promise<void> {
     const runtimeDocsDirectory = this.resolveRuntimeDocsDirectory();
     await mkdir(runtimeDocsDirectory, { recursive: true });
+    const claimOwnerToken = await this.ensureRealtimeClaimOwnerToken();
 
     const runtime = new AgentRuntime({
       client: this.client,
       agent: agentId,
+      claimOwnerToken,
       agentmcApiKey: this.agentMcApiKey ?? undefined,
       agentmcBaseUrl: this.agentMcApiBaseUrl,
       agentmcOpenApiUrl: this.agentMcOpenApiUrl,
@@ -1019,6 +1082,7 @@ export class AgentRuntimeProgram {
       runtimeSource: "agent-runtime",
       closeSessionOnStop: true,
       onError: (error) => {
+        this.registerFatalAuthError(error, { source: "realtime.runtime" });
         this.emitError(error, { source: "realtime.runtime" });
       },
       onSessionReady: (session) => {
@@ -1855,6 +1919,53 @@ export class AgentRuntimeProgram {
     const suffix = meta ? ` ${JSON.stringify(meta)}` : "";
     process.stderr.write(`[agentmc-runtime:error] ${error.message}${suffix}\n`);
   }
+}
+
+const FATAL_AGENTMC_AUTH_ERROR_CODES = new Set([
+  "auth.invalid_api_key",
+  "auth.insufficient_scope",
+  "auth.api_key_expired",
+  "auth.team_not_found",
+  "auth.unsupported_token"
+]);
+
+function extractAgentMcApiErrorCode(error: unknown): string | null {
+  const payload = valueAsObject(error);
+  const root = valueAsObject(payload?.apiError) ?? valueAsObject(payload?.error) ?? payload;
+  const nestedRoot = valueAsObject(root?.error) ?? root;
+  const explicitCode = nonEmpty(nestedRoot?.code);
+  if (explicitCode) {
+    return explicitCode;
+  }
+
+  const message = error instanceof Error ? error.message : nonEmpty(nestedRoot?.message);
+  const match = message?.match(/\b(auth\.[a-z_]+)\b/i);
+  return match?.[1]?.toLowerCase() ?? null;
+}
+
+function isFatalAgentMcAuthError(error: unknown): boolean {
+  const code = extractAgentMcApiErrorCode(error);
+  return code !== null && FATAL_AGENTMC_AUTH_ERROR_CODES.has(code);
+}
+
+function toFatalAgentMcAuthError(error: Error): Error {
+  const code = extractAgentMcApiErrorCode(error) ?? "auth.unknown";
+  return new Error(
+    `Fatal AgentMC auth error (${code}): ${error.message}. Verify AGENTMC_API_KEY is a current host key, then restart the runtime.`
+  );
+}
+
+function normalizeRealtimeClaimOwnerToken(value: unknown): string | null {
+  const normalized = nonEmpty(value);
+  if (!normalized) {
+    return null;
+  }
+
+  if (normalized.length < 16 || normalized.length > 128 || !/^[a-z0-9:_-]+$/i.test(normalized)) {
+    return null;
+  }
+
+  return normalized;
 }
 
 function normalizeApiBaseUrl(raw: string): string {
@@ -4100,7 +4211,13 @@ function createOperationFailureError(
 ): Error {
   const summary = summarizeApiError(response.error);
   const suffix = summary ? ` (${summary})` : "";
-  return new Error(`${operationId} failed with status ${response.status}${suffix}.`);
+  const error = new Error(`${operationId} failed with status ${response.status}${suffix}.`) as Error & {
+    status?: number;
+    apiError?: unknown;
+  };
+  error.status = response.status;
+  error.apiError = response.error;
+  return error;
 }
 
 async function readJsonResponseObject(response: Response): Promise<Record<string, unknown> | null> {

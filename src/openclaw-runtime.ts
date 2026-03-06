@@ -123,6 +123,7 @@ export type AgentRuntimeRunResult = OpenClawRuntimeNotificationBridgeRunResult;
 export interface OpenClawAgentRuntimeOptions {
   client: AgentMCApi;
   agent: number;
+  claimOwnerToken?: string;
   agentmcApiKey?: string;
   agentmcBaseUrl?: string;
   agentmcOpenApiUrl?: string;
@@ -202,6 +203,7 @@ export interface OpenClawRuntimeApiNotificationIngestResult {
 interface ResolvedOptions {
   client: AgentMCApi;
   agent: number;
+  claimOwnerToken: string | null;
   agentmcApiKey: string | null;
   agentmcBaseUrl: string;
   agentmcOpenApiUrl: string;
@@ -618,6 +620,7 @@ export class OpenClawAgentRuntime {
         const subscription = await this.options.client.subscribeToRealtimeNotifications({
           agent: this.options.agent,
           session: sessionId,
+          claimOwnerToken: this.options.claimOwnerToken ?? undefined,
           autoCloseSession: false,
           onReady: async (session) => {
             const nowMs = Date.now();
@@ -2719,6 +2722,7 @@ function resolveOptions(options: OpenClawAgentRuntimeOptions): ResolvedOptions {
     ? options.realtimeSessionsEnabled
     : chatRealtimeEnabled || filesRealtimeEnabled || notificationsRealtimeEnabled || hasRealtimeCallbacks;
   const sessionPollingEnabled = options.sessionPollingEnabled !== false;
+  const claimOwnerToken = normalizeClaimOwnerToken(valueAsString(options.claimOwnerToken));
   const agentmcApiKey = sanitizeRuntimeContextValue(
     valueAsString(options.agentmcApiKey) ??
       readClientConfiguredValue(options.client, "getConfiguredApiKey") ??
@@ -2738,6 +2742,7 @@ function resolveOptions(options: OpenClawAgentRuntimeOptions): ResolvedOptions {
   return {
     client: options.client,
     agent,
+    claimOwnerToken,
     agentmcApiKey,
     agentmcBaseUrl,
     agentmcOpenApiUrl,
@@ -2849,6 +2854,19 @@ function sanitizeRuntimeContextValue(value: string | null, maxLength: number): s
   }
 
   return normalized.slice(0, maxLength);
+}
+
+function normalizeClaimOwnerToken(value: string | null): string | null {
+  const normalized = sanitizeRuntimeContextValue(value, 128);
+  if (!normalized) {
+    return null;
+  }
+
+  if (normalized.length < 16 || !/^[a-z0-9:_-]+$/i.test(normalized)) {
+    throw new Error("options.claimOwnerToken must be 16-128 chars of [a-z0-9:_-].");
+  }
+
+  return normalized;
 }
 
 function buildAgentRuntimeCommandEnv(context: BridgedAgentMcRuntimeContext): NodeJS.ProcessEnv {

@@ -61,6 +61,8 @@ interface RuntimeEntry {
   runtimeOptions: AgentRuntimeProgramOptions;
 }
 
+type RuntimeWorkerFatalErrorHandler = (error: Error, meta?: Record<string, unknown>) => void | Promise<void>;
+
 interface HostHeartbeatAgentRow {
   id: number;
   runtimeKey: string | null;
@@ -1662,12 +1664,33 @@ async function runMultiAgentRuntimeFromEnv(env: NodeJS.ProcessEnv): Promise<bool
       apiKey: hostApiKey
     });
     const hostFingerprint = resolveHostFingerprint();
+    const createWorkerFatalErrorHandler = (worker: RuntimeWorkerConfig): RuntimeWorkerFatalErrorHandler =>
+      async (error, meta) => {
+        const message = error instanceof Error ? error.message : String(error);
+        const source = nonEmpty(valueAsObject(meta)?.source) ?? "runtime";
+        process.stderr.write(
+          `[agentmc-runtime] worker fatal auth error local=${worker.localKey} source=${source}: ${message}\n`
+        );
+        await persistStatusSafe({
+          summary: `worker ${worker.localKey} fatal auth error; stopping runtime supervisor`
+        });
+        await stopAll();
+      };
     await persistStatusSafe({
       host_fingerprint: hostFingerprint,
       summary: "sending initial host heartbeat"
     });
 
-    const initialHeartbeat = await sendHostHeartbeat(heartbeatClient, workers, hostFingerprint);
+    let initialHeartbeat: HostHeartbeatResult;
+    try {
+      initialHeartbeat = await sendHostHeartbeat(heartbeatClient, workers, hostFingerprint);
+    } catch (error) {
+      const normalizedError = normalizeCliError(error);
+      if (isFatalAgentMcAuthError(error)) {
+        throw toFatalHostApiKeyError(normalizedError);
+      }
+      throw normalizedError;
+    }
 
     applyHeartbeatAgentMapping(workers, initialHeartbeat.agents);
     let latestHostRealtimeSocket: HostRealtimeSocketPayload | null = initialHeartbeat.hostRealtime;
@@ -1700,7 +1723,7 @@ async function runMultiAgentRuntimeFromEnv(env: NodeJS.ProcessEnv): Promise<bool
 
     const runtimeEntries: RuntimeEntry[] = workers.map((worker) => ({
       worker,
-      runtimeOptions: buildRuntimeOptions(worker, true)
+      runtimeOptions: buildRuntimeOptions(worker, true, createWorkerFatalErrorHandler(worker))
     }));
     const runtimeEntriesByLocalKey = new Map(runtimeEntries.map((entry) => [entry.worker.localKey, entry]));
 
@@ -1723,7 +1746,11 @@ async function runMultiAgentRuntimeFromEnv(env: NodeJS.ProcessEnv): Promise<bool
             continue;
           }
 
-          entry.runtimeOptions = buildRuntimeOptions(entry.worker, true);
+          entry.runtimeOptions = buildRuntimeOptions(
+            entry.worker,
+            true,
+            createWorkerFatalErrorHandler(entry.worker)
+          );
           const runtime = activeRuntimes.get(workerKey);
           if (!runtime) {
             continue;
@@ -1921,8 +1948,11 @@ async function runHostHeartbeatLoop(input: {
         }
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      process.stderr.write(`[agentmc-runtime] host heartbeat failed: ${message}\n`);
+      const normalizedError = normalizeCliError(error);
+      if (isFatalAgentMcAuthError(error)) {
+        throw toFatalHostApiKeyError(normalizedError);
+      }
+      process.stderr.write(`[agentmc-runtime] host heartbeat failed: ${normalizedError.message}\n`);
     }
   }
 }
@@ -2284,6 +2314,13 @@ async function runHostRealtimeSessionRoutingLoop(input: {
       });
 
       if (response.error) {
+        if (isFatalAgentMcAuthError(response.error)) {
+          throw toFatalHostApiKeyError(
+            new Error(
+              `listAgentRealtimeRequestedSessions failed with status ${response.status}${summarizeApiError(response.error) ? ` (${summarizeApiError(response.error)})` : ""}`
+            )
+          );
+        }
         const status = Number(response.status || 0);
         const summary = summarizeApiError(response.error);
         const retryAfterSeconds = resolveRetryAfterSeconds(response.response, response.error);
@@ -2341,8 +2378,11 @@ async function runHostRealtimeSessionRoutingLoop(input: {
       const idlePollMs = Math.max(input.intervalMs, 5_000);
       return routedSessions > 0 ? input.intervalMs : idlePollMs;
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      process.stderr.write(`[agentmc-runtime] host realtime routing failed: ${message}\n`);
+      const normalizedError = normalizeCliError(error);
+      if (isFatalAgentMcAuthError(error)) {
+        throw toFatalHostApiKeyError(normalizedError);
+      }
+      process.stderr.write(`[agentmc-runtime] host realtime routing failed: ${normalizedError.message}\n`);
       return Math.max(input.intervalMs, 3_000);
     }
   };
@@ -2416,8 +2456,11 @@ async function runHostRealtimeSessionRoutingLoop(input: {
       hostRealtimeSocketKey = socketKey;
       subscribeRetryAtMs = 0;
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      process.stderr.write(`[agentmc-runtime] host realtime push unavailable: ${message}\n`);
+      const normalizedError = normalizeCliError(error);
+      if (isFatalAgentMcAuthError(error)) {
+        throw toFatalHostApiKeyError(normalizedError);
+      }
+      process.stderr.write(`[agentmc-runtime] host realtime push unavailable: ${normalizedError.message}\n`);
       await disconnectHostRealtimeSubscription();
       subscribeRetryAtMs = nowMs + Math.max(5_000, input.intervalMs * 4);
     }
@@ -3828,6 +3871,44 @@ function summarizeApiError(error: unknown): string | null {
   return code;
 }
 
+const FATAL_AGENTMC_AUTH_ERROR_CODES = new Set([
+  "auth.invalid_api_key",
+  "auth.insufficient_scope",
+  "auth.api_key_expired",
+  "auth.team_not_found",
+  "auth.unsupported_token"
+]);
+
+function extractAgentMcApiErrorCode(error: unknown): string | null {
+  const payload = valueAsObject(error);
+  const root = valueAsObject(payload?.apiError) ?? valueAsObject(payload?.error) ?? payload;
+  const nestedRoot = valueAsObject(root?.error) ?? root;
+  const explicitCode = nonEmpty(nestedRoot?.code);
+  if (explicitCode) {
+    return explicitCode;
+  }
+
+  const message = error instanceof Error ? error.message : nonEmpty(nestedRoot?.message);
+  const match = message?.match(/\b(auth\.[a-z_]+)\b/i);
+  return match?.[1]?.toLowerCase() ?? null;
+}
+
+function isFatalAgentMcAuthError(error: unknown): boolean {
+  const code = extractAgentMcApiErrorCode(error);
+  return code !== null && FATAL_AGENTMC_AUTH_ERROR_CODES.has(code);
+}
+
+function normalizeCliError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error));
+}
+
+function toFatalHostApiKeyError(error: Error): Error {
+  const code = extractAgentMcApiErrorCode(error) ?? "auth.unknown";
+  return new Error(
+    `Fatal AgentMC host auth error (${code}): ${error.message}. Verify AGENTMC_API_KEY is a current host key, then restart the runtime.`
+  );
+}
+
 function resolveRetryAfterSeconds(response: Response | undefined, error: unknown): number | null {
   const headerValue = response?.headers.get("retry-after");
   const headerSeconds = toPositiveInt(headerValue);
@@ -3886,7 +3967,11 @@ function isRecoverableHostRealtimeSessionStatus(status: string | null | undefine
   return status === "requested" || status === "claimed" || status === "active";
 }
 
-function buildRuntimeOptions(worker: RuntimeWorkerConfig, disableHeartbeat = false): AgentRuntimeProgramOptions {
+function buildRuntimeOptions(
+  worker: RuntimeWorkerConfig,
+  disableHeartbeat = false,
+  onFatalError?: RuntimeWorkerFatalErrorHandler
+): AgentRuntimeProgramOptions {
   const provider = normalizeRuntimeProvider(worker.provider);
   return {
     apiKey: worker.apiKey,
@@ -3902,7 +3987,8 @@ function buildRuntimeOptions(worker: RuntimeWorkerConfig, disableHeartbeat = fal
     },
     onError: (error, meta) => {
       writeRuntimeLog("error", `worker ${worker.localKey} ${error.message}`, workerRuntimeLogMeta(worker, meta));
-    }
+    },
+    onFatalError
   };
 }
 
