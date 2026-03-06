@@ -71,6 +71,8 @@ const DEFAULT_PUSHER_PONG_TIMEOUT_MS = 10_000;
 const DEFAULT_PUSHER_UNAVAILABLE_TIMEOUT_MS = 5_000;
 const DEFAULT_SENDER_FOR_ENVELOPE_ESTIMATE = "agent";
 const DEFAULT_ENVELOPE_TIMESTAMP = "2026-01-01T00:00:00Z";
+const DEFAULT_STALE_CLAIM_HEARTBEAT_DRIFT_MS = 90_000;
+const DEFAULT_STALE_CLAIM_OWNER_AGE_MS = 5 * 60_000;
 const TEXT_ENCODER = new TextEncoder();
 
 export interface AgentRealtimeSessionRecord {
@@ -1208,10 +1210,16 @@ async function resolveAndClaimSession(
     assertPositiveInteger(options.session, "options.session");
   }
 
-  let candidateSessionIds: number[] = [];
+  const candidateSessions: Array<{
+    id: number;
+    session: AgentRealtimeSessionRecord | null;
+  }> = [];
 
   if (options.session !== undefined) {
-    candidateSessionIds = [options.session];
+    candidateSessions.push({
+      id: options.session,
+      session: null
+    });
   } else {
     const requestedResult = await invokeOperation(client, "listAgentRealtimeRequestedSessions", {
       params: {
@@ -1240,11 +1248,19 @@ async function resolveAndClaimSession(
     const preferredSessions = orderedSessions.filter((session) => (valueAsPositiveInteger(session?.requested_by_user_id) ?? 0) >= 1);
     const fallbackSessions = orderedSessions.filter((session) => (valueAsPositiveInteger(session?.requested_by_user_id) ?? 0) < 1);
     const prioritized = [...preferredSessions, ...fallbackSessions];
-    candidateSessionIds = prioritized
-      .map((candidate) => valueAsPositiveInteger(candidate?.id))
-      .filter((candidate): candidate is number => candidate !== null && candidate > 0);
+    for (const candidate of prioritized) {
+      const normalized = normalizeSessionRecord(candidate);
+      if (!normalized) {
+        continue;
+      }
 
-    if (candidateSessionIds.length === 0) {
+      candidateSessions.push({
+        id: normalized.id,
+        session: normalized
+      });
+    }
+
+    if (candidateSessions.length === 0) {
       throw new Error(`No requested realtime sessions are available for agent ${options.agent}.`);
     }
   }
@@ -1253,11 +1269,11 @@ async function resolveAndClaimSession(
   const explicitSessionRequested = options.session !== undefined;
   const ownerToken = resolveClaimOwnerToken(client, options);
 
-  for (const sessionId of candidateSessionIds) {
-    const claimResult = await invokeOperation(client, "claimAgentRealtimeSession", {
+  for (const candidate of candidateSessions) {
+    let claimResult = await invokeOperation(client, "claimAgentRealtimeSession", {
       params: {
         path: {
-          session: sessionId
+          session: candidate.id
         }
       },
       headers: {
@@ -1267,6 +1283,22 @@ async function resolveAndClaimSession(
         owner_token: ownerToken
       }
     });
+
+    if (claimResult.error) {
+      const recovery = await maybeRecoverClaimConflictSession(client, {
+        agentId: options.agent,
+        sessionId: candidate.id,
+        ownerToken,
+        sessionHint: candidate.session
+      });
+      if (recovery.session) {
+        return recovery.session;
+      }
+
+      if (recovery.retryClaimResult) {
+        claimResult = recovery.retryClaimResult;
+      }
+    }
 
     if (claimResult.error) {
       const claimError = createOperationError("claimAgentRealtimeSession", claimResult.status, claimResult.error);
@@ -1298,6 +1330,195 @@ async function resolveAndClaimSession(
   }
 
   throw new Error(`No claimable realtime sessions are available for agent ${options.agent}.`);
+}
+
+async function maybeRecoverClaimConflictSession(
+  client: AgentMCApi,
+  input: {
+    agentId: number;
+    sessionId: number;
+    ownerToken: string;
+    sessionHint: AgentRealtimeSessionRecord | null;
+  }
+): Promise<{
+  session: AgentRealtimeSessionRecord | null;
+  retryClaimResult: ApiOperationResult | null;
+}> {
+  const session = input.sessionHint ?? (await inspectSessionForClaimRecovery(client, input.agentId, input.sessionId));
+  if (!session) {
+    return {
+      session: null,
+      retryClaimResult: null
+    };
+  }
+
+  const existingOwnerToken = extractSessionClaimOwnerToken(session);
+  if (existingOwnerToken && existingOwnerToken === input.ownerToken) {
+    return {
+      session,
+      retryClaimResult: null
+    };
+  }
+
+  if (!isSessionClaimRecoverablyStale(session, input.ownerToken)) {
+    return {
+      session: null,
+      retryClaimResult: null
+    };
+  }
+
+  const closed = await closeSessionForClaimRecovery(client, input.agentId, input.sessionId);
+  if (!closed) {
+    return {
+      session: null,
+      retryClaimResult: null
+    };
+  }
+
+  const retryClaimResult = await invokeOperation(client, "claimAgentRealtimeSession", {
+    params: {
+      path: {
+        session: input.sessionId
+      }
+    },
+    headers: {
+      "X-Agent-Id": String(input.agentId)
+    },
+    body: {
+      owner_token: input.ownerToken
+    }
+  });
+
+  if (retryClaimResult.error) {
+    return {
+      session: null,
+      retryClaimResult
+    };
+  }
+
+  const retryPayload =
+    valueAsObject(retryClaimResult.data) ?? (await readJsonResponseObject(retryClaimResult.response));
+  const claimedSession = normalizeSessionRecord(retryPayload?.data);
+
+  return {
+    session: claimedSession,
+    retryClaimResult
+  };
+}
+
+async function inspectSessionForClaimRecovery(
+  client: AgentMCApi,
+  agentId: number,
+  sessionId: number
+): Promise<AgentRealtimeSessionRecord | null> {
+  const response = await invokeOperation(client, "listAgentRealtimeSignals", {
+    params: {
+      path: {
+        session: sessionId
+      },
+      query: {
+        limit: 1
+      }
+    },
+    headers: {
+      "X-Agent-Id": String(agentId)
+    }
+  });
+
+  if (response.error) {
+    return null;
+  }
+
+  const payload = valueAsObject(response.data) ?? (await readJsonResponseObject(response.response));
+  return normalizeSessionRecord(payload?.session);
+}
+
+async function closeSessionForClaimRecovery(
+  client: AgentMCApi,
+  agentId: number,
+  sessionId: number
+): Promise<boolean> {
+  const closeResult = await invokeOperation(client, "closeAgentRealtimeSession", {
+    params: {
+      path: {
+        session: sessionId
+      }
+    },
+    headers: {
+      "X-Agent-Id": String(agentId)
+    },
+    body: {
+      reason: "sdk_stale_claim_recovery",
+      status: "failed"
+    }
+  });
+
+  if (closeResult.error) {
+    return closeResult.status === 404 || closeResult.status === 410;
+  }
+
+  return true;
+}
+
+function isSessionClaimRecoverablyStale(session: AgentRealtimeSessionRecord, ownerToken: string): boolean {
+  const status = valueAsString(session.status)?.trim().toLowerCase();
+  if (status === "closed" || status === "failed") {
+    return true;
+  }
+
+  const existingOwnerToken = extractSessionClaimOwnerToken(session);
+  if (!existingOwnerToken || existingOwnerToken === ownerToken) {
+    return false;
+  }
+
+  const browserHeartbeatAtMs = extractSessionFreshnessMs(session, [
+    "last_browser_heartbeat_at",
+    "updated_at",
+    "created_at"
+  ]);
+  const agentFreshnessAtMs = extractSessionFreshnessMs(session, [
+    "last_agent_heartbeat_at"
+  ]);
+  if (browserHeartbeatAtMs !== null && agentFreshnessAtMs !== null) {
+    return browserHeartbeatAtMs - agentFreshnessAtMs >= DEFAULT_STALE_CLAIM_HEARTBEAT_DRIFT_MS;
+  }
+
+  const ownerUpdatedAtMs = extractSessionClaimOwnerUpdatedAtMs(session);
+  if (browserHeartbeatAtMs !== null && ownerUpdatedAtMs !== null) {
+    return browserHeartbeatAtMs - ownerUpdatedAtMs >= DEFAULT_STALE_CLAIM_HEARTBEAT_DRIFT_MS;
+  }
+
+  if (ownerUpdatedAtMs !== null) {
+    return Date.now() - ownerUpdatedAtMs >= DEFAULT_STALE_CLAIM_OWNER_AGE_MS;
+  }
+
+  return false;
+}
+
+function extractSessionClaimOwnerToken(session: AgentRealtimeSessionRecord): string | null {
+  const meta = valueAsObject(session.meta);
+  const token = valueAsString(meta?.claim_owner_token)?.trim() ?? "";
+  if (token === "") {
+    return null;
+  }
+
+  return token;
+}
+
+function extractSessionClaimOwnerUpdatedAtMs(session: AgentRealtimeSessionRecord): number | null {
+  const meta = valueAsObject(session.meta);
+  return parseTimestampMs(meta?.claim_owner_updated_at ?? meta?.claim_owner_claimed_at ?? session.claimed_at);
+}
+
+function extractSessionFreshnessMs(session: AgentRealtimeSessionRecord, keys: string[]): number | null {
+  for (const key of keys) {
+    const timestamp = parseTimestampMs(session[key]);
+    if (timestamp !== null) {
+      return timestamp;
+    }
+  }
+
+  return null;
 }
 
 function buildSharedTransportKey(input: {
@@ -2355,6 +2576,16 @@ function valueAsPositiveInteger(value: unknown): number | null {
   }
 
   return null;
+}
+
+function parseTimestampMs(value: unknown): number | null {
+  const timestamp = valueAsString(value)?.trim();
+  if (!timestamp) {
+    return null;
+  }
+
+  const parsed = Date.parse(timestamp);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function assertPositiveInteger(value: number, label: string): void {

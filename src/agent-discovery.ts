@@ -219,12 +219,32 @@ function asString(value: unknown): string | null {
 }
 
 function extractIdentityEmoji(value: unknown): string | null {
+  if (typeof value === "string") {
+    return extractIdentityMarkdownEmoji(value);
+  }
+
   const object = asObject(value);
   if (!object) {
     return null;
   }
 
-  const direct =
+  const direct = extractDirectIdentityEmoji(object);
+  if (direct) {
+    return direct;
+  }
+
+  for (const nestedValue of [object.identity, object.profile, object.agent, object.meta]) {
+    const nestedEmoji = extractIdentityEmoji(nestedValue);
+    if (nestedEmoji) {
+      return nestedEmoji;
+    }
+  }
+
+  return null;
+}
+
+function extractDirectIdentityEmoji(object: Record<string, unknown>): string | null {
+  return (
     asString(object.emoji) ??
     asString(object.avatar_emoji) ??
     asString(object.avatarEmoji) ??
@@ -235,28 +255,36 @@ function extractIdentityEmoji(value: unknown): string | null {
     asString(object.icon) ??
     asString(object.avatar) ??
     asString(object.symbol) ??
-    asString(object.glyph);
-  if (direct) {
-    return direct;
-  }
+    asString(object.glyph) ??
+    null
+  );
+}
 
-  const nestedIdentity = asObject(object.identity);
-  if (!nestedIdentity) {
+function extractIdentityMarkdownEmoji(content: string): string | null {
+  return (
+    extractMarkdownIdentityField(content, "Emoji") ??
+    extractMarkdownIdentityField(content, "Avatar") ??
+    extractMarkdownIdentityField(content, "Icon") ??
+    extractMarkdownIdentityField(content, "Symbol") ??
+    extractMarkdownIdentityField(content, "Glyph") ??
+    null
+  );
+}
+
+function extractMarkdownIdentityField(content: string, label: string): string | null {
+  const regex = new RegExp(`^-\\s*\\*\\*${escapeRegExp(label)}:\\*\\*\\s*(.+)$`, "mi");
+  const match = content.match(regex)?.[1]?.trim();
+  if (!match) {
     return null;
   }
 
-  return (
-    asString(nestedIdentity.emoji) ??
-    asString(nestedIdentity.avatar_emoji) ??
-    asString(nestedIdentity.avatarEmoji) ??
-    asString(nestedIdentity.profile_emoji) ??
-    asString(nestedIdentity.profileEmoji) ??
-    asString(nestedIdentity.icon_emoji) ??
-    asString(nestedIdentity.iconEmoji) ??
-    asString(nestedIdentity.icon) ??
-    asString(nestedIdentity.avatar) ??
-    asString(nestedIdentity.symbol) ??
-    asString(nestedIdentity.glyph) ??
-    null
-  );
+  if (match === "_(optional)_" || match.startsWith("_(")) {
+    return null;
+  }
+
+  return match;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&");
 }

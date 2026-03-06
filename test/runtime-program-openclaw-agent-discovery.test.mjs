@@ -92,6 +92,70 @@ echo "{}"
   });
 });
 
+test("OpenClaw machine identity resolves emoji from nested profile objects", async () => {
+  await withTempDir(async (dir) => {
+    const commandPath = join(dir, "openclaw");
+
+    await writeExecutable(
+      commandPath,
+      `#!/bin/sh
+if [ "$1" = "--version" ]; then
+  echo "OpenClaw 2026.3.1"
+  exit 0
+fi
+if [ "$1" = "agents" ] && [ "$2" = "list" ] && [ "$3" = "--json" ]; then
+  echo '{"agents":{"main":{"name":"Profile Main","profile":{"emoji":"🦞"}}}}'
+  exit 0
+fi
+echo "{}"
+`
+    );
+
+    const runtime = new AgentRuntimeProgram({
+      client: { operations: {} },
+      openclawCommand: commandPath
+    });
+
+    const snapshot = await runtime.resolveOpenClawMachineIdentitySnapshot("", { name: "fallback" });
+
+    assert.equal(snapshot?.name, "Profile Main");
+    assert.equal(snapshot?.emoji, "🦞");
+    assert.deepEqual(snapshot?.identity, { name: "Profile Main", emoji: "🦞" });
+  });
+});
+
+test("OpenClaw machine identity resolves emoji from markdown identity fields", async () => {
+  await withTempDir(async (dir) => {
+    const commandPath = join(dir, "openclaw");
+
+    await writeExecutable(
+      commandPath,
+      `#!/bin/sh
+if [ "$1" = "--version" ]; then
+  echo "OpenClaw 2026.3.1"
+  exit 0
+fi
+if [ "$1" = "agents" ] && [ "$2" = "list" ] && [ "$3" = "--json" ]; then
+  echo '{"agents":{"main":{"name":"Markdown Main","identity":"- **Emoji:** 🦞"}}}'
+  exit 0
+fi
+echo "{}"
+`
+    );
+
+    const runtime = new AgentRuntimeProgram({
+      client: { operations: {} },
+      openclawCommand: commandPath
+    });
+
+    const snapshot = await runtime.resolveOpenClawMachineIdentitySnapshot("", { name: "fallback" });
+
+    assert.equal(snapshot?.name, "Markdown Main");
+    assert.equal(snapshot?.emoji, "🦞");
+    assert.deepEqual(snapshot?.identity, { name: "Markdown Main", emoji: "🦞" });
+  });
+});
+
 test("OpenClaw machine identity selects the array row matching runtime workspace path", async () => {
   await withTempDir(async (dir) => {
     const commandPath = join(dir, "openclaw");

@@ -956,7 +956,13 @@ export interface paths {
                          *         "claim_token": "example",
                          *         "prompt_snapshot": "example",
                          *         "schedule_snapshot": {
-                         *           "key": "value"
+                         *           "schedule_type": "minutes",
+                         *           "timezone": "America/Los_Angeles",
+                         *           "minute_interval_minutes": 15,
+                         *           "hourly_interval_hours": null,
+                         *           "daily_time": null,
+                         *           "weekly_days": [],
+                         *           "monthly_day": null
                          *         },
                          *         "started_at": "2026-02-22T17:21:00Z",
                          *         "finished_at": "2026-02-22T17:21:00Z",
@@ -2816,7 +2822,13 @@ export interface components {
          *       "claim_token": "example",
          *       "prompt_snapshot": "example",
          *       "schedule_snapshot": {
-         *         "key": "value"
+         *         "schedule_type": "minutes",
+         *         "timezone": "America/Los_Angeles",
+         *         "minute_interval_minutes": 15,
+         *         "hourly_interval_hours": null,
+         *         "daily_time": null,
+         *         "weekly_days": [],
+         *         "monthly_day": null
          *       },
          *       "started_at": "2026-02-22T17:21:00Z",
          *       "finished_at": "2026-02-22T17:21:00Z",
@@ -2875,7 +2887,13 @@ export interface components {
             /**
              * @description Schedule snapshot.
              * @example {
-             *       "key": "value"
+             *       "schedule_type": "minutes",
+             *       "timezone": "America/Los_Angeles",
+             *       "minute_interval_minutes": 15,
+             *       "hourly_interval_hours": null,
+             *       "daily_time": null,
+             *       "weekly_days": [],
+             *       "monthly_day": null
              *     }
              */
             schedule_snapshot: {
@@ -2938,7 +2956,13 @@ export interface components {
          *         "claim_token": "example",
          *         "prompt_snapshot": "example",
          *         "schedule_snapshot": {
-         *           "key": "value"
+         *           "schedule_type": "minutes",
+         *           "timezone": "America/Los_Angeles",
+         *           "minute_interval_minutes": 15,
+         *           "hourly_interval_hours": null,
+         *           "daily_time": null,
+         *           "weekly_days": [],
+         *           "monthly_day": null
          *         },
          *         "started_at": "2026-02-22T17:21:00Z",
          *         "finished_at": "2026-02-22T17:21:00Z",
@@ -2965,7 +2989,13 @@ export interface components {
              *       "claim_token": "example",
              *       "prompt_snapshot": "example",
              *       "schedule_snapshot": {
-             *         "key": "value"
+             *         "schedule_type": "minutes",
+             *         "timezone": "America/Los_Angeles",
+             *         "minute_interval_minutes": 15,
+             *         "hourly_interval_hours": null,
+             *         "daily_time": null,
+             *         "weekly_days": [],
+             *         "monthly_day": null
              *       },
              *       "started_at": "2026-02-22T17:21:00Z",
              *       "finished_at": "2026-02-22T17:21:00Z",
@@ -9417,7 +9447,13 @@ export interface components {
                  *         "claim_token": "example",
                  *         "prompt_snapshot": "example",
                  *         "schedule_snapshot": {
-                 *           "key": "value"
+                 *           "schedule_type": "minutes",
+                 *           "timezone": "America/Los_Angeles",
+                 *           "minute_interval_minutes": 15,
+                 *           "hourly_interval_hours": null,
+                 *           "daily_time": null,
+                 *           "weekly_days": [],
+                 *           "monthly_day": null
                  *         },
                  *         "started_at": "2026-02-22T17:21:00Z",
                  *         "finished_at": "2026-02-22T17:21:00Z",

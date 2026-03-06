@@ -2483,44 +2483,54 @@ function ensureIdentityPayload(identity: unknown, fallbackName: string, emoji: s
 }
 
 function extractIdentityEmoji(value: unknown): string | null {
+  if (typeof value === "string") {
+    return extractIdentityMarkdownEmoji(value);
+  }
+
   const objectValue = valueAsObject(value);
   if (!objectValue) {
     return null;
   }
 
-  const direct =
-    nonEmpty(objectValue.emoji) ??
-    nonEmpty(objectValue.avatar_emoji) ??
-    nonEmpty(objectValue.avatarEmoji) ??
-    nonEmpty(objectValue.profile_emoji) ??
-    nonEmpty(objectValue.profileEmoji) ??
-    nonEmpty(objectValue.icon_emoji) ??
-    nonEmpty(objectValue.iconEmoji) ??
-    nonEmpty(objectValue.icon) ??
-    nonEmpty(objectValue.avatar) ??
-    nonEmpty(objectValue.symbol) ??
-    nonEmpty(objectValue.glyph);
+  const direct = extractDirectIdentityEmoji(objectValue);
   if (direct) {
     return direct;
   }
 
-  const nestedIdentity = valueAsObject(objectValue.identity);
-  if (!nestedIdentity) {
-    return null;
+  for (const nestedValue of [objectValue.identity, objectValue.profile, objectValue.agent, objectValue.meta]) {
+    const nestedEmoji = extractIdentityEmoji(nestedValue);
+    if (nestedEmoji) {
+      return nestedEmoji;
+    }
   }
 
+  return null;
+}
+
+function extractDirectIdentityEmoji(value: JsonObject): string | null {
   return (
-    nonEmpty(nestedIdentity.emoji) ??
-    nonEmpty(nestedIdentity.avatar_emoji) ??
-    nonEmpty(nestedIdentity.avatarEmoji) ??
-    nonEmpty(nestedIdentity.profile_emoji) ??
-    nonEmpty(nestedIdentity.profileEmoji) ??
-    nonEmpty(nestedIdentity.icon_emoji) ??
-    nonEmpty(nestedIdentity.iconEmoji) ??
-    nonEmpty(nestedIdentity.icon) ??
-    nonEmpty(nestedIdentity.avatar) ??
-    nonEmpty(nestedIdentity.symbol) ??
-    nonEmpty(nestedIdentity.glyph) ??
+    nonEmpty(value.emoji) ??
+    nonEmpty(value.avatar_emoji) ??
+    nonEmpty(value.avatarEmoji) ??
+    nonEmpty(value.profile_emoji) ??
+    nonEmpty(value.profileEmoji) ??
+    nonEmpty(value.icon_emoji) ??
+    nonEmpty(value.iconEmoji) ??
+    nonEmpty(value.icon) ??
+    nonEmpty(value.avatar) ??
+    nonEmpty(value.symbol) ??
+    nonEmpty(value.glyph) ??
+    null
+  );
+}
+
+function extractIdentityMarkdownEmoji(content: string): string | null {
+  return (
+    parseIdentityField(content, "Emoji") ??
+    parseIdentityField(content, "Avatar") ??
+    parseIdentityField(content, "Icon") ??
+    parseIdentityField(content, "Symbol") ??
+    parseIdentityField(content, "Glyph") ??
     null
   );
 }

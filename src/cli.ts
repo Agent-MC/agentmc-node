@@ -3417,7 +3417,31 @@ function extractIdentityEmojiFromObject(value: Record<string, unknown> | null): 
     return null;
   }
 
-  const direct =
+  const direct = extractDirectIdentityEmojiFromObject(value);
+  if (direct) {
+    return direct;
+  }
+
+  for (const nestedValue of [value.identity, value.profile, value.agent, value.meta]) {
+    const nestedEmoji = extractIdentityEmojiFromUnknown(nestedValue);
+    if (nestedEmoji) {
+      return nestedEmoji;
+    }
+  }
+
+  return null;
+}
+
+function extractIdentityEmojiFromUnknown(value: unknown): string | null {
+  if (typeof value === "string") {
+    return extractIdentityEmojiFromMarkdown(value);
+  }
+
+  return extractIdentityEmojiFromObject(valueAsObject(value));
+}
+
+function extractDirectIdentityEmojiFromObject(value: Record<string, unknown>): string | null {
+  return (
     nonEmpty(value.emoji) ??
     nonEmpty(value.avatar_emoji) ??
     nonEmpty(value.avatarEmoji) ??
@@ -3428,30 +3452,38 @@ function extractIdentityEmojiFromObject(value: Record<string, unknown> | null): 
     nonEmpty(value.icon) ??
     nonEmpty(value.avatar) ??
     nonEmpty(value.symbol) ??
-    nonEmpty(value.glyph);
-  if (direct) {
-    return direct;
-  }
+    nonEmpty(value.glyph) ??
+    null
+  );
+}
 
-  const nestedIdentity = valueAsObject(value.identity);
-  if (!nestedIdentity) {
+function extractIdentityEmojiFromMarkdown(content: string): string | null {
+  return (
+    parseMarkdownIdentityField(content, "Emoji") ??
+    parseMarkdownIdentityField(content, "Avatar") ??
+    parseMarkdownIdentityField(content, "Icon") ??
+    parseMarkdownIdentityField(content, "Symbol") ??
+    parseMarkdownIdentityField(content, "Glyph") ??
+    null
+  );
+}
+
+function parseMarkdownIdentityField(content: string, label: string): string | null {
+  const regex = new RegExp(`^-\\s*\\*\\*${escapeRegExp(label)}:\\*\\*\\s*(.+)$`, "mi");
+  const match = content.match(regex)?.[1]?.trim();
+  if (!match) {
     return null;
   }
 
-  return (
-    nonEmpty(nestedIdentity.emoji) ??
-    nonEmpty(nestedIdentity.avatar_emoji) ??
-    nonEmpty(nestedIdentity.avatarEmoji) ??
-    nonEmpty(nestedIdentity.profile_emoji) ??
-    nonEmpty(nestedIdentity.profileEmoji) ??
-    nonEmpty(nestedIdentity.icon_emoji) ??
-    nonEmpty(nestedIdentity.iconEmoji) ??
-    nonEmpty(nestedIdentity.icon) ??
-    nonEmpty(nestedIdentity.avatar) ??
-    nonEmpty(nestedIdentity.symbol) ??
-    nonEmpty(nestedIdentity.glyph) ??
-    null
-  );
+  if (match === "_(optional)_" || match.startsWith("_(")) {
+    return null;
+  }
+
+  return match;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&");
 }
 
 function resolveHostHeartbeatRuntimeProvider(
@@ -3979,7 +4011,8 @@ function buildRuntimeOptions(
     statePath: worker.statePath,
     agentId: worker.agentId ?? undefined,
     heartbeatEnabled: !disableHeartbeat,
-    realtimeSessionPollingEnabled: disableHeartbeat ? false : true,
+    // Host heartbeat ownership is separate from worker session recovery.
+    realtimeSessionPollingEnabled: true,
     runtimeProvider: provider,
     openclawAgent: worker.openclawAgent,
     onInfo: (message, meta) => {
