@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import { AgentRuntimeProgram } from "../dist/index.js";
+
+const packageJson = JSON.parse(
+  readFileSync(new URL("../package.json", import.meta.url), "utf8")
+);
+const packageVersion = packageJson.version;
 
 function createRuntimeProgram(snapshots, models = ["openai/gpt-5-codex"]) {
   const runtime = new AgentRuntimeProgram({
@@ -210,6 +216,14 @@ test("buildHeartbeatBody applies machine identity emoji/name into heartbeat payl
   assert.equal(body.agent.name, "Orbit");
   assert.equal(body.agent.identity.emoji, "🤖");
   assert.equal(meta.emoji, "🤖");
+});
+
+test("buildHeartbeatBody includes the installed AgentMC package version", async () => {
+  const runtime = createRuntimeProgram([{}]);
+
+  const body = await runtime.buildHeartbeatBody();
+
+  assert.equal(body.meta.agentmc_node_package_version, packageVersion);
 });
 
 test("buildHeartbeatBody keeps OpenClaw version/build from provider --version output", async () => {
