@@ -37,6 +37,9 @@ interface PusherOptions {
   enabledTransports: ("ws" | "wss")[];
   disableStats: boolean;
   cluster: string;
+  activityTimeout?: number;
+  pongTimeout?: number;
+  unavailableTimeout?: number;
   wsPath?: string;
   authorizer: (channel: PusherChannel) => PusherAuthorizer;
 }
@@ -63,6 +66,9 @@ const DEFAULT_REALTIME_CHUNK_ENCODING = "base64json";
 const DEFAULT_REALTIME_READY_TIMEOUT_MS = 45_000;
 const DEFAULT_RESUBSCRIBE_BACKOFF_MS = 1_000;
 const MAX_RESUBSCRIBE_BACKOFF_MS = 12_000;
+const DEFAULT_PUSHER_ACTIVITY_TIMEOUT_MS = 30_000;
+const DEFAULT_PUSHER_PONG_TIMEOUT_MS = 10_000;
+const DEFAULT_PUSHER_UNAVAILABLE_TIMEOUT_MS = 5_000;
 const DEFAULT_SENDER_FOR_ENVELOPE_ESTIMATE = "agent";
 const DEFAULT_ENVELOPE_TIMESTAMP = "2026-01-01T00:00:00Z";
 const TEXT_ENCODER = new TextEncoder();
@@ -1350,6 +1356,9 @@ async function acquireSharedPusher(input: {
     enabledTransports: ["ws", "wss"],
     disableStats: true,
     cluster: input.cluster,
+    activityTimeout: DEFAULT_PUSHER_ACTIVITY_TIMEOUT_MS,
+    pongTimeout: DEFAULT_PUSHER_PONG_TIMEOUT_MS,
+    unavailableTimeout: DEFAULT_PUSHER_UNAVAILABLE_TIMEOUT_MS,
     ...(input.wsPath ? { wsPath: input.wsPath } : {}),
     authorizer: (channel) => ({
       authorize: (socketId, callback) => {

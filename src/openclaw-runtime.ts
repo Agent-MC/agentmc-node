@@ -34,6 +34,7 @@ const DEFAULT_SELF_HEAL_MIN_SESSION_AGE_MS = 20_000;
 const DEFAULT_REALTIME_PUBLISH_TIMEOUT_MS = 10_000;
 const DEFAULT_REALTIME_SIGNAL_CATCHUP_LIMIT = 100;
 const DEFAULT_REALTIME_SIGNAL_CATCHUP_MAX_BATCHES = 5;
+const DEFAULT_FALLBACK_SIGNAL_POLL_MS = 4_000;
 const DEFAULT_AGENTMC_API_BASE_URL = "https://agentmc.ai/api/v1";
 
 const DEFAULT_OPENCLAW_DOC_IDS = [
@@ -268,6 +269,7 @@ interface SessionState {
   createdAtMs: number;
   lastHealthActivityAtMs: number;
   lastConnectionStateChangeAtMs: number;
+  lastFallbackCatchupAtMs: number;
   catchupInFlight: boolean;
   chatSignalQueue: Promise<void>;
   processedInboundKeys: Map<string, number>;
@@ -613,6 +615,7 @@ export class OpenClawAgentRuntime {
       createdAtMs: nowMs,
       lastHealthActivityAtMs: nowMs,
       lastConnectionStateChangeAtMs: nowMs,
+      lastFallbackCatchupAtMs: 0,
       catchupInFlight: false,
       chatSignalQueue: Promise.resolve(),
       processedInboundKeys: new Map(),
@@ -667,6 +670,7 @@ export class OpenClawAgentRuntime {
             }
 
             if (nextState === "connected") {
+              state.lastFallbackCatchupAtMs = 0;
               state.sawConnectedState = true;
               state.lastHealthActivityAtMs = nowMs;
               if (previousState !== "connected") {
@@ -674,6 +678,10 @@ export class OpenClawAgentRuntime {
                   await this.emitError(normalizeError(error));
                 });
               }
+            } else if (state.sawConnectedState && isFallbackConnectionState(nextState) && previousState !== nextState) {
+              void this.maybePollFallbackSessionSignals(state, nowMs, true).catch(async (error) => {
+                await this.emitError(normalizeError(error));
+              });
             }
 
             await callOptionalHandler(
@@ -735,6 +743,7 @@ export class OpenClawAgentRuntime {
 
         while (!this.stopRequested && !state.closed) {
           const nowMs = Date.now();
+          await this.maybePollFallbackSessionSignals(state, nowMs);
           await this.maybeSelfHealSession(state, nowMs);
           if (state.closed || this.stopRequested) {
             break;
@@ -2319,6 +2328,27 @@ export class OpenClawAgentRuntime {
     await this.closeSession(state, reason, false);
   }
 
+  private async maybePollFallbackSessionSignals(
+    state: SessionState,
+    nowMs: number,
+    force = false
+  ): Promise<void> {
+    if (state.closed || this.stopRequested || state.catchupInFlight || !state.sawConnectedState) {
+      return;
+    }
+
+    if (!isFallbackConnectionState(state.connectionState)) {
+      return;
+    }
+
+    if (!force && nowMs - state.lastFallbackCatchupAtMs < DEFAULT_FALLBACK_SIGNAL_POLL_MS) {
+      return;
+    }
+
+    state.lastFallbackCatchupAtMs = nowMs;
+    await this.catchUpSessionSignals(state, "connection_fallback");
+  }
+
   private async closeSession(
     state: SessionState,
     reason: string,
@@ -2388,7 +2418,7 @@ export class OpenClawAgentRuntime {
 
   private async catchUpSessionSignals(
     state: SessionState,
-    reason: "session_ready" | "connection_recovered" | "signal_gap"
+    reason: "session_ready" | "connection_recovered" | "connection_fallback" | "signal_gap"
   ): Promise<void> {
     if (state.closed || this.stopRequested || state.catchupInFlight) {
       return;
@@ -4381,7 +4411,7 @@ function looksLikeNotification(value: JsonObject): boolean {
 }
 
 function isFallbackConnectionState(state: AgentRealtimeConnectionState): boolean {
-  return state === "failed" || state === "disconnected" || state === "unavailable";
+  return state === "connecting" || state === "failed" || state === "disconnected" || state === "unavailable";
 }
 
 async function fileExists(path: string): Promise<boolean> {

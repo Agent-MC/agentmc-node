@@ -47,6 +47,7 @@ function createSessionState(sessionId = 114) {
     createdAtMs: Date.now(),
     lastHealthActivityAtMs: Date.now(),
     lastConnectionStateChangeAtMs: Date.now(),
+    lastFallbackCatchupAtMs: 0,
     processedInboundKeys: new Map(),
     inboundChunkBuffers: new Map()
   };
@@ -306,6 +307,56 @@ test("self-heal does not recycle an idle connected session", async () => {
 
     assert.equal(state.closed, false);
     assert.equal(state.closeReason, null);
+  });
+});
+
+test("fallback connection states poll persisted signals before websocket recovery", async () => {
+  await withFixture(async ({ dir, sessionsPath }) => {
+    const deliveredSignals = [];
+
+    const runtime = createRuntime(sessionsPath, dir, {
+      client: {
+        operations: {
+          listAgentRealtimeSignals: async (input = {}) => {
+            return {
+              error: null,
+              status: 200,
+              data: {
+                data: [
+                  {
+                    id: 1,
+                    session_id: 915,
+                    sender: "system",
+                    type: "message",
+                    payload: {
+                      type: "runtime.noop",
+                      payload: {}
+                    },
+                    created_at: null
+                  }
+                ]
+              }
+            };
+          }
+        }
+      },
+      onSignal: (event) => {
+        deliveredSignals.push(event);
+      }
+    });
+
+    const state = {
+      ...createSessionState(915),
+      connectionState: "connecting",
+      catchupInFlight: false,
+      chatSignalQueue: Promise.resolve()
+    };
+
+    await runtime.maybePollFallbackSessionSignals(state, Date.now(), true);
+
+    assert.equal(deliveredSignals.length, 1);
+    assert.equal(deliveredSignals[0]?.source, "api_poll");
+    assert.equal(deliveredSignals[0]?.signal?.id, 1);
   });
 });
 

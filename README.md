@@ -136,7 +136,7 @@ Notes:
 -   `OpenClawAgentRuntime` keeps long-lived websocket subscriptions and relies on realtime fanout for chat/files/notifications routing.
 -   In multi-agent supervisor mode, one host-level websocket transport is multiplexed across workers; requested sessions are routed to the correct worker by `agent_id`.
 -   Realtime transport uses the session socket metadata and signs channel subscriptions via `authenticateAgentRealtimeSocket`.
--   Websocket reconnect automatically replays missed persisted signals (`after_id` catch-up) before resuming live delivery.
+-   Websocket reconnect automatically replays missed persisted signals (`after_id` catch-up) before resuming live delivery, and the runtime opportunistically polls persisted signals while the socket is reconnecting.
 -   Unified runtime heartbeat loops also poll unread notifications via `listNotifications` and ingest them through the runtime notification bridge, covering websocket miss windows.
 -   Use `publishRealtimeMessage(...)` if you need to emit your own channel events.
 -   `publishRealtimeMessage(...)` automatically chunks oversized channel payloads into multiple realtime signals so each signal stays within websocket broadcast limits.
