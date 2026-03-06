@@ -188,6 +188,24 @@ Check runtime status quickly on the server:
 npx agentmc-api runtime:status
 ```
 
+Follow live runtime logs on the server:
+
+```bash
+npx agentmc-api runtime:logs
+```
+
+Recent snapshot only, without follow mode:
+
+```bash
+npx agentmc-api runtime:logs --no-follow
+```
+
+Filter down to chat/notification traffic:
+
+```bash
+npx agentmc-api runtime:logs --grep 'Realtime|notification|chat'
+```
+
 JSON output (for scripts/monitoring):
 
 ```bash
@@ -207,6 +225,16 @@ Useful options:
 -   `--errors-since-minutes <minutes>` to change journal lookback window
 -   `--errors-limit <count>` to control max error entries
 -   `--no-recent-errors` to skip journal scan
+-   `runtime:logs --lines <count>` to change the initial tail size before live follow mode
+-   `runtime:logs --since-minutes <minutes>` to widen or narrow the initial journal window
+-   `runtime:logs --grep <pattern>` to filter logs while following
+
+The runtime log stream includes supervisor lifecycle messages plus structured worker events for:
+
+-   realtime session connect/disconnect/state changes
+-   inbound realtime signals such as `chat.user` and notification channel events
+-   notification bridge runs that triggered an agent execution
+-   ignored/unhandled realtime messages that may explain missing behavior
 
 Required env:
 

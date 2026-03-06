@@ -1,5 +1,5 @@
 import { Command } from "commander";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { setDefaultResultOrder } from "node:dns";
 import { existsSync, readFileSync, statSync } from "node:fs";
@@ -213,6 +213,7 @@ const DEFAULT_RUNTIME_SERVICE_NAME = "agentmc-host";
 const DEFAULT_RUNTIME_STATUS_STALE_THRESHOLD_SECONDS = 120;
 const DEFAULT_RUNTIME_ERROR_LOOKBACK_MINUTES = 30;
 const DEFAULT_RUNTIME_ERROR_LIMIT = 20;
+const DEFAULT_RUNTIME_LOG_LINES = 100;
 const DEFAULT_RUNTIME_DNS_RESULT_ORDER = "ipv4first";
 const OPENCLAW_MODELS_STATUS_COMMAND: readonly string[] = ["models", "--status-json"];
 const OPENCLAW_MODELS_STATUS_FALLBACK_COMMAND: readonly string[] = ["models", "status", "--json"];
@@ -300,6 +301,30 @@ function parseBoundedPositiveInt(
 ): number {
   const parsed = toPositiveInt(value) ?? fallback;
   return Math.max(minValue, Math.min(maxValue, parsed));
+}
+
+function writeRuntimeLog(level: "info" | "error", message: string, meta?: Record<string, unknown>): void {
+  const suffix = meta && Object.keys(meta).length > 0 ? ` ${JSON.stringify(meta)}` : "";
+  if (level === "error") {
+    process.stderr.write(`[agentmc-runtime:error] ${message}${suffix}\n`);
+    return;
+  }
+
+  process.stderr.write(`[agentmc-runtime] ${message}${suffix}\n`);
+}
+
+function workerRuntimeLogMeta(
+  worker: RuntimeWorkerConfig,
+  meta?: Record<string, unknown>
+): Record<string, unknown> {
+  return {
+    local_key: worker.localKey,
+    ...(nonEmpty(worker.localName) ? { local_name: nonEmpty(worker.localName) } : {}),
+    ...(worker.agentId ? { agent_id: worker.agentId } : {}),
+    ...(nonEmpty(worker.provider) ? { provider: nonEmpty(worker.provider) } : {}),
+    ...(nonEmpty(worker.openclawAgent) ? { openclaw_agent: nonEmpty(worker.openclawAgent) } : {}),
+    ...(meta ?? {})
+  };
 }
 
 function resolveRuntimeStatusPath(override?: string): string {
@@ -845,6 +870,82 @@ function readRecentRuntimeErrors(input: {
       warnings
     };
   }
+}
+
+async function streamRuntimeLogs(input: {
+  serviceName: string;
+  lines: number;
+  sinceMinutes: number;
+  follow: boolean;
+  grep?: string;
+}): Promise<void> {
+  if (platform() !== "linux") {
+    throw new Error(
+      "runtime:logs requires Linux with journalctl/systemd. For foreground logs, run `agentmc-api runtime:start` directly."
+    );
+  }
+
+  const args = [
+    "-u",
+    input.serviceName,
+    "--no-pager",
+    "-o",
+    "short-iso",
+    "--since",
+    `${input.sinceMinutes} minutes ago`,
+    "-n",
+    String(input.lines)
+  ];
+
+  const grep = nonEmpty(input.grep);
+  if (grep) {
+    args.push("--grep", grep);
+  }
+  if (input.follow) {
+    args.push("-f");
+  }
+
+  await new Promise<void>((resolve, reject) => {
+    const child = spawn("journalctl", args, {
+      stdio: "inherit"
+    });
+
+    let interrupted = false;
+    const handleSignal = (signal: NodeJS.Signals): void => {
+      interrupted = true;
+      child.kill(signal);
+    };
+    const cleanup = (): void => {
+      process.off("SIGINT", handleSignal);
+      process.off("SIGTERM", handleSignal);
+    };
+
+    process.once("SIGINT", handleSignal);
+    process.once("SIGTERM", handleSignal);
+
+    child.once("error", (error) => {
+      cleanup();
+      const normalizedError = error as NodeJS.ErrnoException;
+      if (normalizedError.code === "ENOENT") {
+        reject(new Error("journalctl not found; runtime log streaming is unavailable."));
+        return;
+      }
+      reject(normalizedError);
+    });
+
+    child.once("exit", (code, signal) => {
+      cleanup();
+      if (interrupted || signal === "SIGINT" || signal === "SIGTERM") {
+        resolve();
+        return;
+      }
+      if (code === 0) {
+        resolve();
+        return;
+      }
+      reject(new Error(`journalctl exited with code ${code ?? "unknown"}.`));
+    });
+  });
 }
 
 function readRuntimeProcessStatus(pid: number | null): {
@@ -3172,7 +3273,13 @@ function buildRuntimeOptions(worker: RuntimeWorkerConfig, disableHeartbeat = fal
     heartbeatEnabled: !disableHeartbeat,
     realtimeSessionPollingEnabled: disableHeartbeat ? false : true,
     runtimeProvider: provider,
-    openclawAgent: worker.openclawAgent
+    openclawAgent: worker.openclawAgent,
+    onInfo: (message, meta) => {
+      writeRuntimeLog("info", `worker ${worker.localKey} ${message}`, workerRuntimeLogMeta(worker, meta));
+    },
+    onError: (error, meta) => {
+      writeRuntimeLog("error", `worker ${worker.localKey} ${error.message}`, workerRuntimeLogMeta(worker, meta));
+    }
   };
 }
 
@@ -3468,6 +3575,41 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
       }
       printRuntimeStatusReport(report);
     });
+
+  program
+    .command("runtime:logs")
+    .description("Stream live AgentMC runtime logs from the server journal")
+    .option("--service-name <name>", "override systemd service unit name used for log streaming")
+    .option("--lines <count>", "number of recent lines to print before following", String(DEFAULT_RUNTIME_LOG_LINES))
+    .option(
+      "--since-minutes <minutes>",
+      "lookback window for the initial log snapshot before follow mode starts",
+      String(DEFAULT_RUNTIME_ERROR_LOOKBACK_MINUTES)
+    )
+    .option("--grep <pattern>", "optional journalctl grep filter")
+    .option("--no-follow", "print recent logs without following")
+    .action(
+      async (options: {
+        serviceName?: string;
+        lines?: string;
+        sinceMinutes?: string;
+        grep?: string;
+        follow?: boolean;
+      }) => {
+        await streamRuntimeLogs({
+          serviceName: resolveRuntimeServiceName(options.serviceName),
+          lines: parseBoundedPositiveInt(options.lines, DEFAULT_RUNTIME_LOG_LINES, 1, 10_000),
+          sinceMinutes: parseBoundedPositiveInt(
+            options.sinceMinutes,
+            DEFAULT_RUNTIME_ERROR_LOOKBACK_MINUTES,
+            1,
+            7 * 24 * 60
+          ),
+          follow: options.follow !== false,
+          grep: options.grep
+        });
+      }
+    );
 
   program
     .command("call")

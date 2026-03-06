@@ -89,7 +89,7 @@ Heartbeat accepted.
   "ok": true,
   "server_time": "2026-02-22T17:21:02Z",
   "defaults": {
-    "heartbeat_interval_seconds": 60
+    "heartbeat_interval_seconds": 900
   },
   "host": {
     "id": 12,

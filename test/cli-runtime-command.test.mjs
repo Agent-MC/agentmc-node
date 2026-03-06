@@ -15,6 +15,7 @@ test("cli help lists runtime commands", async () => {
 
   assert.match(stdout, /\bruntime:start\b/);
   assert.match(stdout, /\bruntime:status\b/);
+  assert.match(stdout, /\bruntime:logs\b/);
 });
 
 test("runtime:start validates required AGENTMC env", async () => {

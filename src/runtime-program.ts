@@ -1029,6 +1029,24 @@ export class AgentRuntimeProgram {
       onSessionClosed: (sessionId, reason) => {
         this.emitInfo("Realtime session closed", { session_id: sessionId, reason });
       },
+      onSignal: (event) => {
+        this.emitInfo("Realtime signal received", summarizeRealtimeSignalEvent(event));
+      },
+      onNotification: (event) => {
+        this.emitInfo("Realtime notification received", summarizeRealtimeNotificationEvent(event));
+      },
+      onNotificationBridge: (event) => {
+        this.emitInfo("Realtime notification bridged", summarizeRealtimeNotificationBridgeEvent(event));
+      },
+      onConnectionStateChange: (event) => {
+        this.emitInfo("Realtime connection state changed", {
+          session_id: event.sessionId,
+          state: event.state
+        });
+      },
+      onUnhandledMessage: (event) => {
+        this.emitInfo("Realtime message ignored", summarizeRealtimeUnhandledMessageEvent(event));
+      },
       onDebug: (event) => {
         if (!event.event.startsWith("agent.profile.update")) {
           return;
@@ -4097,6 +4115,106 @@ function summarizeApiError(error: unknown): string | null {
   }
 
   return code;
+}
+
+function summarizeRealtimeSignalEvent(event: {
+  sessionId: number;
+  source: string;
+  signal: unknown;
+}): JsonObject {
+  const signal = valueAsObject(event.signal);
+  const envelope = valueAsObject(signal?.payload);
+  const payload = valueAsObject(envelope?.payload);
+  const notification = valueAsObject(payload?.notification);
+  const messageId = toPositiveInt(payload?.message_id ?? payload?.queued_message_id);
+
+  return compactJsonObject({
+    session_id: event.sessionId,
+    source: nonEmpty(event.source),
+    signal_id: toPositiveInt(signal?.id),
+    signal_type: nonEmpty(signal?.type),
+    sender: nonEmpty(signal?.sender),
+    channel_type: nonEmpty(envelope?.type),
+    request_id: nonEmpty(payload?.request_id) ?? nonEmpty(envelope?.request_id),
+    message_id: messageId,
+    notification_id: nonEmpty(notification?.id),
+    created_at: nonEmpty(signal?.created_at)
+  });
+}
+
+function summarizeRealtimeNotificationEvent(event: {
+  sessionId: number;
+  source: string;
+  signal: unknown;
+  notification: unknown;
+  notificationType: string | null;
+  channelType: string | null;
+}): JsonObject {
+  const notification = valueAsObject(event.notification);
+  const signal = valueAsObject(event.signal);
+
+  return compactJsonObject({
+    session_id: event.sessionId,
+    source: nonEmpty(event.source),
+    signal_id: toPositiveInt(signal?.id),
+    channel_type: nonEmpty(event.channelType),
+    notification_id: nonEmpty(notification?.id),
+    notification_type: nonEmpty(event.notificationType) ?? nonEmpty(notification?.notification_type),
+    is_read: valueAsBoolean(notification?.is_read)
+  });
+}
+
+function summarizeRealtimeNotificationBridgeEvent(event: {
+  sessionId: number;
+  source: string;
+  signal: unknown;
+  notification: unknown;
+  notificationType: string | null;
+  channelType: string | null;
+  requestId: string;
+  run: {
+    runId: string;
+    status: string;
+    textSource: string;
+  };
+}): JsonObject {
+  const notification = valueAsObject(event.notification);
+  const signal = valueAsObject(event.signal);
+
+  return compactJsonObject({
+    session_id: event.sessionId,
+    source: nonEmpty(event.source),
+    signal_id: toPositiveInt(signal?.id),
+    channel_type: nonEmpty(event.channelType),
+    notification_id: nonEmpty(notification?.id),
+    notification_type: nonEmpty(event.notificationType) ?? nonEmpty(notification?.notification_type),
+    request_id: nonEmpty(event.requestId),
+    run_id: nonEmpty(event.run?.runId),
+    status: nonEmpty(event.run?.status),
+    text_source: nonEmpty(event.run?.textSource)
+  });
+}
+
+function summarizeRealtimeUnhandledMessageEvent(event: {
+  sessionId: number;
+  source: string;
+  signal: unknown;
+  channelType: string | null;
+}): JsonObject {
+  const signal = valueAsObject(event.signal);
+
+  return compactJsonObject({
+    session_id: event.sessionId,
+    source: nonEmpty(event.source),
+    signal_id: toPositiveInt(signal?.id),
+    signal_type: nonEmpty(signal?.type),
+    sender: nonEmpty(signal?.sender),
+    channel_type: nonEmpty(event.channelType)
+  });
+}
+
+function compactJsonObject(value: JsonObject): JsonObject {
+  return Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== null && entry !== undefined));
 }
 
 function normalizeError(error: unknown): Error {
