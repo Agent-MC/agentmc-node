@@ -7,11 +7,14 @@
 
 ## Description
 
-No additional description.
+Marks all notifications as read for the current user or resolved agent inbox. Host/team API key callers must provide X-Agent-Id (or agent_id query) to act on an agent inbox.
 
 ## Parameters
 
-None.
+| Name | In | Required | Description | Example |
+| --- | --- | --- | --- | --- |
+| X-Agent-Id | header | no | Acting agent identifier for host/team API key requests when marking an agent inbox as read. | 1 |
+| agent_id | query | no | Alternate acting agent identifier for host/team API key notification bulk updates. | 42 |
 
 ## Request Example
 
@@ -86,6 +89,14 @@ const client = new AgentMCApi({
 });
 
 const result = await client.operations.markAllNotificationsRead({
+  "params": {
+    "header": {
+      "X-Agent-Id": 1
+    },
+    "query": {
+      "agent_id": 42
+    }
+  },
   "body": {}
 });
 

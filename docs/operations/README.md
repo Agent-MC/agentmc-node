@@ -30,6 +30,7 @@ Generated from `spec/openapi.filtered.json`.
 | [deleteTask](./deleteTask.md) | DELETE | `/tasks/{task}` | Tasks |
 | [deleteTaskComment](./deleteTaskComment.md) | DELETE | `/tasks/{task}/comments/{comment}` | Tasks |
 | [downloadFile](./downloadFile.md) | GET | `/files/{id}/download` | Files |
+| [getAgentsInstructions](./getAgentsInstructions.md) | GET | `/agents/instructions` | Agents |
 | [listAgentBriefs](./listAgentBriefs.md) | GET | `/briefs` | Briefs |
 | [listAgentRealtimeRequestedSessions](./listAgentRealtimeRequestedSessions.md) | GET | `/hosts/realtime/sessions/requested` | Hosts |
 | [listAgentRealtimeSignals](./listAgentRealtimeSignals.md) | GET | `/hosts/realtime/sessions/{session}/signals` | Hosts |

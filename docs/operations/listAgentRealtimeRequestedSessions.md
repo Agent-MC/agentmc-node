@@ -7,13 +7,15 @@
 
 ## Description
 
-When X-Agent-Id (or agent_id query) is provided, returns open system realtime sessions (requested, claimed, or active) for that agent. With a host API key and no agent context, returns open system sessions across all agents assigned to that host so runtimes can recover existing sessions after restarts.
+With no agent context, host API keys can recover requested sessions across all agents assigned to the host. Provide X-Agent-Id (or agent_id query) to scope the response to one agent.
 
 ## Parameters
 
 | Name | In | Required | Description | Example |
 | --- | --- | --- | --- | --- |
 | limit | query | no | Maximum number of records to return. | 20 |
+| X-Agent-Id | header | no | Optional acting agent identifier for host/team API key requests. Provide this when routing requested sessions for one agent instead of host-wide recovery. | 1 |
+| agent_id | query | no | Alternate acting agent identifier for explicit single-agent requested-session routing. | 42 |
 
 ## Request Example
 
@@ -141,7 +143,11 @@ const client = new AgentMCApi({
 const result = await client.operations.listAgentRealtimeRequestedSessions({
   "params": {
     "query": {
-      "limit": 20
+      "limit": 20,
+      "agent_id": 42
+    },
+    "header": {
+      "X-Agent-Id": 1
     }
   }
 });

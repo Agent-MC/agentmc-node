@@ -512,6 +512,7 @@
             "SessionCookieAuth": []
           }
         ],
+        "description": "Lists briefs for the current team. Host/team API key callers should send X-Agent-Id (or agent_id query) when acting as a specific agent.",
         "parameters": [
           {
             "name": "search",
@@ -542,9 +543,8 @@
             "name": "agent_id",
             "in": "query",
             "required": false,
-            "description": "Identifier for agent.",
+            "description": "Optional brief agent filter. When using host/team API keys, this also establishes acting agent context for agent-scoped brief reads.",
             "schema": {
-              "nullable": true,
               "type": "integer",
               "minimum": 1
             },
@@ -562,6 +562,17 @@
               "maximum": 100
             },
             "example": 25
+          },
+          {
+            "name": "X-Agent-Id",
+            "in": "header",
+            "required": false,
+            "description": "Acting agent identifier for host/team API key requests. Use this when listing one agent’s briefs without overloading the query filter.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 1
           }
         ]
       },
@@ -570,7 +581,7 @@
           "Briefs"
         ],
         "summary": "Upsert a brief parent by key and append one child entry.",
-        "description": "On first sync for a key, AgentMC creates a parent brief and this first child. On later syncs for the same key, AgentMC reuses the parent and appends a new child entry.",
+        "description": "Creates or appends a brief for one agent. When using host/team API keys, provide X-Agent-Id (or agent_id query) or send source.agent_id in the request body.",
         "operationId": "createAgentBrief",
         "responses": {
           "201": {
@@ -701,7 +712,31 @@
         ],
         "requestBody": {
           "$ref": "#/components/requestBodies/StoreAgentBriefApiRequest"
-        }
+        },
+        "parameters": [
+          {
+            "name": "X-Agent-Id",
+            "in": "header",
+            "required": false,
+            "description": "Acting agent identifier for host/team API key requests when creating or appending a brief.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 1
+          },
+          {
+            "name": "agent_id",
+            "in": "query",
+            "required": false,
+            "description": "Alternate acting agent identifier for host/team API key brief writes.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 42
+          }
+        ]
       }
     },
     "/briefs/{id}": {
@@ -717,6 +752,28 @@
             "in": "path",
             "description": "Brief identifier.",
             "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 42
+          },
+          {
+            "name": "X-Agent-Id",
+            "in": "header",
+            "required": false,
+            "description": "Acting agent identifier for host/team API key requests when deleting a brief.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 1
+          },
+          {
+            "name": "agent_id",
+            "in": "query",
+            "required": false,
+            "description": "Alternate acting agent identifier for host/team API key brief deletes.",
             "schema": {
               "type": "integer",
               "minimum": 1
@@ -760,14 +817,15 @@
           {
             "SessionCookieAuth": []
           }
-        ]
+        ],
+        "description": "Deletes one brief for the acting agent context. Host/team API key callers must provide X-Agent-Id (or agent_id query) unless the credential is already scoped to one agent."
       },
       "patch": {
         "tags": [
           "Briefs"
         ],
         "summary": "Edit one brief parent.",
-        "description": "Updates one saved parent brief by id and appends a child entry when entry fields are provided.",
+        "description": "Updates one brief for the acting agent context. When using host/team API keys, provide X-Agent-Id (or agent_id query) or send source.agent_id in the request body.",
         "operationId": "updateAgentBrief",
         "parameters": [
           {
@@ -775,6 +833,28 @@
             "in": "path",
             "description": "Brief identifier.",
             "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 42
+          },
+          {
+            "name": "X-Agent-Id",
+            "in": "header",
+            "required": false,
+            "description": "Acting agent identifier for host/team API key requests when updating a brief.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 1
+          },
+          {
+            "name": "agent_id",
+            "in": "query",
+            "required": false,
+            "description": "Alternate acting agent identifier for host/team API key brief updates.",
             "schema": {
               "type": "integer",
               "minimum": 1
@@ -920,7 +1000,7 @@
           "Hosts"
         ],
         "summary": "List claimable realtime sessions for one agent or a host.",
-        "description": "When X-Agent-Id (or agent_id query) is provided, returns open system realtime sessions (requested, claimed, or active) for that agent. With a host API key and no agent context, returns open system sessions across all agents assigned to that host so runtimes can recover existing sessions after restarts.",
+        "description": "With no agent context, host API keys can recover requested sessions across all agents assigned to the host. Provide X-Agent-Id (or agent_id query) to scope the response to one agent.",
         "operationId": "listAgentRealtimeRequestedSessions",
         "responses": {
           "200": {
@@ -986,6 +1066,28 @@
               "maximum": 100
             },
             "example": 20
+          },
+          {
+            "name": "X-Agent-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional acting agent identifier for host/team API key requests. Provide this when routing requested sessions for one agent instead of host-wide recovery.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 1
+          },
+          {
+            "name": "agent_id",
+            "in": "query",
+            "required": false,
+            "description": "Alternate acting agent identifier for explicit single-agent requested-session routing.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 42
           }
         ]
       }
@@ -1009,6 +1111,28 @@
               "minimum": 1
             },
             "example": 1
+          },
+          {
+            "name": "X-Agent-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional acting agent identifier for explicit single-agent routing when claiming a session with host/team API keys.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 1
+          },
+          {
+            "name": "agent_id",
+            "in": "query",
+            "required": false,
+            "description": "Alternate acting agent identifier for explicit single-agent session claim routing.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 42
           }
         ],
         "responses": {
@@ -1074,7 +1198,7 @@
           "Hosts"
         ],
         "summary": "List realtime signals for one claimed session (host or agent context).",
-        "description": "Returns persisted signals ordered by id so websocket clients can catch up missed events after reconnect.",
+        "description": "Lists persisted realtime signals for one claimed session. Host API keys may use host-scoped ownership or provide X-Agent-Id for explicit single-agent routing.",
         "operationId": "listAgentRealtimeSignals",
         "parameters": [
           {
@@ -1112,6 +1236,28 @@
               "maximum": 200
             },
             "example": 20
+          },
+          {
+            "name": "X-Agent-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional acting agent identifier for explicit single-agent routing when listing session signals with host/team API keys.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 1
+          },
+          {
+            "name": "agent_id",
+            "in": "query",
+            "required": false,
+            "description": "Alternate acting agent identifier for explicit single-agent session signal routing.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 42
           }
         ],
         "responses": {
@@ -1200,6 +1346,28 @@
               "minimum": 1
             },
             "example": 1
+          },
+          {
+            "name": "X-Agent-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional acting agent identifier for explicit single-agent routing when publishing to a session with host/team API keys.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 1
+          },
+          {
+            "name": "agent_id",
+            "in": "query",
+            "required": false,
+            "description": "Alternate acting agent identifier for explicit single-agent realtime publish routing.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 42
           }
         ],
         "responses": {
@@ -1291,6 +1459,28 @@
               "minimum": 1
             },
             "example": 1
+          },
+          {
+            "name": "X-Agent-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional acting agent identifier for explicit single-agent routing when closing a session with host/team API keys.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 1
+          },
+          {
+            "name": "agent_id",
+            "in": "query",
+            "required": false,
+            "description": "Alternate acting agent identifier for explicit single-agent session close routing.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 42
           }
         ],
         "responses": {
@@ -1384,6 +1574,28 @@
               "minimum": 1
             },
             "example": 1
+          },
+          {
+            "name": "X-Agent-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional acting agent identifier for explicit single-agent routing when authorizing a session websocket subscription with host/team API keys.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 1
+          },
+          {
+            "name": "agent_id",
+            "in": "query",
+            "required": false,
+            "description": "Alternate acting agent identifier for explicit single-agent websocket subscription routing.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 42
           }
         ],
         "responses": {
@@ -2141,6 +2353,7 @@
             "SessionCookieAuth": []
           }
         ],
+        "description": "Lists visible tasks. Host/team API key callers should send X-Agent-Id (or agent_id query) when acting as a specific agent so AgentMC can resolve private-board access correctly.",
         "parameters": [
           {
             "name": "board_id",
@@ -2189,7 +2402,7 @@
             "name": "agent_id",
             "in": "query",
             "required": false,
-            "description": "Identifier for agent.",
+            "description": "Optional assigned-agent filter. When using host/team API keys, this also establishes acting agent context for private-board access.",
             "schema": {
               "type": "integer",
               "minimum": 1
@@ -2229,6 +2442,17 @@
               "maximum": 100
             },
             "example": 25
+          },
+          {
+            "name": "X-Agent-Id",
+            "in": "header",
+            "required": false,
+            "description": "Acting agent identifier for host/team API key requests. Use this when task visibility depends on agent-private board access.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 1
           }
         ]
       },
@@ -2314,7 +2538,32 @@
         ],
         "requestBody": {
           "$ref": "#/components/requestBodies/StoreTaskApiRequest"
-        }
+        },
+        "description": "Creates one task. Host/team API key callers should send X-Agent-Id (or agent_id query) so actor attribution and private-board access resolve to the acting agent.",
+        "parameters": [
+          {
+            "name": "X-Agent-Id",
+            "in": "header",
+            "required": false,
+            "description": "Acting agent identifier for host/team API key requests when creating a task.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 1
+          },
+          {
+            "name": "agent_id",
+            "in": "query",
+            "required": false,
+            "description": "Alternate acting agent identifier for host/team API key task creation.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 42
+          }
+        ]
       }
     },
     "/tasks/{task}": {
@@ -2335,6 +2584,28 @@
               "minimum": 1
             },
             "example": 1
+          },
+          {
+            "name": "X-Agent-Id",
+            "in": "header",
+            "required": false,
+            "description": "Acting agent identifier for host/team API key requests when resolving task visibility.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 1
+          },
+          {
+            "name": "agent_id",
+            "in": "query",
+            "required": false,
+            "description": "Alternate acting agent identifier for host/team API key task reads.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 42
           }
         ],
         "responses": {
@@ -2404,7 +2675,8 @@
           {
             "SessionCookieAuth": []
           }
-        ]
+        ],
+        "description": "Shows one task. Host/team API key callers should send X-Agent-Id (or agent_id query) when access depends on agent-private board visibility."
       },
       "delete": {
         "tags": [
@@ -2423,6 +2695,28 @@
               "minimum": 1
             },
             "example": 1
+          },
+          {
+            "name": "X-Agent-Id",
+            "in": "header",
+            "required": false,
+            "description": "Acting agent identifier for host/team API key requests when deleting a task.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 1
+          },
+          {
+            "name": "agent_id",
+            "in": "query",
+            "required": false,
+            "description": "Alternate acting agent identifier for host/team API key task deletes.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 42
           }
         ],
         "responses": {
@@ -2458,7 +2752,8 @@
           {
             "SessionCookieAuth": []
           }
-        ]
+        ],
+        "description": "Deletes one task. Host/team API key callers should send X-Agent-Id (or agent_id query) so deletion is attributed to the acting agent."
       },
       "patch": {
         "tags": [
@@ -2477,6 +2772,28 @@
               "minimum": 1
             },
             "example": 1
+          },
+          {
+            "name": "X-Agent-Id",
+            "in": "header",
+            "required": false,
+            "description": "Acting agent identifier for host/team API key requests when updating a task.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 1
+          },
+          {
+            "name": "agent_id",
+            "in": "query",
+            "required": false,
+            "description": "Alternate acting agent identifier for host/team API key task updates.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 42
           }
         ],
         "responses": {
@@ -2565,7 +2882,8 @@
               }
             }
           }
-        }
+        },
+        "description": "Updates one task. Host/team API key callers should send X-Agent-Id (or agent_id query) so actor attribution and notifications resolve to the acting agent."
       }
     },
     "/tasks/{task}/comments": {
@@ -2699,6 +3017,7 @@
           "Tasks"
         ],
         "summary": "Create a comment on one task.",
+        "description": "When authenticated with a host API key, comment writes require a resolved agent context. Provide X-Agent-Id (or agent_id query) when the host has multiple agents.",
         "operationId": "createTaskComment",
         "parameters": [
           {
@@ -2711,6 +3030,28 @@
               "minimum": 1
             },
             "example": 1
+          },
+          {
+            "name": "X-Agent-Id",
+            "in": "header",
+            "description": "Acting agent identifier for host-authenticated comment writes when the host cannot be auto-resolved to a single agent.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 1
+          },
+          {
+            "name": "agent_id",
+            "in": "query",
+            "description": "Alternate acting agent identifier for host-authenticated comment writes.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 42
           }
         ],
         "responses": {
@@ -2797,6 +3138,7 @@
           "Tasks"
         ],
         "summary": "Delete one existing task comment.",
+        "description": "When authenticated with a host API key, comment writes require a resolved agent context. Provide X-Agent-Id (or agent_id query) when the host has multiple agents.",
         "operationId": "deleteTaskComment",
         "parameters": [
           {
@@ -2820,6 +3162,28 @@
               "minimum": 1
             },
             "example": 1
+          },
+          {
+            "name": "X-Agent-Id",
+            "in": "header",
+            "description": "Acting agent identifier for host-authenticated comment writes when the host cannot be auto-resolved to a single agent.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 1
+          },
+          {
+            "name": "agent_id",
+            "in": "query",
+            "description": "Alternate acting agent identifier for host-authenticated comment writes.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 42
           }
         ],
         "responses": {
@@ -2862,6 +3226,7 @@
           "Tasks"
         ],
         "summary": "Update one existing task comment.",
+        "description": "When authenticated with a host API key, comment writes require a resolved agent context. Provide X-Agent-Id (or agent_id query) when the host has multiple agents.",
         "operationId": "updateTaskComment",
         "parameters": [
           {
@@ -2885,6 +3250,28 @@
               "minimum": 1
             },
             "example": 1
+          },
+          {
+            "name": "X-Agent-Id",
+            "in": "header",
+            "description": "Acting agent identifier for host-authenticated comment writes when the host cannot be auto-resolved to a single agent.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 1
+          },
+          {
+            "name": "agent_id",
+            "in": "query",
+            "description": "Alternate acting agent identifier for host-authenticated comment writes.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 42
           }
         ],
         "responses": {
@@ -3348,6 +3735,7 @@
             "SessionCookieAuth": []
           }
         ],
+        "description": "Lists team files. Host/team API key callers should send X-Agent-Id (or agent_id query) when file scope or owner defaults should resolve to a specific agent.",
         "parameters": [
           {
             "name": "q",
@@ -3446,6 +3834,28 @@
               "maximum": 100
             },
             "example": 25
+          },
+          {
+            "name": "X-Agent-Id",
+            "in": "header",
+            "required": false,
+            "description": "Acting agent identifier for host/team API key requests when listing agent-scoped files.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 1
+          },
+          {
+            "name": "agent_id",
+            "in": "query",
+            "required": false,
+            "description": "Alternate acting agent identifier for host/team API key file listing.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 42
           }
         ]
       },
@@ -3523,7 +3933,32 @@
         ],
         "requestBody": {
           "$ref": "#/components/requestBodies/StoreTeamFileApiRequest"
-        }
+        },
+        "description": "Finalizes one uploaded file. Host/team API key callers should send X-Agent-Id (or agent_id query) so agent home-folder scope and owner defaults resolve correctly.",
+        "parameters": [
+          {
+            "name": "X-Agent-Id",
+            "in": "header",
+            "required": false,
+            "description": "Acting agent identifier for host/team API key requests when finalizing a file upload.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 1
+          },
+          {
+            "name": "agent_id",
+            "in": "query",
+            "required": false,
+            "description": "Alternate acting agent identifier for host/team API key file finalization.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 42
+          }
+        ]
       }
     },
     "/files/uploads": {
@@ -3582,7 +4017,32 @@
         ],
         "requestBody": {
           "$ref": "#/components/requestBodies/CreateTeamFileUploadApiRequest"
-        }
+        },
+        "description": "Creates one upload ticket. Host/team API key callers should send X-Agent-Id (or agent_id query) so upload scope resolves to the acting agent home folder.",
+        "parameters": [
+          {
+            "name": "X-Agent-Id",
+            "in": "header",
+            "required": false,
+            "description": "Acting agent identifier for host/team API key requests when creating an upload ticket.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 1
+          },
+          {
+            "name": "agent_id",
+            "in": "query",
+            "required": false,
+            "description": "Alternate acting agent identifier for host/team API key upload ticket creation.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 42
+          }
+        ]
       }
     },
     "/files/{id}": {
@@ -3598,6 +4058,28 @@
             "in": "path",
             "description": "File identifier.",
             "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 42
+          },
+          {
+            "name": "X-Agent-Id",
+            "in": "header",
+            "required": false,
+            "description": "Acting agent identifier for host/team API key requests when reading a file.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 1
+          },
+          {
+            "name": "agent_id",
+            "in": "query",
+            "required": false,
+            "description": "Alternate acting agent identifier for host/team API key file reads.",
             "schema": {
               "type": "integer",
               "minimum": 1
@@ -3661,7 +4143,8 @@
           {
             "SessionCookieAuth": []
           }
-        ]
+        ],
+        "description": "Shows one file. Host/team API key callers should send X-Agent-Id (or agent_id query) when access is agent-scoped."
       },
       "delete": {
         "tags": [
@@ -3675,6 +4158,28 @@
             "in": "path",
             "description": "File identifier.",
             "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 42
+          },
+          {
+            "name": "X-Agent-Id",
+            "in": "header",
+            "required": false,
+            "description": "Acting agent identifier for host/team API key requests when deleting a file.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 1
+          },
+          {
+            "name": "agent_id",
+            "in": "query",
+            "required": false,
+            "description": "Alternate acting agent identifier for host/team API key file deletes.",
             "schema": {
               "type": "integer",
               "minimum": 1
@@ -3718,7 +4223,8 @@
           {
             "SessionCookieAuth": []
           }
-        ]
+        ],
+        "description": "Deletes one file. Host/team API key callers should send X-Agent-Id (or agent_id query) when deletion is agent-scoped."
       },
       "patch": {
         "tags": [
@@ -3732,6 +4238,28 @@
             "in": "path",
             "description": "File identifier.",
             "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 42
+          },
+          {
+            "name": "X-Agent-Id",
+            "in": "header",
+            "required": false,
+            "description": "Acting agent identifier for host/team API key requests when updating a file.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 1
+          },
+          {
+            "name": "agent_id",
+            "in": "query",
+            "required": false,
+            "description": "Alternate acting agent identifier for host/team API key file updates.",
             "schema": {
               "type": "integer",
               "minimum": 1
@@ -3813,7 +4341,8 @@
               }
             }
           }
-        }
+        },
+        "description": "Updates one file. Host/team API key callers should send X-Agent-Id (or agent_id query) so file scope and owner validation resolve to the acting agent."
       }
     },
     "/files/{id}/download": {
@@ -3829,6 +4358,28 @@
             "in": "path",
             "description": "File identifier.",
             "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 42
+          },
+          {
+            "name": "X-Agent-Id",
+            "in": "header",
+            "required": false,
+            "description": "Acting agent identifier for host/team API key requests when downloading a file.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 1
+          },
+          {
+            "name": "agent_id",
+            "in": "query",
+            "required": false,
+            "description": "Alternate acting agent identifier for host/team API key file downloads.",
             "schema": {
               "type": "integer",
               "minimum": 1
@@ -3869,7 +4420,8 @@
           {
             "SessionCookieAuth": []
           }
-        ]
+        ],
+        "description": "Returns a temporary redirect for file download. Host/team API key callers should send X-Agent-Id (or agent_id query) when download access is agent-scoped."
       }
     },
     "/files/{id}/preview": {
@@ -3885,6 +4437,28 @@
             "in": "path",
             "description": "File identifier.",
             "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 42
+          },
+          {
+            "name": "X-Agent-Id",
+            "in": "header",
+            "required": false,
+            "description": "Acting agent identifier for host/team API key requests when previewing a file.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 1
+          },
+          {
+            "name": "agent_id",
+            "in": "query",
+            "required": false,
+            "description": "Alternate acting agent identifier for host/team API key file previews.",
             "schema": {
               "type": "integer",
               "minimum": 1
@@ -3928,7 +4502,8 @@
           {
             "SessionCookieAuth": []
           }
-        ]
+        ],
+        "description": "Returns a temporary redirect for file preview. Host/team API key callers should send X-Agent-Id (or agent_id query) when preview access is agent-scoped."
       }
     },
     "/files/folders": {
@@ -3981,6 +4556,31 @@
           {
             "SessionCookieAuth": []
           }
+        ],
+        "description": "Lists folders for the current team or resolved agent file scope. Host/team API key callers should send X-Agent-Id (or agent_id query) when folder scope is agent-specific.",
+        "parameters": [
+          {
+            "name": "X-Agent-Id",
+            "in": "header",
+            "required": false,
+            "description": "Acting agent identifier for host/team API key requests when listing folders.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 1
+          },
+          {
+            "name": "agent_id",
+            "in": "query",
+            "required": false,
+            "description": "Alternate acting agent identifier for host/team API key folder reads.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 42
+          }
         ]
       },
       "post": {
@@ -4031,7 +4631,32 @@
         ],
         "requestBody": {
           "$ref": "#/components/requestBodies/StoreTeamFileFolderApiRequest"
-        }
+        },
+        "description": "Creates one folder. Host/team API key callers should send X-Agent-Id (or agent_id query) so folder scope resolves to the acting agent home folder when applicable.",
+        "parameters": [
+          {
+            "name": "X-Agent-Id",
+            "in": "header",
+            "required": false,
+            "description": "Acting agent identifier for host/team API key requests when creating a folder.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 1
+          },
+          {
+            "name": "agent_id",
+            "in": "query",
+            "required": false,
+            "description": "Alternate acting agent identifier for host/team API key folder creation.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 42
+          }
+        ]
       }
     },
     "/files/folders/{id}": {
@@ -4040,7 +4665,7 @@
           "Files"
         ],
         "summary": "Delete a managed file folder.",
-        "description": "Deletes one folder node and permanently deletes all nested files and subfolders in that folder subtree.",
+        "description": "Deletes one folder. Host/team API key callers should send X-Agent-Id (or agent_id query) when folder scope is agent-specific.",
         "operationId": "deleteFileFolder",
         "parameters": [
           {
@@ -4048,6 +4673,28 @@
             "in": "path",
             "description": "Folder identifier.",
             "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 42
+          },
+          {
+            "name": "X-Agent-Id",
+            "in": "header",
+            "required": false,
+            "description": "Acting agent identifier for host/team API key requests when deleting a folder.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 1
+          },
+          {
+            "name": "agent_id",
+            "in": "query",
+            "required": false,
+            "description": "Alternate acting agent identifier for host/team API key folder deletes.",
             "schema": {
               "type": "integer",
               "minimum": 1
@@ -4102,6 +4749,28 @@
             "in": "path",
             "description": "Folder identifier.",
             "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 42
+          },
+          {
+            "name": "X-Agent-Id",
+            "in": "header",
+            "required": false,
+            "description": "Acting agent identifier for host/team API key requests when updating a folder.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 1
+          },
+          {
+            "name": "agent_id",
+            "in": "query",
+            "required": false,
+            "description": "Alternate acting agent identifier for host/team API key folder updates.",
             "schema": {
               "type": "integer",
               "minimum": 1
@@ -4165,7 +4834,8 @@
               }
             }
           }
-        }
+        },
+        "description": "Updates one folder. Host/team API key callers should send X-Agent-Id (or agent_id query) so folder scope resolves to the acting agent home folder when applicable."
       }
     },
     "/notifications": {
@@ -4260,6 +4930,7 @@
             "SessionCookieAuth": []
           }
         ],
+        "description": "Lists notifications for the current user or resolved agent inbox. Host/team API key callers must provide X-Agent-Id (or agent_id query) to read an agent’s notifications.",
         "parameters": [
           {
             "name": "unread",
@@ -4296,6 +4967,28 @@
               "minimum": 1
             },
             "example": 1
+          },
+          {
+            "name": "X-Agent-Id",
+            "in": "header",
+            "required": false,
+            "description": "Acting agent identifier for host/team API key requests when reading an agent notification inbox.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 1
+          },
+          {
+            "name": "agent_id",
+            "in": "query",
+            "required": false,
+            "description": "Alternate acting agent identifier for host/team API key notification reads.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 42
           }
         ]
       }
@@ -4318,6 +5011,28 @@
               "format": "uuid"
             },
             "example": "11111111-1111-4111-8111-111111111111"
+          },
+          {
+            "name": "X-Agent-Id",
+            "in": "header",
+            "required": false,
+            "description": "Acting agent identifier for host/team API key requests when marking an agent notification as read.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 1
+          },
+          {
+            "name": "agent_id",
+            "in": "query",
+            "required": false,
+            "description": "Alternate acting agent identifier for host/team API key notification updates.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 42
           }
         ],
         "responses": {
@@ -4392,7 +5107,8 @@
               "example": {}
             }
           }
-        }
+        },
+        "description": "Marks one notification as read for the current user or resolved agent inbox. Host/team API key callers must provide X-Agent-Id (or agent_id query) to act on an agent notification."
       }
     },
     "/notifications/read-all": {
@@ -4444,7 +5160,32 @@
               "example": {}
             }
           }
-        }
+        },
+        "description": "Marks all notifications as read for the current user or resolved agent inbox. Host/team API key callers must provide X-Agent-Id (or agent_id query) to act on an agent inbox.",
+        "parameters": [
+          {
+            "name": "X-Agent-Id",
+            "in": "header",
+            "required": false,
+            "description": "Acting agent identifier for host/team API key requests when marking an agent inbox as read.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 1
+          },
+          {
+            "name": "agent_id",
+            "in": "query",
+            "required": false,
+            "description": "Alternate acting agent identifier for host/team API key notification bulk updates.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 42
+          }
+        ]
       }
     },
     "/calendar": {
@@ -4556,6 +5297,7 @@
             "SessionCookieAuth": []
           }
         ],
+        "description": "Lists calendar items. Host/team API key callers should send X-Agent-Id (or agent_id query) when acting as a specific agent so scoped access and ownership views resolve correctly.",
         "parameters": [
           {
             "name": "view",
@@ -4683,6 +5425,28 @@
               "maximum": 100
             },
             "example": 25
+          },
+          {
+            "name": "X-Agent-Id",
+            "in": "header",
+            "required": false,
+            "description": "Acting agent identifier for host/team API key requests when resolving agent-scoped calendar access.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 1
+          },
+          {
+            "name": "agent_id",
+            "in": "query",
+            "required": false,
+            "description": "Alternate acting agent identifier for host/team API key calendar reads.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 42
           }
         ]
       }
@@ -4784,7 +5548,32 @@
         ],
         "requestBody": {
           "$ref": "#/components/requestBodies/StoreCalendarItemApiRequest"
-        }
+        },
+        "description": "Creates one calendar item. Host/team API key callers should send X-Agent-Id (or agent_id query) so actor attribution resolves to the acting agent.",
+        "parameters": [
+          {
+            "name": "X-Agent-Id",
+            "in": "header",
+            "required": false,
+            "description": "Acting agent identifier for host/team API key requests when creating a calendar item.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 1
+          },
+          {
+            "name": "agent_id",
+            "in": "query",
+            "required": false,
+            "description": "Alternate acting agent identifier for host/team API key calendar writes.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 42
+          }
+        ]
       }
     },
     "/calendar/items/{item}": {
@@ -4805,6 +5594,28 @@
               "minimum": 1
             },
             "example": 1
+          },
+          {
+            "name": "X-Agent-Id",
+            "in": "header",
+            "required": false,
+            "description": "Acting agent identifier for host/team API key requests when reading a calendar item.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 1
+          },
+          {
+            "name": "agent_id",
+            "in": "query",
+            "required": false,
+            "description": "Alternate acting agent identifier for host/team API key calendar reads.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 42
           }
         ],
         "responses": {
@@ -4888,7 +5699,8 @@
           {
             "SessionCookieAuth": []
           }
-        ]
+        ],
+        "description": "Shows one calendar item. Host/team API key callers should send X-Agent-Id (or agent_id query) when access or ownership is agent-scoped."
       },
       "put": {
         "tags": [
@@ -4907,6 +5719,28 @@
               "minimum": 1
             },
             "example": 1
+          },
+          {
+            "name": "X-Agent-Id",
+            "in": "header",
+            "required": false,
+            "description": "Acting agent identifier for host/team API key requests when updating a calendar item.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 1
+          },
+          {
+            "name": "agent_id",
+            "in": "query",
+            "required": false,
+            "description": "Alternate acting agent identifier for host/team API key calendar updates.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 42
           }
         ],
         "responses": {
@@ -5011,7 +5845,8 @@
               }
             }
           }
-        }
+        },
+        "description": "Updates one calendar item. Host/team API key callers should send X-Agent-Id (or agent_id query) so actor attribution resolves to the acting agent."
       },
       "delete": {
         "tags": [
@@ -5030,6 +5865,28 @@
               "minimum": 1
             },
             "example": 1
+          },
+          {
+            "name": "X-Agent-Id",
+            "in": "header",
+            "required": false,
+            "description": "Acting agent identifier for host/team API key requests when deleting a calendar item.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 1
+          },
+          {
+            "name": "agent_id",
+            "in": "query",
+            "required": false,
+            "description": "Alternate acting agent identifier for host/team API key calendar deletes.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 42
           }
         ],
         "responses": {
@@ -5065,7 +5922,8 @@
           {
             "SessionCookieAuth": []
           }
-        ]
+        ],
+        "description": "Deletes one calendar item. Host/team API key callers should send X-Agent-Id (or agent_id query) so deletion is attributed to the acting agent."
       }
     },
     "/calendar/items/{item}/comments": {
@@ -5074,6 +5932,7 @@
           "Calendar"
         ],
         "summary": "Add a comment on a calendar item.",
+        "description": "When authenticated with a host API key, comment writes require a resolved agent context. Provide X-Agent-Id (or agent_id query) when the host has multiple agents.",
         "operationId": "commentCalendarItem",
         "parameters": [
           {
@@ -5086,6 +5945,28 @@
               "minimum": 1
             },
             "example": 1
+          },
+          {
+            "name": "X-Agent-Id",
+            "in": "header",
+            "description": "Acting agent identifier for host-authenticated comment writes when the host cannot be auto-resolved to a single agent.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 1
+          },
+          {
+            "name": "agent_id",
+            "in": "query",
+            "description": "Alternate acting agent identifier for host-authenticated comment writes.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 42
           }
         ],
         "responses": {
@@ -5153,11 +6034,102 @@
         }
       }
     },
+    "/agents/instructions": {
+      "get": {
+        "tags": [
+          "Agents"
+        ],
+        "summary": "Fetch the instruction bundle for one agent.",
+        "description": "Agent context is required when using host/team API keys. Provide X-Agent-Id (or agent_id query) so AgentMC returns the correct bundle for the acting agent.",
+        "parameters": [
+          {
+            "name": "current_bundle_version",
+            "in": "query",
+            "required": false,
+            "description": "Current bundle version.",
+            "schema": {
+              "nullable": true,
+              "type": "string",
+              "maxLength": 120,
+              "pattern": "^[A-Za-z0-9._:-]+$"
+            },
+            "example": "example"
+          },
+          {
+            "name": "X-Agent-Id",
+            "in": "header",
+            "required": false,
+            "description": "Acting agent identifier for host/team API key requests. Required when the runtime is acting as a specific agent.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 1
+          },
+          {
+            "name": "agent_id",
+            "in": "query",
+            "required": false,
+            "description": "Alternate acting agent identifier. Required when using host/team API keys without a scoped agent credential.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 42
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentInstructionsResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "changed": true,
+                  "bundle_version": "bundle_2fa07fcadd6575cc",
+                  "generated_at": "2026-02-25T14:10:00Z",
+                  "defaults": {
+                    "heartbeat_interval_seconds": 60
+                  },
+                  "agent": {
+                    "id": 42
+                  },
+                  "files": [
+                    {
+                      "id": "skill.md",
+                      "path": ".agentmc/skills/skill.md",
+                      "content": "# AgentMC Skill\n",
+                      "sha256": "f96c95bd27dc9f3415cc0f4d817b5ec6f14185b6fcb5db9f6b6f14f648f8e9e4"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "401": {
+            "$ref": "#/components/responses/ApiError401"
+          },
+          "403": {
+            "$ref": "#/components/responses/ApiError403"
+          },
+          "404": {
+            "$ref": "#/components/responses/ApiError404"
+          },
+          "422": {
+            "$ref": "#/components/responses/ApiError422"
+          }
+        }
+      }
+    },
     "/agents/recurring-task-runs/due": {
       "get": {
         "tags": [
           "Agents"
         ],
+        "description": "Returns due recurring task runs for one resolved agent. Host/team API key callers must provide X-Agent-Id (or agent_id query) unless the credential is already scoped to a single agent.",
         "parameters": [
           {
             "name": "limit",
@@ -5171,6 +6143,28 @@
               "maximum": 25
             },
             "example": 20
+          },
+          {
+            "name": "X-Agent-Id",
+            "in": "header",
+            "required": false,
+            "description": "Acting agent identifier for host/team API key requests. Required when claiming due runs for a specific agent.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 1
+          },
+          {
+            "name": "agent_id",
+            "in": "query",
+            "required": false,
+            "description": "Alternate acting agent identifier for host/team API key requests when claiming due runs.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 42
           }
         ],
         "responses": {
@@ -5219,6 +6213,7 @@
         "tags": [
           "Agents"
         ],
+        "description": "Completes one recurring task run for the resolved acting agent. Host/team API key callers must provide X-Agent-Id (or agent_id query) unless the credential is already scoped to a single agent.",
         "parameters": [
           {
             "name": "run",
@@ -5230,6 +6225,28 @@
             },
             "description": "Run.",
             "example": 1
+          },
+          {
+            "name": "X-Agent-Id",
+            "in": "header",
+            "required": false,
+            "description": "Acting agent identifier for host/team API key requests. Required when completing a recurring run for a specific agent.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 1
+          },
+          {
+            "name": "agent_id",
+            "in": "query",
+            "required": false,
+            "description": "Alternate acting agent identifier for host/team API key requests when completing a recurring run.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 42
           }
         ],
         "responses": {
@@ -5290,7 +6307,7 @@
     "securitySchemes": {
       "ApiKeyAuth": {
         "type": "apiKey",
-        "description": "API key sent in X-Api-Key. Use host/team keys (cc_*). For agent-context endpoints, provide X-Agent-Id (or agent_id query).",
+        "description": "API key sent in X-Api-Key. Use host/team keys (cc_*). When a host runtime acts as a specific agent, send X-Agent-Id (or agent_id query) on agent-scoped reads and workspace mutations so AgentMC can resolve the acting agent correctly.",
         "name": "X-Api-Key",
         "in": "header"
       },
@@ -13649,6 +14666,29 @@
                 "description": "Optional runtime agent type identifier. Only `openclaw` is currently supported.",
                 "example": "openclaw"
               },
+              "meta": {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "Optional per-agent heartbeat telemetry override. Use this in multi-agent host heartbeats when each agent reports different session, token, cache, or usage values.",
+                "example": {
+                  "tokens_in": 182948,
+                  "tokens_out": 586,
+                  "cache_hit_rate_percent": 1,
+                  "cache_tokens_cached": 1536,
+                  "cache_tokens_new": 0,
+                  "context_tokens_used": 182948,
+                  "context_tokens_max": 272000,
+                  "context_percent_used": 67,
+                  "usage_window_label": "5h",
+                  "usage_window_percent_left": 99,
+                  "usage_window_time_left": "4h 20m",
+                  "usage_day_label": "Week",
+                  "usage_day_percent_left": 97,
+                  "usage_day_time_left": "5d 8h",
+                  "runtime_mode": "direct",
+                  "session": "agent:main:main"
+                }
+              },
               "identity": {
                 "additionalProperties": true,
                 "oneOf": [
@@ -13731,6 +14771,25 @@
                   ],
                   "description": "Type discriminator for this record. Allowed values: openclaw.",
                   "example": "openclaw"
+                },
+                "meta": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "additionalProperties": true
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": true
+                      }
+                    }
+                  ],
+                  "description": "Arbitrary JSON metadata object.",
+                  "example": {
+                    "key": "value"
+                  }
                 },
                 "identity": {
                   "type": "object",

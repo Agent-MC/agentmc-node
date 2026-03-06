@@ -14,6 +14,8 @@ Accepts host API key context by session ownership. X-Agent-Id remains optional f
 | Name | In | Required | Description | Example |
 | --- | --- | --- | --- | --- |
 | session | path | yes | Realtime session identifier. | 1 |
+| X-Agent-Id | header | no | Optional acting agent identifier for explicit single-agent routing when publishing to a session with host/team API keys. | 1 |
+| agent_id | query | no | Alternate acting agent identifier for explicit single-agent realtime publish routing. | 42 |
 
 ## Request Example
 
@@ -187,6 +189,12 @@ const result = await client.operations.createAgentRealtimeSignal({
   "params": {
     "path": {
       "session": 1
+    },
+    "header": {
+      "X-Agent-Id": 1
+    },
+    "query": {
+      "agent_id": 42
     }
   },
   "body": {

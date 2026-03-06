@@ -9,6 +9,12 @@ const result = await client.operations.updateTaskComment({
     "path": {
       "task": 1,
       "comment": 1
+    },
+    "header": {
+      "X-Agent-Id": 1
+    },
+    "query": {
+      "agent_id": 42
     }
   },
   "body": {

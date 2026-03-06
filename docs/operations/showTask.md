@@ -7,13 +7,15 @@
 
 ## Description
 
-No additional description.
+Shows one task. Host/team API key callers should send X-Agent-Id (or agent_id query) when access depends on agent-private board visibility.
 
 ## Parameters
 
 | Name | In | Required | Description | Example |
 | --- | --- | --- | --- | --- |
 | task | path | yes | Task identifier. | 1 |
+| X-Agent-Id | header | no | Acting agent identifier for host/team API key requests when resolving task visibility. | 1 |
+| agent_id | query | no | Alternate acting agent identifier for host/team API key task reads. | 42 |
 
 ## Request Example
 
@@ -140,6 +142,12 @@ const result = await client.operations.showTask({
   "params": {
     "path": {
       "task": 1
+    },
+    "header": {
+      "X-Agent-Id": 1
+    },
+    "query": {
+      "agent_id": 42
     }
   }
 });

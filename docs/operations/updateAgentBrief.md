@@ -7,13 +7,15 @@
 
 ## Description
 
-Updates one saved parent brief by id and appends a child entry when entry fields are provided.
+Updates one brief for the acting agent context. When using host/team API keys, provide X-Agent-Id (or agent_id query) or send source.agent_id in the request body.
 
 ## Parameters
 
 | Name | In | Required | Description | Example |
 | --- | --- | --- | --- | --- |
 | id | path | yes | Brief identifier. | 42 |
+| X-Agent-Id | header | no | Acting agent identifier for host/team API key requests when updating a brief. | 1 |
+| agent_id | query | no | Alternate acting agent identifier for host/team API key brief updates. | 42 |
 
 ## Request Example
 
@@ -245,6 +247,12 @@ const result = await client.operations.updateAgentBrief({
   "params": {
     "path": {
       "id": 42
+    },
+    "header": {
+      "X-Agent-Id": 1
+    },
+    "query": {
+      "agent_id": 42
     }
   },
   "body": {

@@ -7,7 +7,7 @@
 
 ## Description
 
-No additional description.
+Lists briefs for the current team. Host/team API key callers should send X-Agent-Id (or agent_id query) when acting as a specific agent.
 
 ## Parameters
 
@@ -15,8 +15,9 @@ No additional description.
 | --- | --- | --- | --- | --- |
 | search | query | no | Case-insensitive text search query. | "operations" |
 | external_key | query | no | Stable external key used for upsert/idempotent writes. | "daily-operations" |
-| agent_id | query | no | Identifier for agent. | 42 |
+| agent_id | query | no | Optional brief agent filter. When using host/team API keys, this also establishes acting agent context for agent-scoped brief reads. | 42 |
 | per_page | query | no | Page size for paginated responses. | 25 |
+| X-Agent-Id | header | no | Acting agent identifier for host/team API key requests. Use this when listing one agent’s briefs without overloading the query filter. | 1 |
 
 ## Request Example
 
@@ -225,6 +226,9 @@ const result = await client.operations.listAgentBriefs({
       "external_key": "daily-operations",
       "agent_id": 42,
       "per_page": 25
+    },
+    "header": {
+      "X-Agent-Id": 1
     }
   }
 });

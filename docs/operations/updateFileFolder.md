@@ -7,13 +7,15 @@
 
 ## Description
 
-No additional description.
+Updates one folder. Host/team API key callers should send X-Agent-Id (or agent_id query) so folder scope resolves to the acting agent home folder when applicable.
 
 ## Parameters
 
 | Name | In | Required | Description | Example |
 | --- | --- | --- | --- | --- |
 | id | path | yes | Folder identifier. | 42 |
+| X-Agent-Id | header | no | Acting agent identifier for host/team API key requests when updating a folder. | 1 |
+| agent_id | query | no | Alternate acting agent identifier for host/team API key folder updates. | 42 |
 
 ## Request Example
 
@@ -137,6 +139,12 @@ const result = await client.operations.updateFileFolder({
   "params": {
     "path": {
       "id": 42
+    },
+    "header": {
+      "X-Agent-Id": 1
+    },
+    "query": {
+      "agent_id": 42
     }
   },
   "body": {

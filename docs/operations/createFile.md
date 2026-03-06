@@ -7,11 +7,14 @@
 
 ## Description
 
-No additional description.
+Finalizes one uploaded file. Host/team API key callers should send X-Agent-Id (or agent_id query) so agent home-folder scope and owner defaults resolve correctly.
 
 ## Parameters
 
-None.
+| Name | In | Required | Description | Example |
+| --- | --- | --- | --- | --- |
+| X-Agent-Id | header | no | Acting agent identifier for host/team API key requests when finalizing a file upload. | 1 |
+| agent_id | query | no | Alternate acting agent identifier for host/team API key file finalization. | 42 |
 
 ## Request Example
 
@@ -189,6 +192,14 @@ const client = new AgentMCApi({
 });
 
 const result = await client.operations.createFile({
+  "params": {
+    "header": {
+      "X-Agent-Id": 1
+    },
+    "query": {
+      "agent_id": 42
+    }
+  },
   "body": {
     "upload_id": "tup_8f4f7f3f836d43d28c4f7311a48258f5",
     "display_name": "incident-timeline.md",

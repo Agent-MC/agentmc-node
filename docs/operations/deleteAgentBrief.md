@@ -7,13 +7,15 @@
 
 ## Description
 
-No additional description.
+Deletes one brief for the acting agent context. Host/team API key callers must provide X-Agent-Id (or agent_id query) unless the credential is already scoped to one agent.
 
 ## Parameters
 
 | Name | In | Required | Description | Example |
 | --- | --- | --- | --- | --- |
 | id | path | yes | Brief identifier. | 42 |
+| X-Agent-Id | header | no | Acting agent identifier for host/team API key requests when deleting a brief. | 1 |
+| agent_id | query | no | Alternate acting agent identifier for host/team API key brief deletes. | 42 |
 
 ## Request Example
 
@@ -125,6 +127,12 @@ const result = await client.operations.deleteAgentBrief({
   "params": {
     "path": {
       "id": 42
+    },
+    "header": {
+      "X-Agent-Id": 1
+    },
+    "query": {
+      "agent_id": 42
     }
   }
 });

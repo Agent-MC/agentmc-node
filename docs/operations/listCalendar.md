@@ -7,7 +7,7 @@
 
 ## Description
 
-No additional description.
+Lists calendar items. Host/team API key callers should send X-Agent-Id (or agent_id query) when acting as a specific agent so scoped access and ownership views resolve correctly.
 
 ## Parameters
 
@@ -22,6 +22,8 @@ No additional description.
 | assignee | query | no | Assignee. | "example" |
 | q | query | no | Case-insensitive text search query. | "retro" |
 | per_page | query | no | Page size for paginated responses. | 25 |
+| X-Agent-Id | header | no | Acting agent identifier for host/team API key requests when resolving agent-scoped calendar access. | 1 |
+| agent_id | query | no | Alternate acting agent identifier for host/team API key calendar reads. | 42 |
 
 ## Request Example
 
@@ -173,7 +175,11 @@ const result = await client.operations.listCalendar({
       "priority": "low",
       "assignee": "example",
       "q": "retro",
-      "per_page": 25
+      "per_page": 25,
+      "agent_id": 42
+    },
+    "header": {
+      "X-Agent-Id": 1
     }
   }
 });

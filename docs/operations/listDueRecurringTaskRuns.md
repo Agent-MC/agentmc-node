@@ -7,13 +7,15 @@
 
 ## Description
 
-No additional description.
+Returns due recurring task runs for one resolved agent. Host/team API key callers must provide X-Agent-Id (or agent_id query) unless the credential is already scoped to a single agent.
 
 ## Parameters
 
 | Name | In | Required | Description | Example |
 | --- | --- | --- | --- | --- |
 | limit | query | no | Maximum number of records to return. | 20 |
+| X-Agent-Id | header | no | Acting agent identifier for host/team API key requests. Required when claiming due runs for a specific agent. | 1 |
+| agent_id | query | no | Alternate acting agent identifier for host/team API key requests when claiming due runs. | 42 |
 
 ## Request Example
 
@@ -131,7 +133,11 @@ const client = new AgentMCApi({
 const result = await client.operations.listDueRecurringTaskRuns({
   "params": {
     "query": {
-      "limit": 20
+      "limit": 20,
+      "agent_id": 42
+    },
+    "header": {
+      "X-Agent-Id": 1
     }
   }
 });

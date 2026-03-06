@@ -13,7 +13,11 @@ const result = await client.operations.listFiles({
       "mime_group": "text",
       "sort": "updated_at",
       "direction": "asc",
-      "per_page": 25
+      "per_page": 25,
+      "agent_id": 42
+    },
+    "header": {
+      "X-Agent-Id": 1
     }
   }
 });

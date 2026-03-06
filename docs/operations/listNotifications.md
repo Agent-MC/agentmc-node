@@ -7,7 +7,7 @@
 
 ## Description
 
-No additional description.
+Lists notifications for the current user or resolved agent inbox. Host/team API key callers must provide X-Agent-Id (or agent_id query) to read an agent’s notifications.
 
 ## Parameters
 
@@ -16,6 +16,8 @@ No additional description.
 | unread | query | no | Filter unread notifications only. Accepts true/false (and 1/0). | true |
 | per_page | query | no | Page size for paginated responses. | 25 |
 | page | query | no | Page. | 1 |
+| X-Agent-Id | header | no | Acting agent identifier for host/team API key requests when reading an agent notification inbox. | 1 |
+| agent_id | query | no | Alternate acting agent identifier for host/team API key notification reads. | 42 |
 
 ## Request Example
 
@@ -160,7 +162,11 @@ const result = await client.operations.listNotifications({
     "query": {
       "unread": true,
       "per_page": 25,
-      "page": 1
+      "page": 1,
+      "agent_id": 42
+    },
+    "header": {
+      "X-Agent-Id": 1
     }
   }
 });

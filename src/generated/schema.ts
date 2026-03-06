@@ -71,12 +71,15 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List brief parents for the current team. */
+        /**
+         * List brief parents for the current team.
+         * @description Lists briefs for the current team. Host/team API key callers should send X-Agent-Id (or agent_id query) when acting as a specific agent.
+         */
         get: operations["listAgentBriefs"];
         put?: never;
         /**
          * Upsert a brief parent by key and append one child entry.
-         * @description On first sync for a key, AgentMC creates a parent brief and this first child. On later syncs for the same key, AgentMC reuses the parent and appends a new child entry.
+         * @description Creates or appends a brief for one agent. When using host/team API keys, provide X-Agent-Id (or agent_id query) or send source.agent_id in the request body.
          */
         post: operations["createAgentBrief"];
         delete?: never;
@@ -95,13 +98,16 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Delete one saved brief. */
+        /**
+         * Delete one saved brief.
+         * @description Deletes one brief for the acting agent context. Host/team API key callers must provide X-Agent-Id (or agent_id query) unless the credential is already scoped to one agent.
+         */
         delete: operations["deleteAgentBrief"];
         options?: never;
         head?: never;
         /**
          * Edit one brief parent.
-         * @description Updates one saved parent brief by id and appends a child entry when entry fields are provided.
+         * @description Updates one brief for the acting agent context. When using host/team API keys, provide X-Agent-Id (or agent_id query) or send source.agent_id in the request body.
          */
         patch: operations["updateAgentBrief"];
         trace?: never;
@@ -115,7 +121,7 @@ export interface paths {
         };
         /**
          * List claimable realtime sessions for one agent or a host.
-         * @description When X-Agent-Id (or agent_id query) is provided, returns open system realtime sessions (requested, claimed, or active) for that agent. With a host API key and no agent context, returns open system sessions across all agents assigned to that host so runtimes can recover existing sessions after restarts.
+         * @description With no agent context, host API keys can recover requested sessions across all agents assigned to the host. Provide X-Agent-Id (or agent_id query) to scope the response to one agent.
          */
         get: operations["listAgentRealtimeRequestedSessions"];
         put?: never;
@@ -155,7 +161,7 @@ export interface paths {
         };
         /**
          * List realtime signals for one claimed session (host or agent context).
-         * @description Returns persisted signals ordered by id so websocket clients can catch up missed events after reconnect.
+         * @description Lists persisted realtime signals for one claimed session. Host API keys may use host-scoped ownership or provide X-Agent-Id for explicit single-agent routing.
          */
         get: operations["listAgentRealtimeSignals"];
         put?: never;
@@ -293,10 +299,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List board tasks. */
+        /**
+         * List board tasks.
+         * @description Lists visible tasks. Host/team API key callers should send X-Agent-Id (or agent_id query) when acting as a specific agent so AgentMC can resolve private-board access correctly.
+         */
         get: operations["listTasks"];
         put?: never;
-        /** Create a task. */
+        /**
+         * Create a task.
+         * @description Creates one task. Host/team API key callers should send X-Agent-Id (or agent_id query) so actor attribution and private-board access resolve to the acting agent.
+         */
         post: operations["createTask"];
         delete?: never;
         options?: never;
@@ -311,15 +323,24 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Show one task. */
+        /**
+         * Show one task.
+         * @description Shows one task. Host/team API key callers should send X-Agent-Id (or agent_id query) when access depends on agent-private board visibility.
+         */
         get: operations["showTask"];
         put?: never;
         post?: never;
-        /** Delete a task. */
+        /**
+         * Delete a task.
+         * @description Deletes one task. Host/team API key callers should send X-Agent-Id (or agent_id query) so deletion is attributed to the acting agent.
+         */
         delete: operations["deleteTask"];
         options?: never;
         head?: never;
-        /** Update a task. */
+        /**
+         * Update a task.
+         * @description Updates one task. Host/team API key callers should send X-Agent-Id (or agent_id query) so actor attribution and notifications resolve to the acting agent.
+         */
         patch: operations["updateTask"];
         trace?: never;
     };
@@ -333,7 +354,10 @@ export interface paths {
         /** List comments on one task. */
         get: operations["listTaskComments"];
         put?: never;
-        /** Create a comment on one task. */
+        /**
+         * Create a comment on one task.
+         * @description When authenticated with a host API key, comment writes require a resolved agent context. Provide X-Agent-Id (or agent_id query) when the host has multiple agents.
+         */
         post: operations["createTaskComment"];
         delete?: never;
         options?: never;
@@ -351,11 +375,17 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Delete one existing task comment. */
+        /**
+         * Delete one existing task comment.
+         * @description When authenticated with a host API key, comment writes require a resolved agent context. Provide X-Agent-Id (or agent_id query) when the host has multiple agents.
+         */
         delete: operations["deleteTaskComment"];
         options?: never;
         head?: never;
-        /** Update one existing task comment. */
+        /**
+         * Update one existing task comment.
+         * @description When authenticated with a host API key, comment writes require a resolved agent context. Provide X-Agent-Id (or agent_id query) when the host has multiple agents.
+         */
         patch: operations["updateTaskComment"];
         trace?: never;
     };
@@ -417,10 +447,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List managed team files. */
+        /**
+         * List managed team files.
+         * @description Lists team files. Host/team API key callers should send X-Agent-Id (or agent_id query) when file scope or owner defaults should resolve to a specific agent.
+         */
         get: operations["listFiles"];
         put?: never;
-        /** Finalize an uploaded object into a managed file record. */
+        /**
+         * Finalize an uploaded object into a managed file record.
+         * @description Finalizes one uploaded file. Host/team API key callers should send X-Agent-Id (or agent_id query) so agent home-folder scope and owner defaults resolve correctly.
+         */
         post: operations["createFile"];
         delete?: never;
         options?: never;
@@ -437,7 +473,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Create a presigned upload ticket for a managed file. */
+        /**
+         * Create a presigned upload ticket for a managed file.
+         * @description Creates one upload ticket. Host/team API key callers should send X-Agent-Id (or agent_id query) so upload scope resolves to the acting agent home folder.
+         */
         post: operations["createFileUpload"];
         delete?: never;
         options?: never;
@@ -452,15 +491,24 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Show one managed file. */
+        /**
+         * Show one managed file.
+         * @description Shows one file. Host/team API key callers should send X-Agent-Id (or agent_id query) when access is agent-scoped.
+         */
         get: operations["showFile"];
         put?: never;
         post?: never;
-        /** Delete a managed file. */
+        /**
+         * Delete a managed file.
+         * @description Deletes one file. Host/team API key callers should send X-Agent-Id (or agent_id query) when deletion is agent-scoped.
+         */
         delete: operations["deleteFile"];
         options?: never;
         head?: never;
-        /** Update managed file metadata. */
+        /**
+         * Update managed file metadata.
+         * @description Updates one file. Host/team API key callers should send X-Agent-Id (or agent_id query) so file scope and owner validation resolve to the acting agent.
+         */
         patch: operations["updateFile"];
         trace?: never;
     };
@@ -471,7 +519,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get a short-lived download redirect for one managed file. */
+        /**
+         * Get a short-lived download redirect for one managed file.
+         * @description Returns a temporary redirect for file download. Host/team API key callers should send X-Agent-Id (or agent_id query) when download access is agent-scoped.
+         */
         get: operations["downloadFile"];
         put?: never;
         post?: never;
@@ -488,7 +539,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get a short-lived preview redirect for one managed file. */
+        /**
+         * Get a short-lived preview redirect for one managed file.
+         * @description Returns a temporary redirect for file preview. Host/team API key callers should send X-Agent-Id (or agent_id query) when preview access is agent-scoped.
+         */
         get: operations["previewFile"];
         put?: never;
         post?: never;
@@ -505,10 +559,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List managed file folders for the team. */
+        /**
+         * List managed file folders for the team.
+         * @description Lists folders for the current team or resolved agent file scope. Host/team API key callers should send X-Agent-Id (or agent_id query) when folder scope is agent-specific.
+         */
         get: operations["listFileFolders"];
         put?: never;
-        /** Create a managed file folder. */
+        /**
+         * Create a managed file folder.
+         * @description Creates one folder. Host/team API key callers should send X-Agent-Id (or agent_id query) so folder scope resolves to the acting agent home folder when applicable.
+         */
         post: operations["createFileFolder"];
         delete?: never;
         options?: never;
@@ -528,12 +588,15 @@ export interface paths {
         post?: never;
         /**
          * Delete a managed file folder.
-         * @description Deletes one folder node and permanently deletes all nested files and subfolders in that folder subtree.
+         * @description Deletes one folder. Host/team API key callers should send X-Agent-Id (or agent_id query) when folder scope is agent-specific.
          */
         delete: operations["deleteFileFolder"];
         options?: never;
         head?: never;
-        /** Update a managed file folder. */
+        /**
+         * Update a managed file folder.
+         * @description Updates one folder. Host/team API key callers should send X-Agent-Id (or agent_id query) so folder scope resolves to the acting agent home folder when applicable.
+         */
         patch: operations["updateFileFolder"];
         trace?: never;
     };
@@ -544,7 +607,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List team notifications (mentions, assignments, and comment activity) for the authenticated principal. */
+        /**
+         * List team notifications (mentions, assignments, and comment activity) for the authenticated principal.
+         * @description Lists notifications for the current user or resolved agent inbox. Host/team API key callers must provide X-Agent-Id (or agent_id query) to read an agent’s notifications.
+         */
         get: operations["listNotifications"];
         put?: never;
         post?: never;
@@ -567,7 +633,10 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Mark one team notification as read. */
+        /**
+         * Mark one team notification as read.
+         * @description Marks one notification as read for the current user or resolved agent inbox. Host/team API key callers must provide X-Agent-Id (or agent_id query) to act on an agent notification.
+         */
         patch: operations["markNotificationRead"];
         trace?: never;
     };
@@ -580,7 +649,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Mark all unread team notifications as read for the current team. */
+        /**
+         * Mark all unread team notifications as read for the current team.
+         * @description Marks all notifications as read for the current user or resolved agent inbox. Host/team API key callers must provide X-Agent-Id (or agent_id query) to act on an agent inbox.
+         */
         post: operations["markAllNotificationsRead"];
         delete?: never;
         options?: never;
@@ -595,7 +667,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List calendar items. */
+        /**
+         * List calendar items.
+         * @description Lists calendar items. Host/team API key callers should send X-Agent-Id (or agent_id query) when acting as a specific agent so scoped access and ownership views resolve correctly.
+         */
         get: operations["listCalendar"];
         put?: never;
         post?: never;
@@ -614,7 +689,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Create a calendar item. */
+        /**
+         * Create a calendar item.
+         * @description Creates one calendar item. Host/team API key callers should send X-Agent-Id (or agent_id query) so actor attribution resolves to the acting agent.
+         */
         post: operations["createCalendarItem"];
         delete?: never;
         options?: never;
@@ -629,12 +707,21 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Show one calendar item. */
+        /**
+         * Show one calendar item.
+         * @description Shows one calendar item. Host/team API key callers should send X-Agent-Id (or agent_id query) when access or ownership is agent-scoped.
+         */
         get: operations["showCalendarItem"];
-        /** Update a calendar item. */
+        /**
+         * Update a calendar item.
+         * @description Updates one calendar item. Host/team API key callers should send X-Agent-Id (or agent_id query) so actor attribution resolves to the acting agent.
+         */
         put: operations["updateCalendarItem"];
         post?: never;
-        /** Delete a calendar item. */
+        /**
+         * Delete a calendar item.
+         * @description Deletes one calendar item. Host/team API key callers should send X-Agent-Id (or agent_id query) so deletion is attributed to the acting agent.
+         */
         delete: operations["deleteCalendarItem"];
         options?: never;
         head?: never;
@@ -650,8 +737,93 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Add a comment on a calendar item. */
+        /**
+         * Add a comment on a calendar item.
+         * @description When authenticated with a host API key, comment writes require a resolved agent context. Provide X-Agent-Id (or agent_id query) when the host has multiple agents.
+         */
         post: operations["commentCalendarItem"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agents/instructions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Fetch the instruction bundle for one agent.
+         * @description Agent context is required when using host/team API keys. Provide X-Agent-Id (or agent_id query) so AgentMC returns the correct bundle for the acting agent.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /**
+                     * @description Current bundle version.
+                     * @example example
+                     */
+                    current_bundle_version?: string | null;
+                    /**
+                     * @description Alternate acting agent identifier. Required when using host/team API keys without a scoped agent credential.
+                     * @example 42
+                     */
+                    agent_id?: number;
+                };
+                header?: {
+                    /**
+                     * @description Acting agent identifier for host/team API key requests. Required when the runtime is acting as a specific agent.
+                     * @example 1
+                     */
+                    "X-Agent-Id"?: number;
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        /**
+                         * @example {
+                         *       "ok": true,
+                         *       "changed": true,
+                         *       "bundle_version": "bundle_2fa07fcadd6575cc",
+                         *       "generated_at": "2026-02-25T14:10:00Z",
+                         *       "defaults": {
+                         *         "heartbeat_interval_seconds": 60
+                         *       },
+                         *       "agent": {
+                         *         "id": 42
+                         *       },
+                         *       "files": [
+                         *         {
+                         *           "id": "skill.md",
+                         *           "path": ".agentmc/skills/skill.md",
+                         *           "content": "# AgentMC Skill\n",
+                         *           "sha256": "f96c95bd27dc9f3415cc0f4d817b5ec6f14185b6fcb5db9f6b6f14f648f8e9e4"
+                         *         }
+                         *       ]
+                         *     }
+                         */
+                        "application/json": components["schemas"]["AgentInstructionsResponse"];
+                    };
+                };
+                401: components["responses"]["ApiError401"];
+                403: components["responses"]["ApiError403"];
+                404: components["responses"]["ApiError404"];
+                422: components["responses"]["ApiError422"];
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -665,6 +837,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /** @description Returns due recurring task runs for one resolved agent. Host/team API key callers must provide X-Agent-Id (or agent_id query) unless the credential is already scoped to a single agent. */
         get: {
             parameters: {
                 query?: {
@@ -673,8 +846,19 @@ export interface paths {
                      * @example 20
                      */
                     limit?: number | null;
+                    /**
+                     * @description Alternate acting agent identifier for host/team API key requests when claiming due runs.
+                     * @example 42
+                     */
+                    agent_id?: number;
                 };
-                header?: never;
+                header?: {
+                    /**
+                     * @description Acting agent identifier for host/team API key requests. Required when claiming due runs for a specific agent.
+                     * @example 1
+                     */
+                    "X-Agent-Id"?: number;
+                };
                 path?: never;
                 cookie?: never;
             };
@@ -726,10 +910,23 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /** @description Completes one recurring task run for the resolved acting agent. Host/team API key callers must provide X-Agent-Id (or agent_id query) unless the credential is already scoped to a single agent. */
         post: {
             parameters: {
-                query?: never;
-                header?: never;
+                query?: {
+                    /**
+                     * @description Alternate acting agent identifier for host/team API key requests when completing a recurring run.
+                     * @example 42
+                     */
+                    agent_id?: number;
+                };
+                header?: {
+                    /**
+                     * @description Acting agent identifier for host/team API key requests. Required when completing a recurring run for a specific agent.
+                     * @example 1
+                     */
+                    "X-Agent-Id"?: number;
+                };
                 path: {
                     /**
                      * @description Run.
@@ -7915,6 +8112,30 @@ export interface components {
                  */
                 type?: "openclaw";
                 /**
+                 * @description Optional per-agent heartbeat telemetry override. Use this in multi-agent host heartbeats when each agent reports different session, token, cache, or usage values.
+                 * @example {
+                 *       "tokens_in": 182948,
+                 *       "tokens_out": 586,
+                 *       "cache_hit_rate_percent": 1,
+                 *       "cache_tokens_cached": 1536,
+                 *       "cache_tokens_new": 0,
+                 *       "context_tokens_used": 182948,
+                 *       "context_tokens_max": 272000,
+                 *       "context_percent_used": 67,
+                 *       "usage_window_label": "5h",
+                 *       "usage_window_percent_left": 99,
+                 *       "usage_window_time_left": "4h 20m",
+                 *       "usage_day_label": "Week",
+                 *       "usage_day_percent_left": 97,
+                 *       "usage_day_time_left": "5d 8h",
+                 *       "runtime_mode": "direct",
+                 *       "session": "agent:main:main"
+                 *     }
+                 */
+                meta?: {
+                    [key: string]: unknown;
+                };
+                /**
                  * @description Required full agent identity payload (string or object). AgentMC stores this under `agent.meta.identity`.
                  * @example {
                  *       "name": "Jarvis",
@@ -7959,6 +8180,17 @@ export interface components {
                  * @enum {string}
                  */
                 type?: "openclaw";
+                /**
+                 * @description Arbitrary JSON metadata object.
+                 * @example {
+                 *       "key": "value"
+                 *     }
+                 */
+                meta?: {
+                    [key: string]: unknown;
+                } | {
+                    [key: string]: unknown;
+                }[];
                 /**
                  * @description Identity.
                  * @example {
@@ -10621,17 +10853,23 @@ export interface operations {
                  */
                 external_key?: string | null;
                 /**
-                 * @description Identifier for agent.
+                 * @description Optional brief agent filter. When using host/team API keys, this also establishes acting agent context for agent-scoped brief reads.
                  * @example 42
                  */
-                agent_id?: number | null;
+                agent_id?: number;
                 /**
                  * @description Page size for paginated responses.
                  * @example 25
                  */
                 per_page?: number | null;
             };
-            header?: never;
+            header?: {
+                /**
+                 * @description Acting agent identifier for host/team API key requests. Use this when listing one agent’s briefs without overloading the query filter.
+                 * @example 1
+                 */
+                "X-Agent-Id"?: number;
+            };
             path?: never;
             cookie?: never;
         };
@@ -10773,8 +11011,20 @@ export interface operations {
     };
     createAgentBrief: {
         parameters: {
-            query?: never;
-            header?: never;
+            query?: {
+                /**
+                 * @description Alternate acting agent identifier for host/team API key brief writes.
+                 * @example 42
+                 */
+                agent_id?: number;
+            };
+            header?: {
+                /**
+                 * @description Acting agent identifier for host/team API key requests when creating or appending a brief.
+                 * @example 1
+                 */
+                "X-Agent-Id"?: number;
+            };
             path?: never;
             cookie?: never;
         };
@@ -10894,8 +11144,20 @@ export interface operations {
     };
     deleteAgentBrief: {
         parameters: {
-            query?: never;
-            header?: never;
+            query?: {
+                /**
+                 * @description Alternate acting agent identifier for host/team API key brief deletes.
+                 * @example 42
+                 */
+                agent_id?: number;
+            };
+            header?: {
+                /**
+                 * @description Acting agent identifier for host/team API key requests when deleting a brief.
+                 * @example 1
+                 */
+                "X-Agent-Id"?: number;
+            };
             path: {
                 /**
                  * @description Brief identifier.
@@ -10931,8 +11193,20 @@ export interface operations {
     };
     updateAgentBrief: {
         parameters: {
-            query?: never;
-            header?: never;
+            query?: {
+                /**
+                 * @description Alternate acting agent identifier for host/team API key brief updates.
+                 * @example 42
+                 */
+                agent_id?: number;
+            };
+            header?: {
+                /**
+                 * @description Acting agent identifier for host/team API key requests when updating a brief.
+                 * @example 1
+                 */
+                "X-Agent-Id"?: number;
+            };
             path: {
                 /**
                  * @description Brief identifier.
@@ -11064,8 +11338,19 @@ export interface operations {
                  * @example 20
                  */
                 limit?: number | null;
+                /**
+                 * @description Alternate acting agent identifier for explicit single-agent requested-session routing.
+                 * @example 42
+                 */
+                agent_id?: number;
             };
-            header?: never;
+            header?: {
+                /**
+                 * @description Optional acting agent identifier for host/team API key requests. Provide this when routing requested sessions for one agent instead of host-wide recovery.
+                 * @example 1
+                 */
+                "X-Agent-Id"?: number;
+            };
             path?: never;
             cookie?: never;
         };
@@ -11112,8 +11397,20 @@ export interface operations {
     };
     claimAgentRealtimeSession: {
         parameters: {
-            query?: never;
-            header?: never;
+            query?: {
+                /**
+                 * @description Alternate acting agent identifier for explicit single-agent session claim routing.
+                 * @example 42
+                 */
+                agent_id?: number;
+            };
+            header?: {
+                /**
+                 * @description Optional acting agent identifier for explicit single-agent routing when claiming a session with host/team API keys.
+                 * @example 1
+                 */
+                "X-Agent-Id"?: number;
+            };
             path: {
                 /**
                  * @description Realtime session identifier.
@@ -11176,8 +11473,19 @@ export interface operations {
                  * @example 20
                  */
                 limit?: number | null;
+                /**
+                 * @description Alternate acting agent identifier for explicit single-agent session signal routing.
+                 * @example 42
+                 */
+                agent_id?: number;
             };
-            header?: never;
+            header?: {
+                /**
+                 * @description Optional acting agent identifier for explicit single-agent routing when listing session signals with host/team API keys.
+                 * @example 1
+                 */
+                "X-Agent-Id"?: number;
+            };
             path: {
                 /**
                  * @description Realtime session identifier.
@@ -11244,8 +11552,20 @@ export interface operations {
     };
     createAgentRealtimeSignal: {
         parameters: {
-            query?: never;
-            header?: never;
+            query?: {
+                /**
+                 * @description Alternate acting agent identifier for explicit single-agent realtime publish routing.
+                 * @example 42
+                 */
+                agent_id?: number;
+            };
+            header?: {
+                /**
+                 * @description Optional acting agent identifier for explicit single-agent routing when publishing to a session with host/team API keys.
+                 * @example 1
+                 */
+                "X-Agent-Id"?: number;
+            };
             path: {
                 /**
                  * @description Realtime session identifier.
@@ -11310,8 +11630,20 @@ export interface operations {
     };
     closeAgentRealtimeSession: {
         parameters: {
-            query?: never;
-            header?: never;
+            query?: {
+                /**
+                 * @description Alternate acting agent identifier for explicit single-agent session close routing.
+                 * @example 42
+                 */
+                agent_id?: number;
+            };
+            header?: {
+                /**
+                 * @description Optional acting agent identifier for explicit single-agent routing when closing a session with host/team API keys.
+                 * @example 1
+                 */
+                "X-Agent-Id"?: number;
+            };
             path: {
                 /**
                  * @description Realtime session identifier.
@@ -11377,8 +11709,20 @@ export interface operations {
     };
     authenticateAgentRealtimeSocket: {
         parameters: {
-            query?: never;
-            header?: never;
+            query?: {
+                /**
+                 * @description Alternate acting agent identifier for explicit single-agent websocket subscription routing.
+                 * @example 42
+                 */
+                agent_id?: number;
+            };
+            header?: {
+                /**
+                 * @description Optional acting agent identifier for explicit single-agent routing when authorizing a session websocket subscription with host/team API keys.
+                 * @example 1
+                 */
+                "X-Agent-Id"?: number;
+            };
             path: {
                 /**
                  * @description Realtime session identifier.
@@ -11851,7 +12195,7 @@ export interface operations {
                  */
                 assigned_to_agent?: number;
                 /**
-                 * @description Identifier for agent.
+                 * @description Optional assigned-agent filter. When using host/team API keys, this also establishes acting agent context for private-board access.
                  * @example 42
                  */
                 agent_id?: number;
@@ -11871,7 +12215,13 @@ export interface operations {
                  */
                 per_page?: number;
             };
-            header?: never;
+            header?: {
+                /**
+                 * @description Acting agent identifier for host/team API key requests. Use this when task visibility depends on agent-private board access.
+                 * @example 1
+                 */
+                "X-Agent-Id"?: number;
+            };
             path?: never;
             cookie?: never;
         };
@@ -11956,8 +12306,20 @@ export interface operations {
     };
     createTask: {
         parameters: {
-            query?: never;
-            header?: never;
+            query?: {
+                /**
+                 * @description Alternate acting agent identifier for host/team API key task creation.
+                 * @example 42
+                 */
+                agent_id?: number;
+            };
+            header?: {
+                /**
+                 * @description Acting agent identifier for host/team API key requests when creating a task.
+                 * @example 1
+                 */
+                "X-Agent-Id"?: number;
+            };
             path?: never;
             cookie?: never;
         };
@@ -12022,8 +12384,20 @@ export interface operations {
     };
     showTask: {
         parameters: {
-            query?: never;
-            header?: never;
+            query?: {
+                /**
+                 * @description Alternate acting agent identifier for host/team API key task reads.
+                 * @example 42
+                 */
+                agent_id?: number;
+            };
+            header?: {
+                /**
+                 * @description Acting agent identifier for host/team API key requests when resolving task visibility.
+                 * @example 1
+                 */
+                "X-Agent-Id"?: number;
+            };
             path: {
                 /**
                  * @description Task identifier.
@@ -12092,8 +12466,20 @@ export interface operations {
     };
     deleteTask: {
         parameters: {
-            query?: never;
-            header?: never;
+            query?: {
+                /**
+                 * @description Alternate acting agent identifier for host/team API key task deletes.
+                 * @example 42
+                 */
+                agent_id?: number;
+            };
+            header?: {
+                /**
+                 * @description Acting agent identifier for host/team API key requests when deleting a task.
+                 * @example 1
+                 */
+                "X-Agent-Id"?: number;
+            };
             path: {
                 /**
                  * @description Task identifier.
@@ -12128,8 +12514,20 @@ export interface operations {
     };
     updateTask: {
         parameters: {
-            query?: never;
-            header?: never;
+            query?: {
+                /**
+                 * @description Alternate acting agent identifier for host/team API key task updates.
+                 * @example 42
+                 */
+                agent_id?: number;
+            };
+            header?: {
+                /**
+                 * @description Acting agent identifier for host/team API key requests when updating a task.
+                 * @example 1
+                 */
+                "X-Agent-Id"?: number;
+            };
             path: {
                 /**
                  * @description Task identifier.
@@ -12312,8 +12710,20 @@ export interface operations {
     };
     createTaskComment: {
         parameters: {
-            query?: never;
-            header?: never;
+            query?: {
+                /**
+                 * @description Alternate acting agent identifier for host-authenticated comment writes.
+                 * @example 42
+                 */
+                agent_id?: number;
+            };
+            header?: {
+                /**
+                 * @description Acting agent identifier for host-authenticated comment writes when the host cannot be auto-resolved to a single agent.
+                 * @example 1
+                 */
+                "X-Agent-Id"?: number;
+            };
             path: {
                 /**
                  * @description Task identifier.
@@ -12385,8 +12795,20 @@ export interface operations {
     };
     deleteTaskComment: {
         parameters: {
-            query?: never;
-            header?: never;
+            query?: {
+                /**
+                 * @description Alternate acting agent identifier for host-authenticated comment writes.
+                 * @example 42
+                 */
+                agent_id?: number;
+            };
+            header?: {
+                /**
+                 * @description Acting agent identifier for host-authenticated comment writes when the host cannot be auto-resolved to a single agent.
+                 * @example 1
+                 */
+                "X-Agent-Id"?: number;
+            };
             path: {
                 /**
                  * @description Task identifier.
@@ -12426,8 +12848,20 @@ export interface operations {
     };
     updateTaskComment: {
         parameters: {
-            query?: never;
-            header?: never;
+            query?: {
+                /**
+                 * @description Alternate acting agent identifier for host-authenticated comment writes.
+                 * @example 42
+                 */
+                agent_id?: number;
+            };
+            header?: {
+                /**
+                 * @description Acting agent identifier for host-authenticated comment writes when the host cannot be auto-resolved to a single agent.
+                 * @example 1
+                 */
+                "X-Agent-Id"?: number;
+            };
             path: {
                 /**
                  * @description Task identifier.
@@ -12763,8 +13197,19 @@ export interface operations {
                  * @example 25
                  */
                 per_page?: number | null;
+                /**
+                 * @description Alternate acting agent identifier for host/team API key file listing.
+                 * @example 42
+                 */
+                agent_id?: number;
             };
-            header?: never;
+            header?: {
+                /**
+                 * @description Acting agent identifier for host/team API key requests when listing agent-scoped files.
+                 * @example 1
+                 */
+                "X-Agent-Id"?: number;
+            };
             path?: never;
             cookie?: never;
         };
@@ -12839,8 +13284,20 @@ export interface operations {
     };
     createFile: {
         parameters: {
-            query?: never;
-            header?: never;
+            query?: {
+                /**
+                 * @description Alternate acting agent identifier for host/team API key file finalization.
+                 * @example 42
+                 */
+                agent_id?: number;
+            };
+            header?: {
+                /**
+                 * @description Acting agent identifier for host/team API key requests when finalizing a file upload.
+                 * @example 1
+                 */
+                "X-Agent-Id"?: number;
+            };
             path?: never;
             cookie?: never;
         };
@@ -12895,8 +13352,20 @@ export interface operations {
     };
     createFileUpload: {
         parameters: {
-            query?: never;
-            header?: never;
+            query?: {
+                /**
+                 * @description Alternate acting agent identifier for host/team API key upload ticket creation.
+                 * @example 42
+                 */
+                agent_id?: number;
+            };
+            header?: {
+                /**
+                 * @description Acting agent identifier for host/team API key requests when creating an upload ticket.
+                 * @example 1
+                 */
+                "X-Agent-Id"?: number;
+            };
             path?: never;
             cookie?: never;
         };
@@ -12934,8 +13403,20 @@ export interface operations {
     };
     showFile: {
         parameters: {
-            query?: never;
-            header?: never;
+            query?: {
+                /**
+                 * @description Alternate acting agent identifier for host/team API key file reads.
+                 * @example 42
+                 */
+                agent_id?: number;
+            };
+            header?: {
+                /**
+                 * @description Acting agent identifier for host/team API key requests when reading a file.
+                 * @example 1
+                 */
+                "X-Agent-Id"?: number;
+            };
             path: {
                 /**
                  * @description File identifier.
@@ -12993,8 +13474,20 @@ export interface operations {
     };
     deleteFile: {
         parameters: {
-            query?: never;
-            header?: never;
+            query?: {
+                /**
+                 * @description Alternate acting agent identifier for host/team API key file deletes.
+                 * @example 42
+                 */
+                agent_id?: number;
+            };
+            header?: {
+                /**
+                 * @description Acting agent identifier for host/team API key requests when deleting a file.
+                 * @example 1
+                 */
+                "X-Agent-Id"?: number;
+            };
             path: {
                 /**
                  * @description File identifier.
@@ -13030,8 +13523,20 @@ export interface operations {
     };
     updateFile: {
         parameters: {
-            query?: never;
-            header?: never;
+            query?: {
+                /**
+                 * @description Alternate acting agent identifier for host/team API key file updates.
+                 * @example 42
+                 */
+                agent_id?: number;
+            };
+            header?: {
+                /**
+                 * @description Acting agent identifier for host/team API key requests when updating a file.
+                 * @example 1
+                 */
+                "X-Agent-Id"?: number;
+            };
             path: {
                 /**
                  * @description File identifier.
@@ -13101,8 +13606,20 @@ export interface operations {
     };
     downloadFile: {
         parameters: {
-            query?: never;
-            header?: never;
+            query?: {
+                /**
+                 * @description Alternate acting agent identifier for host/team API key file downloads.
+                 * @example 42
+                 */
+                agent_id?: number;
+            };
+            header?: {
+                /**
+                 * @description Acting agent identifier for host/team API key requests when downloading a file.
+                 * @example 1
+                 */
+                "X-Agent-Id"?: number;
+            };
             path: {
                 /**
                  * @description File identifier.
@@ -13131,8 +13648,20 @@ export interface operations {
     };
     previewFile: {
         parameters: {
-            query?: never;
-            header?: never;
+            query?: {
+                /**
+                 * @description Alternate acting agent identifier for host/team API key file previews.
+                 * @example 42
+                 */
+                agent_id?: number;
+            };
+            header?: {
+                /**
+                 * @description Acting agent identifier for host/team API key requests when previewing a file.
+                 * @example 1
+                 */
+                "X-Agent-Id"?: number;
+            };
             path: {
                 /**
                  * @description File identifier.
@@ -13162,8 +13691,20 @@ export interface operations {
     };
     listFileFolders: {
         parameters: {
-            query?: never;
-            header?: never;
+            query?: {
+                /**
+                 * @description Alternate acting agent identifier for host/team API key folder reads.
+                 * @example 42
+                 */
+                agent_id?: number;
+            };
+            header?: {
+                /**
+                 * @description Acting agent identifier for host/team API key requests when listing folders.
+                 * @example 1
+                 */
+                "X-Agent-Id"?: number;
+            };
             path?: never;
             cookie?: never;
         };
@@ -13204,8 +13745,20 @@ export interface operations {
     };
     createFileFolder: {
         parameters: {
-            query?: never;
-            header?: never;
+            query?: {
+                /**
+                 * @description Alternate acting agent identifier for host/team API key folder creation.
+                 * @example 42
+                 */
+                agent_id?: number;
+            };
+            header?: {
+                /**
+                 * @description Acting agent identifier for host/team API key requests when creating a folder.
+                 * @example 1
+                 */
+                "X-Agent-Id"?: number;
+            };
             path?: never;
             cookie?: never;
         };
@@ -13240,8 +13793,20 @@ export interface operations {
     };
     deleteFileFolder: {
         parameters: {
-            query?: never;
-            header?: never;
+            query?: {
+                /**
+                 * @description Alternate acting agent identifier for host/team API key folder deletes.
+                 * @example 42
+                 */
+                agent_id?: number;
+            };
+            header?: {
+                /**
+                 * @description Acting agent identifier for host/team API key requests when deleting a folder.
+                 * @example 1
+                 */
+                "X-Agent-Id"?: number;
+            };
             path: {
                 /**
                  * @description Folder identifier.
@@ -13276,8 +13841,20 @@ export interface operations {
     };
     updateFileFolder: {
         parameters: {
-            query?: never;
-            header?: never;
+            query?: {
+                /**
+                 * @description Alternate acting agent identifier for host/team API key folder updates.
+                 * @example 42
+                 */
+                agent_id?: number;
+            };
+            header?: {
+                /**
+                 * @description Acting agent identifier for host/team API key requests when updating a folder.
+                 * @example 1
+                 */
+                "X-Agent-Id"?: number;
+            };
             path: {
                 /**
                  * @description Folder identifier.
@@ -13345,8 +13922,19 @@ export interface operations {
                  * @example 1
                  */
                 page?: number | null;
+                /**
+                 * @description Alternate acting agent identifier for host/team API key notification reads.
+                 * @example 42
+                 */
+                agent_id?: number;
             };
-            header?: never;
+            header?: {
+                /**
+                 * @description Acting agent identifier for host/team API key requests when reading an agent notification inbox.
+                 * @example 1
+                 */
+                "X-Agent-Id"?: number;
+            };
             path?: never;
             cookie?: never;
         };
@@ -13426,8 +14014,20 @@ export interface operations {
     };
     markNotificationRead: {
         parameters: {
-            query?: never;
-            header?: never;
+            query?: {
+                /**
+                 * @description Alternate acting agent identifier for host/team API key notification updates.
+                 * @example 42
+                 */
+                agent_id?: number;
+            };
+            header?: {
+                /**
+                 * @description Acting agent identifier for host/team API key requests when marking an agent notification as read.
+                 * @example 1
+                 */
+                "X-Agent-Id"?: number;
+            };
             path: {
                 /**
                  * @description Notification UUID.
@@ -13495,8 +14095,20 @@ export interface operations {
     };
     markAllNotificationsRead: {
         parameters: {
-            query?: never;
-            header?: never;
+            query?: {
+                /**
+                 * @description Alternate acting agent identifier for host/team API key notification bulk updates.
+                 * @example 42
+                 */
+                agent_id?: number;
+            };
+            header?: {
+                /**
+                 * @description Acting agent identifier for host/team API key requests when marking an agent inbox as read.
+                 * @example 1
+                 */
+                "X-Agent-Id"?: number;
+            };
             path?: never;
             cookie?: never;
         };
@@ -13576,8 +14188,19 @@ export interface operations {
                  * @example 25
                  */
                 per_page?: number | null;
+                /**
+                 * @description Alternate acting agent identifier for host/team API key calendar reads.
+                 * @example 42
+                 */
+                agent_id?: number;
             };
-            header?: never;
+            header?: {
+                /**
+                 * @description Acting agent identifier for host/team API key requests when resolving agent-scoped calendar access.
+                 * @example 1
+                 */
+                "X-Agent-Id"?: number;
+            };
             path?: never;
             cookie?: never;
         };
@@ -13676,8 +14299,20 @@ export interface operations {
     };
     createCalendarItem: {
         parameters: {
-            query?: never;
-            header?: never;
+            query?: {
+                /**
+                 * @description Alternate acting agent identifier for host/team API key calendar writes.
+                 * @example 42
+                 */
+                agent_id?: number;
+            };
+            header?: {
+                /**
+                 * @description Acting agent identifier for host/team API key requests when creating a calendar item.
+                 * @example 1
+                 */
+                "X-Agent-Id"?: number;
+            };
             path?: never;
             cookie?: never;
         };
@@ -13756,8 +14391,20 @@ export interface operations {
     };
     showCalendarItem: {
         parameters: {
-            query?: never;
-            header?: never;
+            query?: {
+                /**
+                 * @description Alternate acting agent identifier for host/team API key calendar reads.
+                 * @example 42
+                 */
+                agent_id?: number;
+            };
+            header?: {
+                /**
+                 * @description Acting agent identifier for host/team API key requests when reading a calendar item.
+                 * @example 1
+                 */
+                "X-Agent-Id"?: number;
+            };
             path: {
                 /**
                  * @description Calendar item identifier.
@@ -13840,8 +14487,20 @@ export interface operations {
     };
     updateCalendarItem: {
         parameters: {
-            query?: never;
-            header?: never;
+            query?: {
+                /**
+                 * @description Alternate acting agent identifier for host/team API key calendar updates.
+                 * @example 42
+                 */
+                agent_id?: number;
+            };
+            header?: {
+                /**
+                 * @description Acting agent identifier for host/team API key requests when updating a calendar item.
+                 * @example 1
+                 */
+                "X-Agent-Id"?: number;
+            };
             path: {
                 /**
                  * @description Calendar item identifier.
@@ -13939,8 +14598,20 @@ export interface operations {
     };
     deleteCalendarItem: {
         parameters: {
-            query?: never;
-            header?: never;
+            query?: {
+                /**
+                 * @description Alternate acting agent identifier for host/team API key calendar deletes.
+                 * @example 42
+                 */
+                agent_id?: number;
+            };
+            header?: {
+                /**
+                 * @description Acting agent identifier for host/team API key requests when deleting a calendar item.
+                 * @example 1
+                 */
+                "X-Agent-Id"?: number;
+            };
             path: {
                 /**
                  * @description Calendar item identifier.
@@ -13975,8 +14646,20 @@ export interface operations {
     };
     commentCalendarItem: {
         parameters: {
-            query?: never;
-            header?: never;
+            query?: {
+                /**
+                 * @description Alternate acting agent identifier for host-authenticated comment writes.
+                 * @example 42
+                 */
+                agent_id?: number;
+            };
+            header?: {
+                /**
+                 * @description Acting agent identifier for host-authenticated comment writes when the host cannot be auto-resolved to a single agent.
+                 * @example 1
+                 */
+                "X-Agent-Id"?: number;
+            };
             path: {
                 /**
                  * @description Calendar item identifier.

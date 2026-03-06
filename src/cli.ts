@@ -265,6 +265,32 @@ function toPositiveInt(value: unknown): number | null {
   return parsed;
 }
 
+function toNonNegativeInt(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+
+  const parsed = Number.parseInt(String(value), 10);
+  if (!Number.isInteger(parsed) || parsed < 0) {
+    return null;
+  }
+
+  return parsed;
+}
+
+function toFiniteNumber(value: unknown): number | null {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : null;
+  }
+
+  if (typeof value === "string") {
+    const parsed = Number.parseFloat(value.trim());
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return null;
+}
+
 function parseBoundedPositiveInt(
   value: unknown,
   fallback: number,
@@ -1876,6 +1902,11 @@ async function sendHostHeartbeat(
     hasOpenClawWorkers
       ? resolveLatestHostHeartbeatOpenClawProfiles()
       : new Map<string, { name: string | null; emoji: string | null }>();
+  const openClawStatus =
+    hasOpenClawWorkers
+      ? readOpenClawHeartbeatStatus("openclaw")
+      : null;
+  const openClawAgentMeta = buildOpenClawHeartbeatAgentMetaMap(openClawStatus);
 
   const payload = {
     meta: {
@@ -1925,12 +1956,14 @@ async function sendHostHeartbeat(
       updateWorkerProfileFromHeartbeat(worker, latestOpenClawProfiles);
       const resolvedName = worker.localName ?? worker.localKey;
       const resolvedEmoji = nonEmpty(worker.localEmoji) ?? null;
+      const agentMeta = resolveHostHeartbeatAgentMeta(worker, openClawAgentMeta);
 
       return {
         ...(worker.agentId !== null ? { id: worker.agentId } : {}),
         name: resolvedName,
         ...(resolvedEmoji ? { emoji: resolvedEmoji } : {}),
         type: worker.provider ?? "runtime",
+        ...(agentMeta ? { meta: agentMeta } : {}),
         identity: {
           name: resolvedName,
           ...(resolvedEmoji ? { emoji: resolvedEmoji } : {}),
@@ -1985,6 +2018,25 @@ async function sendHostHeartbeat(
     agents: rows,
     hostRealtime
   };
+}
+
+function resolveHostHeartbeatAgentMeta(
+  worker: RuntimeWorkerConfig,
+  metaByAgent: Map<string, Record<string, unknown>>
+): Record<string, unknown> | null {
+  const agentKeys = [
+    nonEmpty(worker.openclawAgent),
+    nonEmpty(worker.localKey)
+  ].filter((value): value is string => Boolean(value));
+
+  for (const agentKey of agentKeys) {
+    const resolved = metaByAgent.get(agentKey.toLowerCase());
+    if (resolved && Object.keys(resolved).length > 0) {
+      return resolved;
+    }
+  }
+
+  return null;
 }
 
 function updateWorkerProfileFromHeartbeat(
@@ -2050,6 +2102,247 @@ function resolveLatestHostHeartbeatOpenClawProfiles(
   }
 
   return profiles;
+}
+
+function readOpenClawHeartbeatStatus(command: string): Record<string, unknown> | null {
+  const candidates: string[][] = [
+    ["status", "--usage", "--json"],
+    ["status", "--json", "--usage"],
+    ["status", "--json"]
+  ];
+
+  for (const args of candidates) {
+    const parsed = readCommandJsonObjectOutput(command, args);
+    if (parsed) {
+      return parsed;
+    }
+  }
+
+  return null;
+}
+
+function buildOpenClawHeartbeatAgentMetaMap(
+  status: Record<string, unknown> | null
+): Map<string, Record<string, unknown>> {
+  const metaByAgent = new Map<string, Record<string, unknown>>();
+  if (!status) {
+    return metaByAgent;
+  }
+
+  const sharedUsageMeta = extractOpenClawUsageMeta(status);
+  const sessions = valueAsObject(status.sessions);
+  const byAgent = Array.isArray(sessions?.byAgent) ? sessions.byAgent : [];
+
+  for (const entry of byAgent) {
+    const byAgentEntry = valueAsObject(entry);
+    if (!byAgentEntry) {
+      continue;
+    }
+
+    const agentId = nonEmpty(byAgentEntry.agentId);
+    if (!agentId) {
+      continue;
+    }
+
+    const recent = Array.isArray(byAgentEntry.recent) ? byAgentEntry.recent : [];
+    const session = selectRecentOpenClawSession(recent);
+    if (!session) {
+      continue;
+    }
+
+    const telemetry = {
+      ...sharedUsageMeta,
+      ...extractOpenClawSessionMeta(session)
+    };
+
+    if (Object.keys(telemetry).length > 0) {
+      metaByAgent.set(agentId.toLowerCase(), telemetry);
+    }
+  }
+
+  if (metaByAgent.size > 0) {
+    return metaByAgent;
+  }
+
+  const recent = Array.isArray(sessions?.recent) ? sessions.recent : [];
+  for (const row of recent) {
+    const session = valueAsObject(row);
+    const agentId = nonEmpty(session?.agentId);
+    if (!session || !agentId) {
+      continue;
+    }
+
+    const telemetry = {
+      ...sharedUsageMeta,
+      ...extractOpenClawSessionMeta(session)
+    };
+
+    if (Object.keys(telemetry).length > 0) {
+      metaByAgent.set(agentId.toLowerCase(), telemetry);
+    }
+  }
+
+  return metaByAgent;
+}
+
+function selectRecentOpenClawSession(values: unknown[]): Record<string, unknown> | null {
+  const sessions = values
+    .map((entry) => valueAsObject(entry))
+    .filter((entry): entry is Record<string, unknown> => Boolean(entry));
+
+  if (sessions.length === 0) {
+    return null;
+  }
+
+  sessions.sort((left, right) => {
+    const rightUpdatedAt = toPositiveInt(right.updatedAt) ?? 0;
+    const leftUpdatedAt = toPositiveInt(left.updatedAt) ?? 0;
+    return rightUpdatedAt - leftUpdatedAt;
+  });
+
+  return sessions[0] ?? null;
+}
+
+function extractOpenClawSessionMeta(session: Record<string, unknown>): Record<string, unknown> {
+  const meta: Record<string, unknown> = {};
+  const totalTokens = toPositiveInt(session.totalTokens);
+  const outputTokens = toNonNegativeInt(session.outputTokens);
+  const cacheRead = toNonNegativeInt(session.cacheRead);
+  const cacheWrite = toNonNegativeInt(session.cacheWrite);
+  const contextTokens = toPositiveInt(session.contextTokens);
+  const percentUsed =
+    toFiniteNumber(session.percentUsed) ??
+    (totalTokens !== null && contextTokens !== null && contextTokens > 0
+      ? Number(((totalTokens / contextTokens) * 100).toFixed(2))
+      : null);
+  const runtimeMode = nonEmpty(session.kind);
+  const sessionKey = nonEmpty(session.key) ?? nonEmpty(session.sessionId);
+
+  if (totalTokens !== null) {
+    meta.tokens_in = totalTokens;
+    meta.context_tokens_used = totalTokens;
+  }
+  if (outputTokens !== null) {
+    meta.tokens_out = outputTokens;
+  }
+  if (cacheRead !== null) {
+    meta.cache_tokens_cached = cacheRead;
+  }
+  if (cacheWrite !== null) {
+    meta.cache_tokens_new = cacheWrite;
+  }
+  if (contextTokens !== null) {
+    meta.context_tokens_max = contextTokens;
+  }
+  if (percentUsed !== null) {
+    meta.context_percent_used = percentUsed;
+  }
+  if (cacheRead !== null && totalTokens !== null && totalTokens > 0) {
+    meta.cache_hit_rate_percent = Math.max(0, Math.min(100, Math.round((cacheRead / totalTokens) * 100)));
+  }
+  if (runtimeMode) {
+    meta.runtime_mode = runtimeMode;
+  }
+  if (sessionKey) {
+    meta.session = sessionKey;
+  }
+
+  return meta;
+}
+
+function extractOpenClawUsageMeta(status: Record<string, unknown>): Record<string, unknown> {
+  const meta: Record<string, unknown> = {};
+  const usage = valueAsObject(status.usage);
+  const providers = Array.isArray(usage?.providers) ? usage.providers : [];
+  const provider = providers
+    .map((entry) => valueAsObject(entry))
+    .find((entry) => Array.isArray(entry?.windows) && entry.windows.length > 0)
+    ?? null;
+  if (!provider) {
+    return meta;
+  }
+
+  const windows = Array.isArray(provider.windows) ? provider.windows : [];
+  const primary = normalizeOpenClawUsageWindow(windows[0]);
+  const secondary = normalizeOpenClawUsageWindow(windows[1]);
+
+  if (primary) {
+    if (primary.label) {
+      meta.usage_window_label = primary.label;
+    }
+    if (primary.percentLeft !== null) {
+      meta.usage_window_percent_left = primary.percentLeft;
+    }
+    if (primary.timeLeft) {
+      meta.usage_window_time_left = primary.timeLeft;
+    }
+  }
+
+  if (secondary) {
+    if (secondary.label) {
+      meta.usage_day_label = secondary.label;
+    }
+    if (secondary.percentLeft !== null) {
+      meta.usage_day_percent_left = secondary.percentLeft;
+    }
+    if (secondary.timeLeft) {
+      meta.usage_day_time_left = secondary.timeLeft;
+    }
+  }
+
+  return meta;
+}
+
+function normalizeOpenClawUsageWindow(
+  value: unknown
+): { label: string | null; percentLeft: number | null; timeLeft: string | null } | null {
+  const window = valueAsObject(value);
+  if (!window) {
+    return null;
+  }
+
+  const usedPercent = toFiniteNumber(window.usedPercent);
+  const percentLeft =
+    toFiniteNumber(window.percent_left) ??
+    toFiniteNumber(window.percentLeft) ??
+    (usedPercent !== null ? Math.max(0, Math.min(100, 100 - usedPercent)) : null);
+  const label = nonEmpty(window.label) ?? nonEmpty(window.name);
+  const timeLeft =
+    nonEmpty(window.time_left) ??
+    nonEmpty(window.timeLeft) ??
+    formatOpenClawResetTime(window.resetAt);
+
+  if (label === null && percentLeft === null && timeLeft === null) {
+    return null;
+  }
+
+  return { label, percentLeft, timeLeft };
+}
+
+function formatOpenClawResetTime(value: unknown): string | null {
+  const resetAt = toPositiveInt(value);
+  if (resetAt === null) {
+    return null;
+  }
+
+  const deltaMs = Math.max(0, resetAt - Date.now());
+  const totalMinutes = Math.floor(deltaMs / 60000);
+  const days = Math.floor(totalMinutes / (24 * 60));
+  const hours = Math.floor((totalMinutes % (24 * 60)) / 60);
+  const minutes = totalMinutes % 60;
+  const parts: string[] = [];
+
+  if (days > 0) {
+    parts.push(`${days}d`);
+  }
+  if (hours > 0) {
+    parts.push(`${hours}h`);
+  }
+  if (minutes > 0 || parts.length === 0) {
+    parts.push(`${minutes}m`);
+  }
+
+  return parts.slice(0, 2).join(" ");
 }
 
 function resolveOpenClawHeartbeatAgentRows(command: string): Record<string, unknown>[] {

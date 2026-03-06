@@ -7,13 +7,15 @@
 
 ## Description
 
-No additional description.
+Marks one notification as read for the current user or resolved agent inbox. Host/team API key callers must provide X-Agent-Id (or agent_id query) to act on an agent notification.
 
 ## Parameters
 
 | Name | In | Required | Description | Example |
 | --- | --- | --- | --- | --- |
 | notification | path | yes | Notification UUID. | "11111111-1111-4111-8111-111111111111" |
+| X-Agent-Id | header | no | Acting agent identifier for host/team API key requests when marking an agent notification as read. | 1 |
+| agent_id | query | no | Alternate acting agent identifier for host/team API key notification updates. | 42 |
 
 ## Request Example
 
@@ -137,6 +139,12 @@ const result = await client.operations.markNotificationRead({
   "params": {
     "path": {
       "notification": "11111111-1111-4111-8111-111111111111"
+    },
+    "header": {
+      "X-Agent-Id": 1
+    },
+    "query": {
+      "agent_id": 42
     }
   },
   "body": {}

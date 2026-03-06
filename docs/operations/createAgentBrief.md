@@ -7,11 +7,14 @@
 
 ## Description
 
-On first sync for a key, AgentMC creates a parent brief and this first child. On later syncs for the same key, AgentMC reuses the parent and appends a new child entry.
+Creates or appends a brief for one agent. When using host/team API keys, provide X-Agent-Id (or agent_id query) or send source.agent_id in the request body.
 
 ## Parameters
 
-None.
+| Name | In | Required | Description | Example |
+| --- | --- | --- | --- | --- |
+| X-Agent-Id | header | no | Acting agent identifier for host/team API key requests when creating or appending a brief. | 1 |
+| agent_id | query | no | Alternate acting agent identifier for host/team API key brief writes. | 42 |
 
 ## Request Example
 
@@ -232,6 +235,14 @@ const client = new AgentMCApi({
 });
 
 const result = await client.operations.createAgentBrief({
+  "params": {
+    "header": {
+      "X-Agent-Id": 1
+    },
+    "query": {
+      "agent_id": 42
+    }
+  },
   "body": {
     "brief": {
       "key": "daily-operations",

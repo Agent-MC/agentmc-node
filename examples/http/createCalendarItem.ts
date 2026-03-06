@@ -5,6 +5,14 @@ const client = new AgentMCApi({
 });
 
 const result = await client.operations.createCalendarItem({
+  "params": {
+    "header": {
+      "X-Agent-Id": 1
+    },
+    "query": {
+      "agent_id": 42
+    }
+  },
   "body": {
     "type": "task",
     "title": "Review outage timeline",

@@ -1073,9 +1073,13 @@ export class AgentRuntimeProgram {
       return {};
     }
 
+    const openclawAgent = normalizeOpenClawAgentName(this.options.openclawAgent);
     const telemetry: JsonObject = {};
     for (const snapshot of snapshots) {
-      mergeHeartbeatTelemetry(telemetry, extractHeartbeatTelemetryFromRuntimeSnapshot(snapshot));
+      mergeHeartbeatTelemetry(
+        telemetry,
+        extractHeartbeatTelemetryFromRuntimeSnapshot(snapshot, { openclawAgent })
+      );
     }
 
     if (!nonEmpty(telemetry.openclaw_version)) {
@@ -2874,7 +2878,10 @@ function mergeHeartbeatTelemetry(target: JsonObject, patch: JsonObject): void {
   }
 }
 
-function extractHeartbeatTelemetryFromRuntimeSnapshot(snapshot: JsonObject): JsonObject {
+function extractHeartbeatTelemetryFromRuntimeSnapshot(
+  snapshot: JsonObject,
+  options: { openclawAgent?: string | null } = {}
+): JsonObject {
   const telemetry: JsonObject = {};
   const lookup = createLookupMap(snapshot);
 
@@ -2951,6 +2958,7 @@ function extractHeartbeatTelemetryFromRuntimeSnapshot(snapshot: JsonObject): Jso
 
   const usage = firstObjectFromLookup(lookup, ["usage"]);
   applyStructuredUsageTelemetry(telemetry, usage);
+  applyOpenClawUsageProviderTelemetry(telemetry, usage);
 
   assignIntegerTelemetryField(telemetry, "tokens_in", lookup, ["tokens_in", "input_tokens", "prompt_tokens"]);
   assignIntegerTelemetryField(telemetry, "tokens_out", lookup, ["tokens_out", "output_tokens", "completion_tokens"]);
@@ -3041,6 +3049,7 @@ function extractHeartbeatTelemetryFromRuntimeSnapshot(snapshot: JsonObject): Jso
   assignBooleanTelemetryField(telemetry, "sessions_tool_available", lookup, ["sessions_tool_available", "tools_sessions", "sessions"]);
   assignBooleanTelemetryField(telemetry, "memory_tool_available", lookup, ["memory_tool_available", "tools_memory", "memory"]);
 
+  applyOpenClawSessionTelemetry(telemetry, snapshot, options.openclawAgent ?? null);
   applyTextTelemetryFallbacks(telemetry, snapshot);
   sanitizeTelemetryStringFields(telemetry);
 
@@ -3372,6 +3381,72 @@ function applyStructuredUsageTelemetry(target: JsonObject, usage: JsonObject | n
   );
 }
 
+function applyOpenClawUsageProviderTelemetry(target: JsonObject, usage: JsonObject | null): void {
+  if (!usage) {
+    return;
+  }
+
+  const providers = Array.isArray(usage.providers) ? usage.providers : [];
+  if (providers.length === 0) {
+    return;
+  }
+
+  const preferredProvider = providers
+    .map((entry) => valueAsObject(entry))
+    .find((entry) => Array.isArray(entry?.windows) && entry.windows.length > 0)
+    ?? null;
+  if (!preferredProvider) {
+    return;
+  }
+
+  const windows = Array.isArray(preferredProvider.windows) ? preferredProvider.windows : [];
+  const normalizedWindows = windows
+    .map((entry) => normalizeOpenClawUsageWindow(entry))
+    .filter(
+      (entry): entry is { label: string | null; percentLeft: number | null; timeLeft: string | null } => entry !== null
+    );
+
+  const primary = normalizedWindows[0];
+  if (primary) {
+    setTelemetryIfMissing(target, "usage_window_label", primary.label);
+    setTelemetryIfMissing(target, "usage_window_percent_left", primary.percentLeft);
+    setTelemetryIfMissing(target, "usage_window_time_left", primary.timeLeft);
+  }
+
+  const secondary = normalizedWindows[1];
+  if (secondary) {
+    setTelemetryIfMissing(target, "usage_day_label", secondary.label);
+    setTelemetryIfMissing(target, "usage_day_percent_left", secondary.percentLeft);
+    setTelemetryIfMissing(target, "usage_day_time_left", secondary.timeLeft);
+  }
+}
+
+function normalizeOpenClawUsageWindow(
+  value: unknown
+): { label: string | null; percentLeft: number | null; timeLeft: string | null } | null {
+  const window = valueAsObject(value);
+  if (!window) {
+    return null;
+  }
+
+  const usedPercent = numberFromUnknown(window.usedPercent);
+  const percentLeft =
+    numberFromUnknown(window.percent_left) ??
+    numberFromUnknown(window.percentLeft) ??
+    (usedPercent !== null ? Math.max(0, Math.min(100, 100 - usedPercent)) : null);
+  const label = nonEmpty(window.label) ?? nonEmpty(window.name);
+  const timeLeft =
+    nonEmpty(window.time_left) ??
+    nonEmpty(window.timeLeft) ??
+    formatResetTimeLeft(window.resetAt);
+
+  if (label === null && percentLeft === null && timeLeft === null) {
+    return null;
+  }
+
+  return { label, percentLeft, timeLeft };
+}
+
 function applyUsageLineTelemetry(target: JsonObject, line: string): void {
   const normalized = line.replace(/^usage\s*:\s*/i, "").trim();
   const segments = normalized
@@ -3525,6 +3600,148 @@ function sanitizeTelemetryStringFields(target: JsonObject): void {
   if (auth) {
     target.auth = stripTelemetryLabel(auth, "auth");
   }
+}
+
+function applyOpenClawSessionTelemetry(target: JsonObject, snapshot: JsonObject, openclawAgent: string | null): void {
+  const session = selectOpenClawSessionSnapshot(snapshot, openclawAgent);
+  if (!session) {
+    return;
+  }
+
+  const totalTokens = integerFromUnknown(session.totalTokens);
+  const outputTokens = integerFromUnknown(session.outputTokens);
+  const cacheRead = integerFromUnknown(session.cacheRead);
+  const cacheWrite = integerFromUnknown(session.cacheWrite);
+  const contextTokens = integerFromUnknown(session.contextTokens);
+  const percentUsed =
+    numberFromUnknown(session.percentUsed) ??
+    (totalTokens !== null && contextTokens !== null && contextTokens > 0
+      ? Number(((totalTokens / contextTokens) * 100).toFixed(2))
+      : null);
+
+  if (totalTokens !== null) {
+    target.tokens_in = totalTokens;
+    target.context_tokens_used = totalTokens;
+  }
+  if (outputTokens !== null) {
+    target.tokens_out = outputTokens;
+  }
+  if (contextTokens !== null) {
+    target.context_tokens_max = contextTokens;
+  }
+  if (percentUsed !== null) {
+    target.context_percent_used = percentUsed;
+  }
+  if (cacheRead !== null) {
+    target.cache_tokens_cached = cacheRead;
+  }
+  if (cacheWrite !== null) {
+    target.cache_tokens_new = cacheWrite;
+  }
+  if (
+    !Object.prototype.hasOwnProperty.call(target, "cache_hit_rate_percent")
+    && cacheRead !== null
+    && totalTokens !== null
+    && totalTokens > 0
+  ) {
+    target.cache_hit_rate_percent = Math.max(0, Math.min(100, Math.round((cacheRead / totalTokens) * 100)));
+  }
+
+  const runtimeMode = nonEmpty(session.kind);
+  if (runtimeMode) {
+    target.runtime_mode = runtimeMode;
+  }
+
+  const sessionKey = nonEmpty(session.key) ?? nonEmpty(session.sessionId);
+  if (sessionKey) {
+    target.session = sessionKey;
+  }
+}
+
+function selectOpenClawSessionSnapshot(snapshot: JsonObject, openclawAgent: string | null): JsonObject | null {
+  const sessions = valueAsObject(snapshot.sessions);
+  if (!sessions) {
+    return null;
+  }
+
+  const normalizedAgent = nonEmpty(openclawAgent)?.toLowerCase() ?? null;
+  const candidates: JsonObject[] = [];
+
+  const byAgent = Array.isArray(sessions.byAgent) ? sessions.byAgent : [];
+  for (const entry of byAgent) {
+    const byAgentEntry = valueAsObject(entry);
+    if (!byAgentEntry) {
+      continue;
+    }
+
+    const agentId = nonEmpty(byAgentEntry.agentId)?.toLowerCase() ?? null;
+    if (normalizedAgent && agentId && agentId !== normalizedAgent) {
+      continue;
+    }
+
+    const recent = Array.isArray(byAgentEntry.recent) ? byAgentEntry.recent : [];
+    for (const row of recent) {
+      const session = valueAsObject(row);
+      if (session) {
+        candidates.push(session);
+      }
+    }
+  }
+
+  if (candidates.length === 0) {
+    const recent = Array.isArray(sessions.recent) ? sessions.recent : [];
+    for (const row of recent) {
+      const session = valueAsObject(row);
+      if (!session) {
+        continue;
+      }
+
+      const agentId = nonEmpty(session.agentId)?.toLowerCase() ?? null;
+      if (normalizedAgent && agentId && agentId !== normalizedAgent) {
+        continue;
+      }
+
+      candidates.push(session);
+    }
+  }
+
+  if (candidates.length === 0) {
+    return null;
+  }
+
+  candidates.sort((left, right) => {
+    const rightUpdatedAt = integerFromUnknown(right.updatedAt) ?? 0;
+    const leftUpdatedAt = integerFromUnknown(left.updatedAt) ?? 0;
+    return rightUpdatedAt - leftUpdatedAt;
+  });
+
+  return candidates[0] ?? null;
+}
+
+function formatResetTimeLeft(value: unknown): string | null {
+  const resetAt = integerFromUnknown(value);
+  if (resetAt === null) {
+    return null;
+  }
+
+  const deltaMs = Math.max(0, resetAt - Date.now());
+  const totalMinutes = Math.floor(deltaMs / 60000);
+  const days = Math.floor(totalMinutes / (60 * 24));
+  const hours = Math.floor((totalMinutes % (60 * 24)) / 60);
+  const minutes = totalMinutes % 60;
+  const parts: string[] = [];
+
+  if (days > 0) {
+    parts.push(`${days}d`);
+  }
+  if (hours > 0) {
+    parts.push(`${hours}h`);
+  }
+  if (minutes > 0 || parts.length === 0) {
+    parts.push(`${minutes}m`);
+  }
+
+  return parts.slice(0, 2).join(" ");
 }
 
 function stripTelemetryLabel(value: string, label: string): string {

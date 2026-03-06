@@ -8,6 +8,12 @@ const result = await client.operations.deleteAgentBrief({
   "params": {
     "path": {
       "id": 42
+    },
+    "header": {
+      "X-Agent-Id": 1
+    },
+    "query": {
+      "agent_id": 42
     }
   }
 });

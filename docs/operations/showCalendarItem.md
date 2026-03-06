@@ -7,13 +7,15 @@
 
 ## Description
 
-No additional description.
+Shows one calendar item. Host/team API key callers should send X-Agent-Id (or agent_id query) when access or ownership is agent-scoped.
 
 ## Parameters
 
 | Name | In | Required | Description | Example |
 | --- | --- | --- | --- | --- |
 | item | path | yes | Calendar item identifier. | 1 |
+| X-Agent-Id | header | no | Acting agent identifier for host/team API key requests when reading a calendar item. | 1 |
+| agent_id | query | no | Alternate acting agent identifier for host/team API key calendar reads. | 42 |
 
 ## Request Example
 
@@ -154,6 +156,12 @@ const result = await client.operations.showCalendarItem({
   "params": {
     "path": {
       "item": 1
+    },
+    "header": {
+      "X-Agent-Id": 1
+    },
+    "query": {
+      "agent_id": 42
     }
   }
 });

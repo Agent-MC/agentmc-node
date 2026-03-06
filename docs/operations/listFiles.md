@@ -7,7 +7,7 @@
 
 ## Description
 
-No additional description.
+Lists team files. Host/team API key callers should send X-Agent-Id (or agent_id query) when file scope or owner defaults should resolve to a specific agent.
 
 ## Parameters
 
@@ -20,6 +20,8 @@ No additional description.
 | sort | query | no | Allowed values: updated_at, display_name, size_bytes. | "updated_at" |
 | direction | query | no | Allowed values: asc, desc. | "asc" |
 | per_page | query | no | Page size for paginated responses. | 25 |
+| X-Agent-Id | header | no | Acting agent identifier for host/team API key requests when listing agent-scoped files. | 1 |
+| agent_id | query | no | Alternate acting agent identifier for host/team API key file listing. | 42 |
 
 ## Request Example
 
@@ -163,7 +165,11 @@ const result = await client.operations.listFiles({
       "mime_group": "text",
       "sort": "updated_at",
       "direction": "asc",
-      "per_page": 25
+      "per_page": 25,
+      "agent_id": 42
+    },
+    "header": {
+      "X-Agent-Id": 1
     }
   }
 });

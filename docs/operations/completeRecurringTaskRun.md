@@ -7,13 +7,15 @@
 
 ## Description
 
-No additional description.
+Completes one recurring task run for the resolved acting agent. Host/team API key callers must provide X-Agent-Id (or agent_id query) unless the credential is already scoped to a single agent.
 
 ## Parameters
 
 | Name | In | Required | Description | Example |
 | --- | --- | --- | --- | --- |
 | run | path | yes | Run. | 1 |
+| X-Agent-Id | header | no | Acting agent identifier for host/team API key requests. Required when completing a recurring run for a specific agent. | 1 |
+| agent_id | query | no | Alternate acting agent identifier for host/team API key requests when completing a recurring run. | 42 |
 
 ## Request Example
 
@@ -174,6 +176,12 @@ const result = await client.operations.completeRecurringTaskRun({
   "params": {
     "path": {
       "run": 1
+    },
+    "header": {
+      "X-Agent-Id": 1
+    },
+    "query": {
+      "agent_id": 42
     }
   },
   "body": {

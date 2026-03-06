@@ -5,6 +5,14 @@ const client = new AgentMCApi({
 });
 
 const result = await client.operations.createTask({
+  "params": {
+    "header": {
+      "X-Agent-Id": 1
+    },
+    "query": {
+      "agent_id": 42
+    }
+  },
   "body": {
     "board_id": 5,
     "column_id": 13,

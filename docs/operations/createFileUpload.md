@@ -7,11 +7,14 @@
 
 ## Description
 
-No additional description.
+Creates one upload ticket. Host/team API key callers should send X-Agent-Id (or agent_id query) so upload scope resolves to the acting agent home folder.
 
 ## Parameters
 
-None.
+| Name | In | Required | Description | Example |
+| --- | --- | --- | --- | --- |
+| X-Agent-Id | header | no | Acting agent identifier for host/team API key requests when creating an upload ticket. | 1 |
+| agent_id | query | no | Alternate acting agent identifier for host/team API key upload ticket creation. | 42 |
 
 ## Request Example
 
@@ -154,6 +157,14 @@ const client = new AgentMCApi({
 });
 
 const result = await client.operations.createFileUpload({
+  "params": {
+    "header": {
+      "X-Agent-Id": 1
+    },
+    "query": {
+      "agent_id": 42
+    }
+  },
   "body": {
     "filename": "incident-timeline.md",
     "byte_size": 14220,

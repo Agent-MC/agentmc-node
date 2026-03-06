@@ -7,13 +7,15 @@
 
 ## Description
 
-No additional description.
+Updates one task. Host/team API key callers should send X-Agent-Id (or agent_id query) so actor attribution and notifications resolve to the acting agent.
 
 ## Parameters
 
 | Name | In | Required | Description | Example |
 | --- | --- | --- | --- | --- |
 | task | path | yes | Task identifier. | 1 |
+| X-Agent-Id | header | no | Acting agent identifier for host/team API key requests when updating a task. | 1 |
+| agent_id | query | no | Alternate acting agent identifier for host/team API key task updates. | 42 |
 
 ## Request Example
 
@@ -167,6 +169,12 @@ const result = await client.operations.updateTask({
   "params": {
     "path": {
       "task": 1
+    },
+    "header": {
+      "X-Agent-Id": 1
+    },
+    "query": {
+      "agent_id": 42
     }
   },
   "body": {

@@ -7,13 +7,15 @@
 
 ## Description
 
-No additional description.
+Deletes one file. Host/team API key callers should send X-Agent-Id (or agent_id query) when deletion is agent-scoped.
 
 ## Parameters
 
 | Name | In | Required | Description | Example |
 | --- | --- | --- | --- | --- |
 | id | path | yes | File identifier. | 42 |
+| X-Agent-Id | header | no | Acting agent identifier for host/team API key requests when deleting a file. | 1 |
+| agent_id | query | no | Alternate acting agent identifier for host/team API key file deletes. | 42 |
 
 ## Request Example
 
@@ -125,6 +127,12 @@ const result = await client.operations.deleteFile({
   "params": {
     "path": {
       "id": 42
+    },
+    "header": {
+      "X-Agent-Id": 1
+    },
+    "query": {
+      "agent_id": 42
     }
   }
 });

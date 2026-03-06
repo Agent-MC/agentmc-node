@@ -7,13 +7,15 @@
 
 ## Description
 
-Deletes one folder node and permanently deletes all nested files and subfolders in that folder subtree.
+Deletes one folder. Host/team API key callers should send X-Agent-Id (or agent_id query) when folder scope is agent-specific.
 
 ## Parameters
 
 | Name | In | Required | Description | Example |
 | --- | --- | --- | --- | --- |
 | id | path | yes | Folder identifier. | 42 |
+| X-Agent-Id | header | no | Acting agent identifier for host/team API key requests when deleting a folder. | 1 |
+| agent_id | query | no | Alternate acting agent identifier for host/team API key folder deletes. | 42 |
 
 ## Request Example
 
@@ -106,6 +108,12 @@ const result = await client.operations.deleteFileFolder({
   "params": {
     "path": {
       "id": 42
+    },
+    "header": {
+      "X-Agent-Id": 1
+    },
+    "query": {
+      "agent_id": 42
     }
   }
 });

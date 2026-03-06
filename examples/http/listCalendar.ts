@@ -15,7 +15,11 @@ const result = await client.operations.listCalendar({
       "priority": "low",
       "assignee": "example",
       "q": "retro",
-      "per_page": 25
+      "per_page": 25,
+      "agent_id": 42
+    },
+    "header": {
+      "X-Agent-Id": 1
     }
   }
 });

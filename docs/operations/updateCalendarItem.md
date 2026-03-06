@@ -7,13 +7,15 @@
 
 ## Description
 
-No additional description.
+Updates one calendar item. Host/team API key callers should send X-Agent-Id (or agent_id query) so actor attribution resolves to the acting agent.
 
 ## Parameters
 
 | Name | In | Required | Description | Example |
 | --- | --- | --- | --- | --- |
 | item | path | yes | Calendar item identifier. | 1 |
+| X-Agent-Id | header | no | Acting agent identifier for host/team API key requests when updating a calendar item. | 1 |
+| agent_id | query | no | Alternate acting agent identifier for host/team API key calendar updates. | 42 |
 
 ## Request Example
 
@@ -183,6 +185,12 @@ const result = await client.operations.updateCalendarItem({
   "params": {
     "path": {
       "item": 1
+    },
+    "header": {
+      "X-Agent-Id": 1
+    },
+    "query": {
+      "agent_id": 42
     }
   },
   "body": {

@@ -9,7 +9,11 @@ const result = await client.operations.listNotifications({
     "query": {
       "unread": true,
       "per_page": 25,
-      "page": 1
+      "page": 1,
+      "agent_id": 42
+    },
+    "header": {
+      "X-Agent-Id": 1
     }
   }
 });

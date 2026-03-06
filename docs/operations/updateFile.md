@@ -7,13 +7,15 @@
 
 ## Description
 
-No additional description.
+Updates one file. Host/team API key callers should send X-Agent-Id (or agent_id query) so file scope and owner validation resolve to the acting agent.
 
 ## Parameters
 
 | Name | In | Required | Description | Example |
 | --- | --- | --- | --- | --- |
 | id | path | yes | File identifier. | 42 |
+| X-Agent-Id | header | no | Acting agent identifier for host/team API key requests when updating a file. | 1 |
+| agent_id | query | no | Alternate acting agent identifier for host/team API key file updates. | 42 |
 
 ## Request Example
 
@@ -155,6 +157,12 @@ const result = await client.operations.updateFile({
   "params": {
     "path": {
       "id": 42
+    },
+    "header": {
+      "X-Agent-Id": 1
+    },
+    "query": {
+      "agent_id": 42
     }
   },
   "body": {

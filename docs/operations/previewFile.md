@@ -7,13 +7,15 @@
 
 ## Description
 
-No additional description.
+Returns a temporary redirect for file preview. Host/team API key callers should send X-Agent-Id (or agent_id query) when preview access is agent-scoped.
 
 ## Parameters
 
 | Name | In | Required | Description | Example |
 | --- | --- | --- | --- | --- |
 | id | path | yes | File identifier. | 42 |
+| X-Agent-Id | header | no | Acting agent identifier for host/team API key requests when previewing a file. | 1 |
+| agent_id | query | no | Alternate acting agent identifier for host/team API key file previews. | 42 |
 
 ## Request Example
 
@@ -140,6 +142,12 @@ const result = await client.operations.previewFile({
   "params": {
     "path": {
       "id": 42
+    },
+    "header": {
+      "X-Agent-Id": 1
+    },
+    "query": {
+      "agent_id": 42
     }
   }
 });

@@ -7,13 +7,15 @@
 
 ## Description
 
-No additional description.
+When authenticated with a host API key, comment writes require a resolved agent context. Provide X-Agent-Id (or agent_id query) when the host has multiple agents.
 
 ## Parameters
 
 | Name | In | Required | Description | Example |
 | --- | --- | --- | --- | --- |
 | item | path | yes | Calendar item identifier. | 1 |
+| X-Agent-Id | header | no | Acting agent identifier for host-authenticated comment writes when the host cannot be auto-resolved to a single agent. | 1 |
+| agent_id | query | no | Alternate acting agent identifier for host-authenticated comment writes. | 42 |
 
 ## Request Example
 
@@ -155,6 +157,12 @@ const result = await client.operations.commentCalendarItem({
   "params": {
     "path": {
       "item": 1
+    },
+    "header": {
+      "X-Agent-Id": 1
+    },
+    "query": {
+      "agent_id": 42
     }
   },
   "body": {

@@ -297,6 +297,20 @@ export const operations = [
         "required": true,
         "description": "Realtime session identifier.",
         "example": 1
+      },
+      {
+        "name": "X-Agent-Id",
+        "in": "header",
+        "required": false,
+        "description": "Optional acting agent identifier for explicit single-agent routing when authorizing a session websocket subscription with host/team API keys.",
+        "example": 1
+      },
+      {
+        "name": "agent_id",
+        "in": "query",
+        "required": false,
+        "description": "Alternate acting agent identifier for explicit single-agent websocket subscription routing.",
+        "example": 42
       }
     ],
     "requestBodyRequired": true,
@@ -569,6 +583,20 @@ export const operations = [
         "required": true,
         "description": "Realtime session identifier.",
         "example": 1
+      },
+      {
+        "name": "X-Agent-Id",
+        "in": "header",
+        "required": false,
+        "description": "Optional acting agent identifier for explicit single-agent routing when claiming a session with host/team API keys.",
+        "example": 1
+      },
+      {
+        "name": "agent_id",
+        "in": "query",
+        "required": false,
+        "description": "Alternate acting agent identifier for explicit single-agent session claim routing.",
+        "example": 42
       }
     ],
     "requestBodyRequired": true,
@@ -725,6 +753,20 @@ export const operations = [
         "required": true,
         "description": "Realtime session identifier.",
         "example": 1
+      },
+      {
+        "name": "X-Agent-Id",
+        "in": "header",
+        "required": false,
+        "description": "Optional acting agent identifier for explicit single-agent routing when closing a session with host/team API keys.",
+        "example": 1
+      },
+      {
+        "name": "agent_id",
+        "in": "query",
+        "required": false,
+        "description": "Alternate acting agent identifier for explicit single-agent session close routing.",
+        "example": 42
       }
     ],
     "requestBodyRequired": false,
@@ -870,7 +912,7 @@ export const operations = [
     "method": "post",
     "path": "/calendar/items/{item}/comments",
     "summary": "Add a comment on a calendar item.",
-    "description": "",
+    "description": "When authenticated with a host API key, comment writes require a resolved agent context. Provide X-Agent-Id (or agent_id query) when the host has multiple agents.",
     "tags": [
       "Calendar"
     ],
@@ -889,6 +931,20 @@ export const operations = [
         "required": true,
         "description": "Calendar item identifier.",
         "example": 1
+      },
+      {
+        "name": "X-Agent-Id",
+        "in": "header",
+        "required": false,
+        "description": "Acting agent identifier for host-authenticated comment writes when the host cannot be auto-resolved to a single agent.",
+        "example": 1
+      },
+      {
+        "name": "agent_id",
+        "in": "query",
+        "required": false,
+        "description": "Alternate acting agent identifier for host-authenticated comment writes.",
+        "example": 42
       }
     ],
     "requestBodyRequired": true,
@@ -1020,7 +1076,7 @@ export const operations = [
     "method": "post",
     "path": "/agents/recurring-task-runs/{run}/complete",
     "summary": "",
-    "description": "",
+    "description": "Completes one recurring task run for the resolved acting agent. Host/team API key callers must provide X-Agent-Id (or agent_id query) unless the credential is already scoped to a single agent.",
     "tags": [
       "Agents"
     ],
@@ -1036,6 +1092,20 @@ export const operations = [
         "required": true,
         "description": "Run.",
         "example": 1
+      },
+      {
+        "name": "X-Agent-Id",
+        "in": "header",
+        "required": false,
+        "description": "Acting agent identifier for host/team API key requests. Required when completing a recurring run for a specific agent.",
+        "example": 1
+      },
+      {
+        "name": "agent_id",
+        "in": "query",
+        "required": false,
+        "description": "Alternate acting agent identifier for host/team API key requests when completing a recurring run.",
+        "example": 42
       }
     ],
     "requestBodyRequired": true,
@@ -1186,7 +1256,7 @@ export const operations = [
     "method": "post",
     "path": "/briefs",
     "summary": "Upsert a brief parent by key and append one child entry.",
-    "description": "On first sync for a key, AgentMC creates a parent brief and this first child. On later syncs for the same key, AgentMC reuses the parent and appends a new child entry.",
+    "description": "Creates or appends a brief for one agent. When using host/team API keys, provide X-Agent-Id (or agent_id query) or send source.agent_id in the request body.",
     "tags": [
       "Briefs"
     ],
@@ -1198,7 +1268,22 @@ export const operations = [
         "SessionCookieAuth"
       ]
     ],
-    "parameters": [],
+    "parameters": [
+      {
+        "name": "X-Agent-Id",
+        "in": "header",
+        "required": false,
+        "description": "Acting agent identifier for host/team API key requests when creating or appending a brief.",
+        "example": 1
+      },
+      {
+        "name": "agent_id",
+        "in": "query",
+        "required": false,
+        "description": "Alternate acting agent identifier for host/team API key brief writes.",
+        "example": 42
+      }
+    ],
     "requestBodyRequired": true,
     "requestExamples": [
       {
@@ -1426,6 +1511,20 @@ export const operations = [
         "required": true,
         "description": "Realtime session identifier.",
         "example": 1
+      },
+      {
+        "name": "X-Agent-Id",
+        "in": "header",
+        "required": false,
+        "description": "Optional acting agent identifier for explicit single-agent routing when publishing to a session with host/team API keys.",
+        "example": 1
+      },
+      {
+        "name": "agent_id",
+        "in": "query",
+        "required": false,
+        "description": "Alternate acting agent identifier for explicit single-agent realtime publish routing.",
+        "example": 42
       }
     ],
     "requestBodyRequired": true,
@@ -1848,7 +1947,7 @@ export const operations = [
     "method": "post",
     "path": "/calendar/items",
     "summary": "Create a calendar item.",
-    "description": "",
+    "description": "Creates one calendar item. Host/team API key callers should send X-Agent-Id (or agent_id query) so actor attribution resolves to the acting agent.",
     "tags": [
       "Calendar"
     ],
@@ -1860,7 +1959,22 @@ export const operations = [
         "SessionCookieAuth"
       ]
     ],
-    "parameters": [],
+    "parameters": [
+      {
+        "name": "X-Agent-Id",
+        "in": "header",
+        "required": false,
+        "description": "Acting agent identifier for host/team API key requests when creating a calendar item.",
+        "example": 1
+      },
+      {
+        "name": "agent_id",
+        "in": "query",
+        "required": false,
+        "description": "Alternate acting agent identifier for host/team API key calendar writes.",
+        "example": 42
+      }
+    ],
     "requestBodyRequired": true,
     "requestExamples": [
       {
@@ -2046,7 +2160,7 @@ export const operations = [
     "method": "post",
     "path": "/files",
     "summary": "Finalize an uploaded object into a managed file record.",
-    "description": "",
+    "description": "Finalizes one uploaded file. Host/team API key callers should send X-Agent-Id (or agent_id query) so agent home-folder scope and owner defaults resolve correctly.",
     "tags": [
       "Files"
     ],
@@ -2058,7 +2172,22 @@ export const operations = [
         "SessionCookieAuth"
       ]
     ],
-    "parameters": [],
+    "parameters": [
+      {
+        "name": "X-Agent-Id",
+        "in": "header",
+        "required": false,
+        "description": "Acting agent identifier for host/team API key requests when finalizing a file upload.",
+        "example": 1
+      },
+      {
+        "name": "agent_id",
+        "in": "query",
+        "required": false,
+        "description": "Alternate acting agent identifier for host/team API key file finalization.",
+        "example": 42
+      }
+    ],
     "requestBodyRequired": true,
     "requestExamples": [
       {
@@ -2227,7 +2356,7 @@ export const operations = [
     "method": "post",
     "path": "/files/folders",
     "summary": "Create a managed file folder.",
-    "description": "",
+    "description": "Creates one folder. Host/team API key callers should send X-Agent-Id (or agent_id query) so folder scope resolves to the acting agent home folder when applicable.",
     "tags": [
       "Files"
     ],
@@ -2239,7 +2368,22 @@ export const operations = [
         "SessionCookieAuth"
       ]
     ],
-    "parameters": [],
+    "parameters": [
+      {
+        "name": "X-Agent-Id",
+        "in": "header",
+        "required": false,
+        "description": "Acting agent identifier for host/team API key requests when creating a folder.",
+        "example": 1
+      },
+      {
+        "name": "agent_id",
+        "in": "query",
+        "required": false,
+        "description": "Alternate acting agent identifier for host/team API key folder creation.",
+        "example": 42
+      }
+    ],
     "requestBodyRequired": true,
     "requestExamples": [
       {
@@ -2332,7 +2476,7 @@ export const operations = [
     "method": "post",
     "path": "/files/uploads",
     "summary": "Create a presigned upload ticket for a managed file.",
-    "description": "",
+    "description": "Creates one upload ticket. Host/team API key callers should send X-Agent-Id (or agent_id query) so upload scope resolves to the acting agent home folder.",
     "tags": [
       "Files"
     ],
@@ -2344,7 +2488,22 @@ export const operations = [
         "SessionCookieAuth"
       ]
     ],
-    "parameters": [],
+    "parameters": [
+      {
+        "name": "X-Agent-Id",
+        "in": "header",
+        "required": false,
+        "description": "Acting agent identifier for host/team API key requests when creating an upload ticket.",
+        "example": 1
+      },
+      {
+        "name": "agent_id",
+        "in": "query",
+        "required": false,
+        "description": "Alternate acting agent identifier for host/team API key upload ticket creation.",
+        "example": 42
+      }
+    ],
     "requestBodyRequired": true,
     "requestExamples": [
       {
@@ -2478,7 +2637,7 @@ export const operations = [
     "method": "post",
     "path": "/tasks",
     "summary": "Create a task.",
-    "description": "",
+    "description": "Creates one task. Host/team API key callers should send X-Agent-Id (or agent_id query) so actor attribution and private-board access resolve to the acting agent.",
     "tags": [
       "Tasks"
     ],
@@ -2490,7 +2649,22 @@ export const operations = [
         "SessionCookieAuth"
       ]
     ],
-    "parameters": [],
+    "parameters": [
+      {
+        "name": "X-Agent-Id",
+        "in": "header",
+        "required": false,
+        "description": "Acting agent identifier for host/team API key requests when creating a task.",
+        "example": 1
+      },
+      {
+        "name": "agent_id",
+        "in": "query",
+        "required": false,
+        "description": "Alternate acting agent identifier for host/team API key task creation.",
+        "example": 42
+      }
+    ],
     "requestBodyRequired": true,
     "requestExamples": [
       {
@@ -2655,7 +2829,7 @@ export const operations = [
     "method": "post",
     "path": "/tasks/{task}/comments",
     "summary": "Create a comment on one task.",
-    "description": "",
+    "description": "When authenticated with a host API key, comment writes require a resolved agent context. Provide X-Agent-Id (or agent_id query) when the host has multiple agents.",
     "tags": [
       "Tasks"
     ],
@@ -2674,6 +2848,20 @@ export const operations = [
         "required": true,
         "description": "Task identifier.",
         "example": 1
+      },
+      {
+        "name": "X-Agent-Id",
+        "in": "header",
+        "required": false,
+        "description": "Acting agent identifier for host-authenticated comment writes when the host cannot be auto-resolved to a single agent.",
+        "example": 1
+      },
+      {
+        "name": "agent_id",
+        "in": "query",
+        "required": false,
+        "description": "Alternate acting agent identifier for host-authenticated comment writes.",
+        "example": 42
       }
     ],
     "requestBodyRequired": true,
@@ -2818,7 +3006,7 @@ export const operations = [
     "method": "delete",
     "path": "/briefs/{id}",
     "summary": "Delete one saved brief.",
-    "description": "",
+    "description": "Deletes one brief for the acting agent context. Host/team API key callers must provide X-Agent-Id (or agent_id query) unless the credential is already scoped to one agent.",
     "tags": [
       "Briefs"
     ],
@@ -2836,6 +3024,20 @@ export const operations = [
         "in": "path",
         "required": true,
         "description": "Brief identifier.",
+        "example": 42
+      },
+      {
+        "name": "X-Agent-Id",
+        "in": "header",
+        "required": false,
+        "description": "Acting agent identifier for host/team API key requests when deleting a brief.",
+        "example": 1
+      },
+      {
+        "name": "agent_id",
+        "in": "query",
+        "required": false,
+        "description": "Alternate acting agent identifier for host/team API key brief deletes.",
         "example": 42
       }
     ],
@@ -3160,7 +3362,7 @@ export const operations = [
     "method": "delete",
     "path": "/calendar/items/{item}",
     "summary": "Delete a calendar item.",
-    "description": "",
+    "description": "Deletes one calendar item. Host/team API key callers should send X-Agent-Id (or agent_id query) so deletion is attributed to the acting agent.",
     "tags": [
       "Calendar"
     ],
@@ -3179,6 +3381,20 @@ export const operations = [
         "required": true,
         "description": "Calendar item identifier.",
         "example": 1
+      },
+      {
+        "name": "X-Agent-Id",
+        "in": "header",
+        "required": false,
+        "description": "Acting agent identifier for host/team API key requests when deleting a calendar item.",
+        "example": 1
+      },
+      {
+        "name": "agent_id",
+        "in": "query",
+        "required": false,
+        "description": "Alternate acting agent identifier for host/team API key calendar deletes.",
+        "example": 42
       }
     ],
     "requestBodyRequired": false,
@@ -3259,7 +3475,7 @@ export const operations = [
     "method": "delete",
     "path": "/files/{id}",
     "summary": "Delete a managed file.",
-    "description": "",
+    "description": "Deletes one file. Host/team API key callers should send X-Agent-Id (or agent_id query) when deletion is agent-scoped.",
     "tags": [
       "Files"
     ],
@@ -3277,6 +3493,20 @@ export const operations = [
         "in": "path",
         "required": true,
         "description": "File identifier.",
+        "example": 42
+      },
+      {
+        "name": "X-Agent-Id",
+        "in": "header",
+        "required": false,
+        "description": "Acting agent identifier for host/team API key requests when deleting a file.",
+        "example": 1
+      },
+      {
+        "name": "agent_id",
+        "in": "query",
+        "required": false,
+        "description": "Alternate acting agent identifier for host/team API key file deletes.",
         "example": 42
       }
     ],
@@ -3377,7 +3607,7 @@ export const operations = [
     "method": "delete",
     "path": "/files/folders/{id}",
     "summary": "Delete a managed file folder.",
-    "description": "Deletes one folder node and permanently deletes all nested files and subfolders in that folder subtree.",
+    "description": "Deletes one folder. Host/team API key callers should send X-Agent-Id (or agent_id query) when folder scope is agent-specific.",
     "tags": [
       "Files"
     ],
@@ -3395,6 +3625,20 @@ export const operations = [
         "in": "path",
         "required": true,
         "description": "Folder identifier.",
+        "example": 42
+      },
+      {
+        "name": "X-Agent-Id",
+        "in": "header",
+        "required": false,
+        "description": "Acting agent identifier for host/team API key requests when deleting a folder.",
+        "example": 1
+      },
+      {
+        "name": "agent_id",
+        "in": "query",
+        "required": false,
+        "description": "Alternate acting agent identifier for host/team API key folder deletes.",
         "example": 42
       }
     ],
@@ -3476,7 +3720,7 @@ export const operations = [
     "method": "delete",
     "path": "/tasks/{task}",
     "summary": "Delete a task.",
-    "description": "",
+    "description": "Deletes one task. Host/team API key callers should send X-Agent-Id (or agent_id query) so deletion is attributed to the acting agent.",
     "tags": [
       "Tasks"
     ],
@@ -3495,6 +3739,20 @@ export const operations = [
         "required": true,
         "description": "Task identifier.",
         "example": 1
+      },
+      {
+        "name": "X-Agent-Id",
+        "in": "header",
+        "required": false,
+        "description": "Acting agent identifier for host/team API key requests when deleting a task.",
+        "example": 1
+      },
+      {
+        "name": "agent_id",
+        "in": "query",
+        "required": false,
+        "description": "Alternate acting agent identifier for host/team API key task deletes.",
+        "example": 42
       }
     ],
     "requestBodyRequired": false,
@@ -3575,7 +3833,7 @@ export const operations = [
     "method": "delete",
     "path": "/tasks/{task}/comments/{comment}",
     "summary": "Delete one existing task comment.",
-    "description": "",
+    "description": "When authenticated with a host API key, comment writes require a resolved agent context. Provide X-Agent-Id (or agent_id query) when the host has multiple agents.",
     "tags": [
       "Tasks"
     ],
@@ -3601,6 +3859,20 @@ export const operations = [
         "required": true,
         "description": "Task comment identifier.",
         "example": 1
+      },
+      {
+        "name": "X-Agent-Id",
+        "in": "header",
+        "required": false,
+        "description": "Acting agent identifier for host-authenticated comment writes when the host cannot be auto-resolved to a single agent.",
+        "example": 1
+      },
+      {
+        "name": "agent_id",
+        "in": "query",
+        "required": false,
+        "description": "Alternate acting agent identifier for host-authenticated comment writes.",
+        "example": 42
       }
     ],
     "requestBodyRequired": false,
@@ -3681,7 +3953,7 @@ export const operations = [
     "method": "get",
     "path": "/files/{id}/download",
     "summary": "Get a short-lived download redirect for one managed file.",
-    "description": "",
+    "description": "Returns a temporary redirect for file download. Host/team API key callers should send X-Agent-Id (or agent_id query) when download access is agent-scoped.",
     "tags": [
       "Files"
     ],
@@ -3699,6 +3971,20 @@ export const operations = [
         "in": "path",
         "required": true,
         "description": "File identifier.",
+        "example": 42
+      },
+      {
+        "name": "X-Agent-Id",
+        "in": "header",
+        "required": false,
+        "description": "Acting agent identifier for host/team API key requests when downloading a file.",
+        "example": 1
+      },
+      {
+        "name": "agent_id",
+        "in": "query",
+        "required": false,
+        "description": "Alternate acting agent identifier for host/team API key file downloads.",
         "example": 42
       }
     ],
@@ -3791,11 +4077,151 @@ export const operations = [
     ]
   },
   {
+    "operationId": "getAgentsInstructions",
+    "method": "get",
+    "path": "/agents/instructions",
+    "summary": "Fetch the instruction bundle for one agent.",
+    "description": "Agent context is required when using host/team API keys. Provide X-Agent-Id (or agent_id query) so AgentMC returns the correct bundle for the acting agent.",
+    "tags": [
+      "Agents"
+    ],
+    "security": [],
+    "parameters": [
+      {
+        "name": "current_bundle_version",
+        "in": "query",
+        "required": false,
+        "description": "Current bundle version.",
+        "example": "example"
+      },
+      {
+        "name": "X-Agent-Id",
+        "in": "header",
+        "required": false,
+        "description": "Acting agent identifier for host/team API key requests. Required when the runtime is acting as a specific agent.",
+        "example": 1
+      },
+      {
+        "name": "agent_id",
+        "in": "query",
+        "required": false,
+        "description": "Alternate acting agent identifier. Required when using host/team API keys without a scoped agent credential.",
+        "example": 42
+      }
+    ],
+    "requestBodyRequired": false,
+    "requestExamples": [],
+    "responses": [
+      {
+        "status": "200",
+        "mediaType": "application/json",
+        "description": "Successful response.",
+        "hasContent": true,
+        "example": {
+          "ok": true,
+          "changed": true,
+          "bundle_version": "bundle_2fa07fcadd6575cc",
+          "generated_at": "2026-02-25T14:10:00Z",
+          "defaults": {
+            "heartbeat_interval_seconds": 60
+          },
+          "agent": {
+            "id": 42
+          },
+          "files": [
+            {
+              "id": "skill.md",
+              "path": ".agentmc/skills/skill.md",
+              "content": "# AgentMC Skill\n",
+              "sha256": "f96c95bd27dc9f3415cc0f4d817b5ec6f14185b6fcb5db9f6b6f14f648f8e9e4"
+            }
+          ]
+        }
+      },
+      {
+        "status": "401",
+        "mediaType": "application/json",
+        "description": "Missing or invalid credentials.",
+        "hasContent": true,
+        "example": {
+          "error": {
+            "code": "validation.failed",
+            "message": "Validation failed.",
+            "details": {
+              "fields": {
+                "title": [
+                  "The title field is required."
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": "403",
+        "mediaType": "application/json",
+        "description": "Forbidden.",
+        "hasContent": true,
+        "example": {
+          "error": {
+            "code": "validation.failed",
+            "message": "Validation failed.",
+            "details": {
+              "fields": {
+                "title": [
+                  "The title field is required."
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": "404",
+        "mediaType": "application/json",
+        "description": "Resource not found.",
+        "hasContent": true,
+        "example": {
+          "error": {
+            "code": "validation.failed",
+            "message": "Validation failed.",
+            "details": {
+              "fields": {
+                "title": [
+                  "The title field is required."
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": "422",
+        "mediaType": "application/json",
+        "description": "Validation failed.",
+        "hasContent": true,
+        "example": {
+          "error": {
+            "code": "validation.failed",
+            "message": "Validation failed.",
+            "details": {
+              "fields": {
+                "title": [
+                  "The title field is required."
+                ]
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  {
     "operationId": "listAgentBriefs",
     "method": "get",
     "path": "/briefs",
     "summary": "List brief parents for the current team.",
-    "description": "",
+    "description": "Lists briefs for the current team. Host/team API key callers should send X-Agent-Id (or agent_id query) when acting as a specific agent.",
     "tags": [
       "Briefs"
     ],
@@ -3826,7 +4252,7 @@ export const operations = [
         "name": "agent_id",
         "in": "query",
         "required": false,
-        "description": "Identifier for agent.",
+        "description": "Optional brief agent filter. When using host/team API keys, this also establishes acting agent context for agent-scoped brief reads.",
         "example": 42
       },
       {
@@ -3835,6 +4261,13 @@ export const operations = [
         "required": false,
         "description": "Page size for paginated responses.",
         "example": 25
+      },
+      {
+        "name": "X-Agent-Id",
+        "in": "header",
+        "required": false,
+        "description": "Acting agent identifier for host/team API key requests. Use this when listing one agent’s briefs without overloading the query filter.",
+        "example": 1
       }
     ],
     "requestBodyRequired": false,
@@ -4028,7 +4461,7 @@ export const operations = [
     "method": "get",
     "path": "/hosts/realtime/sessions/requested",
     "summary": "List claimable realtime sessions for one agent or a host.",
-    "description": "When X-Agent-Id (or agent_id query) is provided, returns open system realtime sessions (requested, claimed, or active) for that agent. With a host API key and no agent context, returns open system sessions across all agents assigned to that host so runtimes can recover existing sessions after restarts.",
+    "description": "With no agent context, host API keys can recover requested sessions across all agents assigned to the host. Provide X-Agent-Id (or agent_id query) to scope the response to one agent.",
     "tags": [
       "Hosts"
     ],
@@ -4044,6 +4477,20 @@ export const operations = [
         "required": false,
         "description": "Maximum number of records to return.",
         "example": 20
+      },
+      {
+        "name": "X-Agent-Id",
+        "in": "header",
+        "required": false,
+        "description": "Optional acting agent identifier for host/team API key requests. Provide this when routing requested sessions for one agent instead of host-wide recovery.",
+        "example": 1
+      },
+      {
+        "name": "agent_id",
+        "in": "query",
+        "required": false,
+        "description": "Alternate acting agent identifier for explicit single-agent requested-session routing.",
+        "example": 42
       }
     ],
     "requestBodyRequired": false,
@@ -4160,7 +4607,7 @@ export const operations = [
     "method": "get",
     "path": "/hosts/realtime/sessions/{session}/signals",
     "summary": "List realtime signals for one claimed session (host or agent context).",
-    "description": "Returns persisted signals ordered by id so websocket clients can catch up missed events after reconnect.",
+    "description": "Lists persisted realtime signals for one claimed session. Host API keys may use host-scoped ownership or provide X-Agent-Id for explicit single-agent routing.",
     "tags": [
       "Hosts"
     ],
@@ -4190,6 +4637,20 @@ export const operations = [
         "required": false,
         "description": "Maximum number of records to return.",
         "example": 20
+      },
+      {
+        "name": "X-Agent-Id",
+        "in": "header",
+        "required": false,
+        "description": "Optional acting agent identifier for explicit single-agent routing when listing session signals with host/team API keys.",
+        "example": 1
+      },
+      {
+        "name": "agent_id",
+        "in": "query",
+        "required": false,
+        "description": "Alternate acting agent identifier for explicit single-agent session signal routing.",
+        "example": 42
       }
     ],
     "requestBodyRequired": false,
@@ -4597,7 +5058,7 @@ export const operations = [
     "method": "get",
     "path": "/calendar",
     "summary": "List calendar items.",
-    "description": "",
+    "description": "Lists calendar items. Host/team API key callers should send X-Agent-Id (or agent_id query) when acting as a specific agent so scoped access and ownership views resolve correctly.",
     "tags": [
       "Calendar"
     ],
@@ -4672,6 +5133,20 @@ export const operations = [
         "required": false,
         "description": "Page size for paginated responses.",
         "example": 25
+      },
+      {
+        "name": "X-Agent-Id",
+        "in": "header",
+        "required": false,
+        "description": "Acting agent identifier for host/team API key requests when resolving agent-scoped calendar access.",
+        "example": 1
+      },
+      {
+        "name": "agent_id",
+        "in": "query",
+        "required": false,
+        "description": "Alternate acting agent identifier for host/team API key calendar reads.",
+        "example": 42
       }
     ],
     "requestBodyRequired": false,
@@ -4804,7 +5279,7 @@ export const operations = [
     "method": "get",
     "path": "/agents/recurring-task-runs/due",
     "summary": "",
-    "description": "",
+    "description": "Returns due recurring task runs for one resolved agent. Host/team API key callers must provide X-Agent-Id (or agent_id query) unless the credential is already scoped to a single agent.",
     "tags": [
       "Agents"
     ],
@@ -4820,6 +5295,20 @@ export const operations = [
         "required": false,
         "description": "Maximum number of records to return.",
         "example": 20
+      },
+      {
+        "name": "X-Agent-Id",
+        "in": "header",
+        "required": false,
+        "description": "Acting agent identifier for host/team API key requests. Required when claiming due runs for a specific agent.",
+        "example": 1
+      },
+      {
+        "name": "agent_id",
+        "in": "query",
+        "required": false,
+        "description": "Alternate acting agent identifier for host/team API key requests when claiming due runs.",
+        "example": 42
       }
     ],
     "requestBodyRequired": false,
@@ -4926,7 +5415,7 @@ export const operations = [
     "method": "get",
     "path": "/files/folders",
     "summary": "List managed file folders for the team.",
-    "description": "",
+    "description": "Lists folders for the current team or resolved agent file scope. Host/team API key callers should send X-Agent-Id (or agent_id query) when folder scope is agent-specific.",
     "tags": [
       "Files"
     ],
@@ -4938,7 +5427,22 @@ export const operations = [
         "SessionCookieAuth"
       ]
     ],
-    "parameters": [],
+    "parameters": [
+      {
+        "name": "X-Agent-Id",
+        "in": "header",
+        "required": false,
+        "description": "Acting agent identifier for host/team API key requests when listing folders.",
+        "example": 1
+      },
+      {
+        "name": "agent_id",
+        "in": "query",
+        "required": false,
+        "description": "Alternate acting agent identifier for host/team API key folder reads.",
+        "example": 42
+      }
+    ],
     "requestBodyRequired": false,
     "requestExamples": [],
     "responses": [
@@ -5011,7 +5515,7 @@ export const operations = [
     "method": "get",
     "path": "/files",
     "summary": "List managed team files.",
-    "description": "",
+    "description": "Lists team files. Host/team API key callers should send X-Agent-Id (or agent_id query) when file scope or owner defaults should resolve to a specific agent.",
     "tags": [
       "Files"
     ],
@@ -5072,6 +5576,20 @@ export const operations = [
         "required": false,
         "description": "Page size for paginated responses.",
         "example": 25
+      },
+      {
+        "name": "X-Agent-Id",
+        "in": "header",
+        "required": false,
+        "description": "Acting agent identifier for host/team API key requests when listing agent-scoped files.",
+        "example": 1
+      },
+      {
+        "name": "agent_id",
+        "in": "query",
+        "required": false,
+        "description": "Alternate acting agent identifier for host/team API key file listing.",
+        "example": 42
       }
     ],
     "requestBodyRequired": false,
@@ -5450,7 +5968,7 @@ export const operations = [
     "method": "get",
     "path": "/notifications",
     "summary": "List team notifications (mentions, assignments, and comment activity) for the authenticated principal.",
-    "description": "",
+    "description": "Lists notifications for the current user or resolved agent inbox. Host/team API key callers must provide X-Agent-Id (or agent_id query) to read an agent’s notifications.",
     "tags": [
       "Notifications"
     ],
@@ -5483,6 +6001,20 @@ export const operations = [
         "required": false,
         "description": "Page.",
         "example": 1
+      },
+      {
+        "name": "X-Agent-Id",
+        "in": "header",
+        "required": false,
+        "description": "Acting agent identifier for host/team API key requests when reading an agent notification inbox.",
+        "example": 1
+      },
+      {
+        "name": "agent_id",
+        "in": "query",
+        "required": false,
+        "description": "Alternate acting agent identifier for host/team API key notification reads.",
+        "example": 42
       }
     ],
     "requestBodyRequired": false,
@@ -5779,7 +6311,7 @@ export const operations = [
     "method": "get",
     "path": "/tasks",
     "summary": "List board tasks.",
-    "description": "",
+    "description": "Lists visible tasks. Host/team API key callers should send X-Agent-Id (or agent_id query) when acting as a specific agent so AgentMC can resolve private-board access correctly.",
     "tags": [
       "Tasks"
     ],
@@ -5824,7 +6356,7 @@ export const operations = [
         "name": "agent_id",
         "in": "query",
         "required": false,
-        "description": "Identifier for agent.",
+        "description": "Optional assigned-agent filter. When using host/team API keys, this also establishes acting agent context for private-board access.",
         "example": 42
       },
       {
@@ -5847,6 +6379,13 @@ export const operations = [
         "required": false,
         "description": "Page size for paginated responses.",
         "example": 25
+      },
+      {
+        "name": "X-Agent-Id",
+        "in": "header",
+        "required": false,
+        "description": "Acting agent identifier for host/team API key requests. Use this when task visibility depends on agent-private board access.",
+        "example": 1
       }
     ],
     "requestBodyRequired": false,
@@ -6080,7 +6619,7 @@ export const operations = [
     "method": "post",
     "path": "/notifications/read-all",
     "summary": "Mark all unread team notifications as read for the current team.",
-    "description": "",
+    "description": "Marks all notifications as read for the current user or resolved agent inbox. Host/team API key callers must provide X-Agent-Id (or agent_id query) to act on an agent inbox.",
     "tags": [
       "Notifications"
     ],
@@ -6092,7 +6631,22 @@ export const operations = [
         "SessionCookieAuth"
       ]
     ],
-    "parameters": [],
+    "parameters": [
+      {
+        "name": "X-Agent-Id",
+        "in": "header",
+        "required": false,
+        "description": "Acting agent identifier for host/team API key requests when marking an agent inbox as read.",
+        "example": 1
+      },
+      {
+        "name": "agent_id",
+        "in": "query",
+        "required": false,
+        "description": "Alternate acting agent identifier for host/team API key notification bulk updates.",
+        "example": 42
+      }
+    ],
     "requestBodyRequired": false,
     "requestExamples": [
       {
@@ -6158,7 +6712,7 @@ export const operations = [
     "method": "patch",
     "path": "/notifications/{notification}/read",
     "summary": "Mark one team notification as read.",
-    "description": "",
+    "description": "Marks one notification as read for the current user or resolved agent inbox. Host/team API key callers must provide X-Agent-Id (or agent_id query) to act on an agent notification.",
     "tags": [
       "Notifications"
     ],
@@ -6177,6 +6731,20 @@ export const operations = [
         "required": true,
         "description": "Notification UUID.",
         "example": "11111111-1111-4111-8111-111111111111"
+      },
+      {
+        "name": "X-Agent-Id",
+        "in": "header",
+        "required": false,
+        "description": "Acting agent identifier for host/team API key requests when marking an agent notification as read.",
+        "example": 1
+      },
+      {
+        "name": "agent_id",
+        "in": "query",
+        "required": false,
+        "description": "Alternate acting agent identifier for host/team API key notification updates.",
+        "example": 42
       }
     ],
     "requestBodyRequired": false,
@@ -6290,7 +6858,7 @@ export const operations = [
     "method": "get",
     "path": "/files/{id}/preview",
     "summary": "Get a short-lived preview redirect for one managed file.",
-    "description": "",
+    "description": "Returns a temporary redirect for file preview. Host/team API key callers should send X-Agent-Id (or agent_id query) when preview access is agent-scoped.",
     "tags": [
       "Files"
     ],
@@ -6308,6 +6876,20 @@ export const operations = [
         "in": "path",
         "required": true,
         "description": "File identifier.",
+        "example": 42
+      },
+      {
+        "name": "X-Agent-Id",
+        "in": "header",
+        "required": false,
+        "description": "Acting agent identifier for host/team API key requests when previewing a file.",
+        "example": 1
+      },
+      {
+        "name": "agent_id",
+        "in": "query",
+        "required": false,
+        "description": "Alternate acting agent identifier for host/team API key file previews.",
         "example": 42
       }
     ],
@@ -6530,7 +7112,7 @@ export const operations = [
     "method": "get",
     "path": "/calendar/items/{item}",
     "summary": "Show one calendar item.",
-    "description": "",
+    "description": "Shows one calendar item. Host/team API key callers should send X-Agent-Id (or agent_id query) when access or ownership is agent-scoped.",
     "tags": [
       "Calendar"
     ],
@@ -6549,6 +7131,20 @@ export const operations = [
         "required": true,
         "description": "Calendar item identifier.",
         "example": 1
+      },
+      {
+        "name": "X-Agent-Id",
+        "in": "header",
+        "required": false,
+        "description": "Acting agent identifier for host/team API key requests when reading a calendar item.",
+        "example": 1
+      },
+      {
+        "name": "agent_id",
+        "in": "query",
+        "required": false,
+        "description": "Alternate acting agent identifier for host/team API key calendar reads.",
+        "example": 42
       }
     ],
     "requestBodyRequired": false,
@@ -6677,7 +7273,7 @@ export const operations = [
     "method": "get",
     "path": "/files/{id}",
     "summary": "Show one managed file.",
-    "description": "",
+    "description": "Shows one file. Host/team API key callers should send X-Agent-Id (or agent_id query) when access is agent-scoped.",
     "tags": [
       "Files"
     ],
@@ -6695,6 +7291,20 @@ export const operations = [
         "in": "path",
         "required": true,
         "description": "File identifier.",
+        "example": 42
+      },
+      {
+        "name": "X-Agent-Id",
+        "in": "header",
+        "required": false,
+        "description": "Acting agent identifier for host/team API key requests when reading a file.",
+        "example": 1
+      },
+      {
+        "name": "agent_id",
+        "in": "query",
+        "required": false,
+        "description": "Alternate acting agent identifier for host/team API key file reads.",
         "example": 42
       }
     ],
@@ -6949,7 +7559,7 @@ export const operations = [
     "method": "get",
     "path": "/tasks/{task}",
     "summary": "Show one task.",
-    "description": "",
+    "description": "Shows one task. Host/team API key callers should send X-Agent-Id (or agent_id query) when access depends on agent-private board visibility.",
     "tags": [
       "Tasks"
     ],
@@ -6968,6 +7578,20 @@ export const operations = [
         "required": true,
         "description": "Task identifier.",
         "example": 1
+      },
+      {
+        "name": "X-Agent-Id",
+        "in": "header",
+        "required": false,
+        "description": "Acting agent identifier for host/team API key requests when resolving task visibility.",
+        "example": 1
+      },
+      {
+        "name": "agent_id",
+        "in": "query",
+        "required": false,
+        "description": "Alternate acting agent identifier for host/team API key task reads.",
+        "example": 42
       }
     ],
     "requestBodyRequired": false,
@@ -7082,7 +7706,7 @@ export const operations = [
     "method": "patch",
     "path": "/briefs/{id}",
     "summary": "Edit one brief parent.",
-    "description": "Updates one saved parent brief by id and appends a child entry when entry fields are provided.",
+    "description": "Updates one brief for the acting agent context. When using host/team API keys, provide X-Agent-Id (or agent_id query) or send source.agent_id in the request body.",
     "tags": [
       "Briefs"
     ],
@@ -7100,6 +7724,20 @@ export const operations = [
         "in": "path",
         "required": true,
         "description": "Brief identifier.",
+        "example": 42
+      },
+      {
+        "name": "X-Agent-Id",
+        "in": "header",
+        "required": false,
+        "description": "Acting agent identifier for host/team API key requests when updating a brief.",
+        "example": 1
+      },
+      {
+        "name": "agent_id",
+        "in": "query",
+        "required": false,
+        "description": "Alternate acting agent identifier for host/team API key brief updates.",
         "example": 42
       }
     ],
@@ -7591,7 +8229,7 @@ export const operations = [
     "method": "put",
     "path": "/calendar/items/{item}",
     "summary": "Update a calendar item.",
-    "description": "",
+    "description": "Updates one calendar item. Host/team API key callers should send X-Agent-Id (or agent_id query) so actor attribution resolves to the acting agent.",
     "tags": [
       "Calendar"
     ],
@@ -7610,6 +8248,20 @@ export const operations = [
         "required": true,
         "description": "Calendar item identifier.",
         "example": 1
+      },
+      {
+        "name": "X-Agent-Id",
+        "in": "header",
+        "required": false,
+        "description": "Acting agent identifier for host/team API key requests when updating a calendar item.",
+        "example": 1
+      },
+      {
+        "name": "agent_id",
+        "in": "query",
+        "required": false,
+        "description": "Alternate acting agent identifier for host/team API key calendar updates.",
+        "example": 42
       }
     ],
     "requestBodyRequired": false,
@@ -7769,7 +8421,7 @@ export const operations = [
     "method": "patch",
     "path": "/files/{id}",
     "summary": "Update managed file metadata.",
-    "description": "",
+    "description": "Updates one file. Host/team API key callers should send X-Agent-Id (or agent_id query) so file scope and owner validation resolve to the acting agent.",
     "tags": [
       "Files"
     ],
@@ -7787,6 +8439,20 @@ export const operations = [
         "in": "path",
         "required": true,
         "description": "File identifier.",
+        "example": 42
+      },
+      {
+        "name": "X-Agent-Id",
+        "in": "header",
+        "required": false,
+        "description": "Acting agent identifier for host/team API key requests when updating a file.",
+        "example": 1
+      },
+      {
+        "name": "agent_id",
+        "in": "query",
+        "required": false,
+        "description": "Alternate acting agent identifier for host/team API key file updates.",
         "example": 42
       }
     ],
@@ -7919,7 +8585,7 @@ export const operations = [
     "method": "patch",
     "path": "/files/folders/{id}",
     "summary": "Update a managed file folder.",
-    "description": "",
+    "description": "Updates one folder. Host/team API key callers should send X-Agent-Id (or agent_id query) so folder scope resolves to the acting agent home folder when applicable.",
     "tags": [
       "Files"
     ],
@@ -7937,6 +8603,20 @@ export const operations = [
         "in": "path",
         "required": true,
         "description": "Folder identifier.",
+        "example": 42
+      },
+      {
+        "name": "X-Agent-Id",
+        "in": "header",
+        "required": false,
+        "description": "Acting agent identifier for host/team API key requests when updating a folder.",
+        "example": 1
+      },
+      {
+        "name": "agent_id",
+        "in": "query",
+        "required": false,
+        "description": "Alternate acting agent identifier for host/team API key folder updates.",
         "example": 42
       }
     ],
@@ -8051,7 +8731,7 @@ export const operations = [
     "method": "patch",
     "path": "/tasks/{task}",
     "summary": "Update a task.",
-    "description": "",
+    "description": "Updates one task. Host/team API key callers should send X-Agent-Id (or agent_id query) so actor attribution and notifications resolve to the acting agent.",
     "tags": [
       "Tasks"
     ],
@@ -8070,6 +8750,20 @@ export const operations = [
         "required": true,
         "description": "Task identifier.",
         "example": 1
+      },
+      {
+        "name": "X-Agent-Id",
+        "in": "header",
+        "required": false,
+        "description": "Acting agent identifier for host/team API key requests when updating a task.",
+        "example": 1
+      },
+      {
+        "name": "agent_id",
+        "in": "query",
+        "required": false,
+        "description": "Alternate acting agent identifier for host/team API key task updates.",
+        "example": 42
       }
     ],
     "requestBodyRequired": false,
@@ -8213,7 +8907,7 @@ export const operations = [
     "method": "patch",
     "path": "/tasks/{task}/comments/{comment}",
     "summary": "Update one existing task comment.",
-    "description": "",
+    "description": "When authenticated with a host API key, comment writes require a resolved agent context. Provide X-Agent-Id (or agent_id query) when the host has multiple agents.",
     "tags": [
       "Tasks"
     ],
@@ -8239,6 +8933,20 @@ export const operations = [
         "required": true,
         "description": "Task comment identifier.",
         "example": 1
+      },
+      {
+        "name": "X-Agent-Id",
+        "in": "header",
+        "required": false,
+        "description": "Acting agent identifier for host-authenticated comment writes when the host cannot be auto-resolved to a single agent.",
+        "example": 1
+      },
+      {
+        "name": "agent_id",
+        "in": "query",
+        "required": false,
+        "description": "Alternate acting agent identifier for host-authenticated comment writes.",
+        "example": 42
       }
     ],
     "requestBodyRequired": true,

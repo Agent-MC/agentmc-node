@@ -7,7 +7,7 @@
 
 ## Description
 
-Returns persisted signals ordered by id so websocket clients can catch up missed events after reconnect.
+Lists persisted realtime signals for one claimed session. Host API keys may use host-scoped ownership or provide X-Agent-Id for explicit single-agent routing.
 
 ## Parameters
 
@@ -16,6 +16,8 @@ Returns persisted signals ordered by id so websocket clients can catch up missed
 | session | path | yes | Realtime session identifier. | 1 |
 | after_id | query | no | Return only records with id greater than this value. | 120 |
 | limit | query | no | Maximum number of records to return. | 20 |
+| X-Agent-Id | header | no | Optional acting agent identifier for explicit single-agent routing when listing session signals with host/team API keys. | 1 |
+| agent_id | query | no | Alternate acting agent identifier for explicit single-agent session signal routing. | 42 |
 
 ## Request Example
 
@@ -179,7 +181,11 @@ const result = await client.operations.listAgentRealtimeSignals({
     },
     "query": {
       "after_id": 120,
-      "limit": 20
+      "limit": 20,
+      "agent_id": 42
+    },
+    "header": {
+      "X-Agent-Id": 1
     }
   }
 });

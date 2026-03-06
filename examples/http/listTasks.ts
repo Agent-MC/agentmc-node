@@ -15,6 +15,9 @@ const result = await client.operations.listTasks({
       "due_from": "2026-02-22T17:21:00Z",
       "due_to": "2026-02-22T17:21:00Z",
       "per_page": 25
+    },
+    "header": {
+      "X-Agent-Id": 1
     }
   }
 });

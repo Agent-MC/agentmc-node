@@ -5,6 +5,14 @@ const client = new AgentMCApi({
 });
 
 const result = await client.operations.createFile({
+  "params": {
+    "header": {
+      "X-Agent-Id": 1
+    },
+    "query": {
+      "agent_id": 42
+    }
+  },
   "body": {
     "upload_id": "tup_8f4f7f3f836d43d28c4f7311a48258f5",
     "display_name": "incident-timeline.md",

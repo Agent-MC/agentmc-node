@@ -11,6 +11,9 @@ const result = await client.operations.listAgentBriefs({
       "external_key": "daily-operations",
       "agent_id": 42,
       "per_page": 25
+    },
+    "header": {
+      "X-Agent-Id": 1
     }
   }
 });

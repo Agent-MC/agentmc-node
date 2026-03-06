@@ -7,13 +7,15 @@
 
 ## Description
 
-No additional description.
+Deletes one calendar item. Host/team API key callers should send X-Agent-Id (or agent_id query) so deletion is attributed to the acting agent.
 
 ## Parameters
 
 | Name | In | Required | Description | Example |
 | --- | --- | --- | --- | --- |
 | item | path | yes | Calendar item identifier. | 1 |
+| X-Agent-Id | header | no | Acting agent identifier for host/team API key requests when deleting a calendar item. | 1 |
+| agent_id | query | no | Alternate acting agent identifier for host/team API key calendar deletes. | 42 |
 
 ## Request Example
 
@@ -106,6 +108,12 @@ const result = await client.operations.deleteCalendarItem({
   "params": {
     "path": {
       "item": 1
+    },
+    "header": {
+      "X-Agent-Id": 1
+    },
+    "query": {
+      "agent_id": 42
     }
   }
 });

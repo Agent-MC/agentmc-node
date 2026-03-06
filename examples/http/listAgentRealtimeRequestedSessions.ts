@@ -7,7 +7,11 @@ const client = new AgentMCApi({
 const result = await client.operations.listAgentRealtimeRequestedSessions({
   "params": {
     "query": {
-      "limit": 20
+      "limit": 20,
+      "agent_id": 42
+    },
+    "header": {
+      "X-Agent-Id": 1
     }
   }
 });

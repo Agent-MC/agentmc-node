@@ -7,11 +7,14 @@
 
 ## Description
 
-No additional description.
+Creates one task. Host/team API key callers should send X-Agent-Id (or agent_id query) so actor attribution and private-board access resolve to the acting agent.
 
 ## Parameters
 
-None.
+| Name | In | Required | Description | Example |
+| --- | --- | --- | --- | --- |
+| X-Agent-Id | header | no | Acting agent identifier for host/team API key requests when creating a task. | 1 |
+| agent_id | query | no | Alternate acting agent identifier for host/team API key task creation. | 42 |
 
 ## Request Example
 
@@ -185,6 +188,14 @@ const client = new AgentMCApi({
 });
 
 const result = await client.operations.createTask({
+  "params": {
+    "header": {
+      "X-Agent-Id": 1
+    },
+    "query": {
+      "agent_id": 42
+    }
+  },
   "body": {
     "board_id": 5,
     "column_id": 13,

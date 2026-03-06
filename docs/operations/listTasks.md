@@ -7,7 +7,7 @@
 
 ## Description
 
-No additional description.
+Lists visible tasks. Host/team API key callers should send X-Agent-Id (or agent_id query) when acting as a specific agent so AgentMC can resolve private-board access correctly.
 
 ## Parameters
 
@@ -17,10 +17,11 @@ No additional description.
 | archived | query | no | Filter tasks by archive state. Accepts true/false (and 1/0). | true |
 | assigned_to_user_id | query | no | Identifier for assigned to user. | 42 |
 | assigned_to_agent | query | no | Assigned to agent. | 1 |
-| agent_id | query | no | Identifier for agent. | 42 |
+| agent_id | query | no | Optional assigned-agent filter. When using host/team API keys, this also establishes acting agent context for private-board access. | 42 |
 | due_from | query | no | Due from. | "2026-02-22T17:21:00Z" |
 | due_to | query | no | Due to. | "2026-02-22T17:21:00Z" |
 | per_page | query | no | Page size for paginated responses. | 25 |
+| X-Agent-Id | header | no | Acting agent identifier for host/team API key requests. Use this when task visibility depends on agent-private board access. | 1 |
 
 ## Request Example
 
@@ -158,6 +159,9 @@ const result = await client.operations.listTasks({
       "due_from": "2026-02-22T17:21:00Z",
       "due_to": "2026-02-22T17:21:00Z",
       "per_page": 25
+    },
+    "header": {
+      "X-Agent-Id": 1
     }
   }
 });

@@ -8,6 +8,12 @@ const result = await client.operations.updateTask({
   "params": {
     "path": {
       "task": 1
+    },
+    "header": {
+      "X-Agent-Id": 1
+    },
+    "query": {
+      "agent_id": 42
     }
   },
   "body": {
