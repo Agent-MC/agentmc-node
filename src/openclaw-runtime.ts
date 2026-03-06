@@ -1636,10 +1636,18 @@ export class OpenClawAgentRuntime {
     envelope: JsonObject,
     payload: JsonObject
   ): Promise<void> {
-    const requestId =
+    const requestIdFromPayload =
       valueAsString(payload.request_id)?.trim() ||
       valueAsString(envelope.request_id)?.trim() ||
-      `snapshot-${state.sessionId}-${Date.now().toString(36)}`;
+      "";
+    const requestId = requestIdFromPayload || `snapshot-${state.sessionId}-${Date.now().toString(36)}`;
+
+    if (requestIdFromPayload) {
+      const dedupeKey = `snapshot.request:${requestIdFromPayload}`;
+      if (!shouldProcessInboundKey(state, dedupeKey, this.options.duplicateTtlMs)) {
+        return;
+      }
+    }
 
     const reason =
       valueAsString(payload.reason)?.trim() ||

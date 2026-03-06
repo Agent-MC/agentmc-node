@@ -1159,6 +1159,53 @@ test("docs handling can be disabled independently from realtime chat/notificatio
   });
 });
 
+test("snapshot requests dedupe repeated request ids", async () => {
+  await withFixture(async ({ dir, sessionsPath }) => {
+    let snapshotSendCount = 0;
+    const runtime = createRuntime(sessionsPath, dir);
+
+    runtime.sendSnapshotResponse = async () => {
+      snapshotSendCount += 1;
+    };
+
+    const state = createSessionState();
+    const payload = {
+      type: "snapshot.request",
+      payload: {
+        request_id: "snapshot-request-1"
+      }
+    };
+
+    await runtime.handleSignal(
+      state,
+      {
+        id: 602,
+        session_id: state.sessionId,
+        sender: "browser",
+        type: "message",
+        payload,
+        created_at: null
+      },
+      "websocket"
+    );
+
+    await runtime.handleSignal(
+      state,
+      {
+        id: 603,
+        session_id: state.sessionId,
+        sender: "browser",
+        type: "message",
+        payload,
+        created_at: null
+      },
+      "api_poll"
+    );
+
+    assert.equal(snapshotSendCount, 1);
+  });
+});
+
 test("agent profile update messages execute OpenClaw set-identity and ack success", async () => {
   await withFixture(async ({ dir, sessionsPath }) => {
     const openclawStubPath = join(dir, "openclaw-profile-stub.mjs");
