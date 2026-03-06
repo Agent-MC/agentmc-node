@@ -1044,7 +1044,10 @@ export class OpenClawAgentRuntime {
       await this.emitError(normalizeError(error));
     }
 
-    await this.markNotificationReadOnSuccess(input.notification, runResult);
+    const responseActionSucceeded = await this.maybeExecuteNotificationResponseAction(input.notification, runResult);
+    if (responseActionSucceeded) {
+      await this.markNotificationReadOnSuccess(input.notification, runResult);
+    }
 
     await callOptionalHandler(
       this.options.onNotificationBridge,
@@ -1060,6 +1063,61 @@ export class OpenClawAgentRuntime {
       },
       this.options.onError
     );
+  }
+
+  private async maybeExecuteNotificationResponseAction(
+    notification: JsonObject,
+    runResult: OpenClawRunResult
+  ): Promise<boolean> {
+    const responseAction = valueAsObject(notification.response_action);
+    const actionType = normalizeLowercase(responseAction?.type);
+    if (actionType !== "post_comment_reply") {
+      return true;
+    }
+
+    if (runResult.status !== "ok" || runResult.textSource !== "wait") {
+      return false;
+    }
+
+    const taskId = resolveNotificationResponseTaskId(notification, responseAction);
+    if (taskId < 1) {
+      await this.emitError(new Error("Notification response_action is missing a valid task id."));
+      return false;
+    }
+
+    const body = sanitizeAssistantOutputText(runResult.content);
+    if (body === "") {
+      await this.emitError(new Error("Notification response_action did not produce a usable reply body."));
+      return false;
+    }
+
+    try {
+      const response = await this.options.client.operations.createTaskComment({
+        params: {
+          path: {
+            task: taskId
+          }
+        },
+        headers: {
+          "X-Agent-Id": String(this.options.agent)
+        },
+        body: {
+          body,
+          actor_type: "agent",
+          actor_id: this.options.agent
+        }
+      });
+
+      if (response.error) {
+        await this.emitError(createOperationError("createTaskComment", response.status, response.error));
+        return false;
+      }
+    } catch (error) {
+      await this.emitError(normalizeError(error));
+      return false;
+    }
+
+    return true;
   }
 
   private async markNotificationReadOnSuccess(
@@ -4059,6 +4117,19 @@ function buildNotificationBridgeUserText(input: {
   lines.push("", "notification JSON:", "```json", toPromptJson(input.notification), "```");
 
   return lines.join("\n");
+}
+
+function resolveNotificationResponseTaskId(notification: JsonObject, responseAction: JsonObject | null): number {
+  const path = valueAsString(responseAction?.path)?.trim() ?? "";
+  const pathMatch = /^\/tasks\/(\d+)\/comments(?:\/|$)/i.exec(path);
+  if (pathMatch?.[1]) {
+    const parsed = Number.parseInt(pathMatch[1], 10);
+    if (Number.isInteger(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+
+  return toPositiveInteger(notification.subject_id);
 }
 
 function normalizeOptionalBridgeToken(value: string | null): string | null {

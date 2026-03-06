@@ -29,6 +29,7 @@ const DEFAULT_AGENTMC_API_BASE_URL = "https://agentmc.ai/api/v1";
 const DEFAULT_HEARTBEAT_INTERVAL_SECONDS = 60;
 const DEFAULT_HEARTBEAT_NOTIFICATION_CATCHUP_PER_PAGE = 50;
 const DEFAULT_HEARTBEAT_NOTIFICATION_CATCHUP_MAX_PAGES = 100;
+const DEFAULT_NOTIFICATION_CATCHUP_INTERVAL_SECONDS = 30;
 const DEFAULT_RECURRING_TASK_POLL_INTERVAL_SECONDS = 30;
 const DEFAULT_RECURRING_TASK_POLL_LIMIT = 5;
 const DEFAULT_RECURRING_TASK_WAIT_TIMEOUT_MS = 600_000;
@@ -366,6 +367,7 @@ export class AgentRuntimeProgram {
     this.runtimeProvider = await this.resolveRuntimeProvider();
     this.agentProfile = await this.resolveAgentProfile(agentId, this.runtimeProvider);
     const recurringPollIntervalMs = this.recurringTaskPollIntervalSeconds * 1000;
+    const notificationCatchupIntervalMs = DEFAULT_NOTIFICATION_CATCHUP_INTERVAL_SECONDS * 1000;
     let nextRecurringPollAtMs = Date.now();
 
     if (this.heartbeatEnabled) {
@@ -406,6 +408,7 @@ export class AgentRuntimeProgram {
     let nextHeartbeatAtMs = this.heartbeatEnabled
       ? Date.now() + (this.heartbeatIntervalSeconds ?? 1) * 1000
       : Number.POSITIVE_INFINITY;
+    let nextNotificationCatchupAtMs = Date.now() + notificationCatchupIntervalMs;
 
     while (!this.stopRequested) {
       this.throwIfFatalRuntimeError();
@@ -431,6 +434,21 @@ export class AgentRuntimeProgram {
           }
         } else {
           nextRecurringPollAtMs = Date.now() + recurringPollIntervalMs;
+        }
+      }
+
+      if (agentId !== null && cycleNowMs >= nextNotificationCatchupAtMs) {
+        try {
+          await this.catchUpNotificationsDuringHeartbeat(agentId);
+        } catch (error) {
+          const normalizedError = normalizeError(error);
+          const meta = { source: "notifications.catchup" };
+          if (this.registerFatalAuthError(normalizedError, meta)) {
+            throw this.fatalRuntimeError ?? normalizedError;
+          }
+          this.emitError(normalizedError, meta);
+        } finally {
+          nextNotificationCatchupAtMs = Date.now() + notificationCatchupIntervalMs;
         }
       }
 
@@ -486,8 +504,9 @@ export class AgentRuntimeProgram {
         ? Math.max(0, nextHeartbeatAtMs - nowMs)
         : recurringPollIntervalMs;
       const delayToRecurringMs = Math.max(0, nextRecurringPollAtMs - nowMs);
+      const delayToNotificationMs = Math.max(0, nextNotificationCatchupAtMs - nowMs);
       // Keep the loop responsive so immediate heartbeat sync requests are applied quickly.
-      const waitMs = Math.max(250, Math.min(delayToHeartbeatMs, delayToRecurringMs, 1000));
+      const waitMs = Math.max(250, Math.min(delayToHeartbeatMs, delayToRecurringMs, delayToNotificationMs, 1000));
       await sleep(waitMs);
     }
 
@@ -1511,7 +1530,7 @@ export class AgentRuntimeProgram {
   }
 
   private async catchUpNotificationsDuringHeartbeat(agentId: number): Promise<void> {
-    if (!this.heartbeatEnabled || this.stopRequested) {
+    if (this.stopRequested) {
       return;
     }
 
