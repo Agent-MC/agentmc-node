@@ -8,6 +8,20 @@ const result = await client.operations.closeAgentRealtimeSession({
   "params": {
     "path": {
       "session": 1
+    },
+    "header": {
+      "X-Agent-Id": 1
+    },
+    "query": {
+      "agent_id": 42
+    }
+  },
+  "body": {
+    "reason": "runtime_shutdown",
+    "status": "closed",
+    "payload": {
+      "request_id": "req_92b3f2",
+      "note": "Session closed by runtime during reconnect."
     }
   }
 });

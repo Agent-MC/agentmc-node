@@ -4,7 +4,13 @@ const client = new AgentMCApi({
   apiKey: process.env.AGENTMC_API_KEY
 });
 
-const result = await client.operations.listLogs();
+const result = await client.operations.listLogs({
+  "params": {
+    "query": {
+      "per_page": 25
+    }
+  }
+});
 
 if (result.error) {
   console.error(result.status, result.error);

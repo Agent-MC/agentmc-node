@@ -7,8 +7,19 @@ const client = new AgentMCApi({
 const result = await client.operations.updateFile({
   "params": {
     "path": {
-      "id": 1
+      "id": 42
+    },
+    "header": {
+      "X-Agent-Id": 1
+    },
+    "query": {
+      "agent_id": 42
     }
+  },
+  "body": {
+    "display_name": "incident-timeline-v2.md",
+    "folder_id": 14,
+    "owner_agent_id": null
   }
 });
 

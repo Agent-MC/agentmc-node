@@ -7,7 +7,41 @@ const client = new AgentMCApi({
 const result = await client.operations.updateAgentBrief({
   "params": {
     "path": {
-      "id": 1
+      "id": 42
+    },
+    "header": {
+      "X-Agent-Id": 1
+    },
+    "query": {
+      "agent_id": 42
+    }
+  },
+  "body": {
+    "brief": {
+      "name": "Daily Operations Brief",
+      "summary": "Operations handoff digest for the morning window.",
+      "timezone": "America/Los_Angeles",
+      "sections": [
+        {
+          "key": "incidents",
+          "label": "Incidents"
+        },
+        {
+          "key": "followups",
+          "label": "Follow-ups"
+        }
+      ],
+      "content_markdown": "## Updates\n- Incident queue cleared\n- Follow-up tasks assigned\n\n![timeline](/api/v1/files/102/preview)",
+      "meta": {
+        "external_source": "daily-ops-job",
+        "schedule": "0 7 * * *"
+      }
+    },
+    "source": {
+      "agent_id": 42,
+      "meta": {
+        "runtime": "codex"
+      }
     }
   }
 });

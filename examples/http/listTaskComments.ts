@@ -8,6 +8,9 @@ const result = await client.operations.listTaskComments({
   "params": {
     "path": {
       "task": 1
+    },
+    "query": {
+      "per_page": 25
     }
   }
 });

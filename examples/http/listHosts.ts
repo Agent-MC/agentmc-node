@@ -4,7 +4,15 @@ const client = new AgentMCApi({
   apiKey: process.env.AGENTMC_API_KEY
 });
 
-const result = await client.operations.listHosts();
+const result = await client.operations.listHosts({
+  "params": {
+    "query": {
+      "per_page": 25,
+      "status": "online",
+      "search": "operations"
+    }
+  }
+});
 
 if (result.error) {
   console.error(result.status, result.error);

@@ -8,6 +8,12 @@ const result = await client.operations.deleteCalendarItem({
   "params": {
     "path": {
       "item": 1
+    },
+    "header": {
+      "X-Agent-Id": 1
+    },
+    "query": {
+      "agent_id": 42
     }
   }
 });
