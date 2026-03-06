@@ -878,6 +878,7 @@ async function streamRuntimeLogs(input: {
   sinceMinutes: number;
   follow: boolean;
   grep?: string;
+  raw?: boolean;
 }): Promise<void> {
   if (platform() !== "linux") {
     throw new Error(
@@ -907,10 +908,12 @@ async function streamRuntimeLogs(input: {
 
   await new Promise<void>((resolve, reject) => {
     const child = spawn("journalctl", args, {
-      stdio: "inherit"
+      stdio: ["ignore", "pipe", "pipe"]
     });
 
     let interrupted = false;
+    let stdoutBuffer = "";
+    let stderrBuffer = "";
     const handleSignal = (signal: NodeJS.Signals): void => {
       interrupted = true;
       child.kill(signal);
@@ -922,6 +925,27 @@ async function streamRuntimeLogs(input: {
 
     process.once("SIGINT", handleSignal);
     process.once("SIGTERM", handleSignal);
+
+    const flushBuffer = (buffer: string, isErrorStream: boolean): string => {
+      const lines = buffer.split(/\r?\n/);
+      const trailing = lines.pop() ?? "";
+      for (const line of lines) {
+        writeRuntimeLogStreamLine(line, { raw: input.raw === true, isErrorStream });
+      }
+      return trailing;
+    };
+
+    child.stdout?.setEncoding("utf8");
+    child.stdout?.on("data", (chunk: string) => {
+      stdoutBuffer += chunk;
+      stdoutBuffer = flushBuffer(stdoutBuffer, false);
+    });
+
+    child.stderr?.setEncoding("utf8");
+    child.stderr?.on("data", (chunk: string) => {
+      stderrBuffer += chunk;
+      stderrBuffer = flushBuffer(stderrBuffer, true);
+    });
 
     child.once("error", (error) => {
       cleanup();
@@ -935,6 +959,12 @@ async function streamRuntimeLogs(input: {
 
     child.once("exit", (code, signal) => {
       cleanup();
+      if (stdoutBuffer !== "") {
+        writeRuntimeLogStreamLine(stdoutBuffer, { raw: input.raw === true, isErrorStream: false });
+      }
+      if (stderrBuffer !== "") {
+        writeRuntimeLogStreamLine(stderrBuffer, { raw: input.raw === true, isErrorStream: true });
+      }
       if (interrupted || signal === "SIGINT" || signal === "SIGTERM") {
         resolve();
         return;
@@ -946,6 +976,172 @@ async function streamRuntimeLogs(input: {
       reject(new Error(`journalctl exited with code ${code ?? "unknown"}.`));
     });
   });
+}
+
+function writeRuntimeLogStreamLine(
+  line: string,
+  options: { raw: boolean; isErrorStream: boolean }
+): void {
+  const target = options.isErrorStream ? process.stderr : process.stdout;
+  const trimmed = line.trimEnd();
+  if (trimmed === "") {
+    return;
+  }
+
+  if (options.raw) {
+    target.write(`${trimmed}\n`);
+    return;
+  }
+
+  const formatted = formatRuntimeLogLine(trimmed);
+  target.write(`${formatted}\n`);
+}
+
+function formatRuntimeLogLine(line: string): string {
+  const parsedJournal = parseJournalRuntimeLine(line);
+  if (!parsedJournal) {
+    return line;
+  }
+
+  const parsedRuntime = parseRuntimeEnvelope(parsedJournal.message);
+  if (!parsedRuntime) {
+    return `${parsedJournal.timestamp} ${parsedJournal.message}`;
+  }
+
+  const workerLabel = resolveRuntimeLogWorkerLabel(parsedRuntime.meta);
+  const details = formatRuntimeLogDetails(parsedRuntime.meta);
+  const level = parsedRuntime.level === "error" ? "ERROR " : "";
+  const prefix = workerLabel ? `${parsedJournal.timestamp} ${level}[${workerLabel}]` : `${parsedJournal.timestamp} ${level}`.trimEnd();
+  return details ? `${prefix} ${parsedRuntime.message}  ${details}` : `${prefix} ${parsedRuntime.message}`;
+}
+
+function parseJournalRuntimeLine(line: string): { timestamp: string; message: string } | null {
+  const match = line.match(/^(\d{4}-\d{2}-\d{2}T\S+)\s+\S+\s+[^:]+:\s+(.*)$/);
+  if (!match) {
+    return null;
+  }
+
+  const timestamp = match[1];
+  const message = match[2];
+  if (!timestamp || message === undefined) {
+    return null;
+  }
+
+  return {
+    timestamp,
+    message
+  };
+}
+
+function parseRuntimeEnvelope(
+  message: string
+): { level: "info" | "error"; message: string; meta: Record<string, unknown> | null } | null {
+  const match = message.match(/^\[(agentmc-runtime(?::error)?)\]\s+(.+)$/);
+  if (!match) {
+    return null;
+  }
+
+  const envelope = match[1];
+  const innerMessage = match[2];
+  if (!envelope || innerMessage === undefined) {
+    return null;
+  }
+
+  const level = envelope.endsWith(":error") ? "error" : "info";
+  const split = splitRuntimeMessageAndMeta(innerMessage);
+  return {
+    level,
+    message: normalizeRuntimeLogMessage(split.message, split.meta),
+    meta: split.meta
+  };
+}
+
+function splitRuntimeMessageAndMeta(
+  message: string
+): { message: string; meta: Record<string, unknown> | null } {
+  const separatorIndex = message.lastIndexOf(" {");
+  if (separatorIndex === -1) {
+    return {
+      message,
+      meta: null
+    };
+  }
+
+  const candidateText = message.slice(0, separatorIndex);
+  const candidateMeta = message.slice(separatorIndex + 1);
+  try {
+    const parsed = JSON.parse(candidateMeta);
+    const object = valueAsObject(parsed);
+    if (!object) {
+      throw new Error("not an object");
+    }
+
+    return {
+      message: candidateText,
+      meta: object
+    };
+  } catch {
+    return {
+      message,
+      meta: null
+    };
+  }
+}
+
+function resolveRuntimeLogWorkerLabel(meta: Record<string, unknown> | null): string | null {
+  if (!meta) {
+    return null;
+  }
+
+  return nonEmpty(meta.local_name) ?? nonEmpty(meta.local_key);
+}
+
+function normalizeRuntimeLogMessage(message: string, meta: Record<string, unknown> | null): string {
+  const localKey = nonEmpty(meta?.local_key);
+  if (!localKey) {
+    return message;
+  }
+
+  const prefix = `worker ${localKey} `;
+  return message.startsWith(prefix) ? message.slice(prefix.length) : message;
+}
+
+function formatRuntimeLogDetails(meta: Record<string, unknown> | null): string {
+  if (!meta) {
+    return "";
+  }
+
+  const parts: string[] = [];
+  const mappings: Array<{ key: string; label: string }> = [
+    { key: "session_id", label: "session" },
+    { key: "request_id", label: "req" },
+    { key: "message_id", label: "msg" },
+    { key: "run_id", label: "run" },
+    { key: "task_id", label: "task" },
+    { key: "notification_id", label: "notification" },
+    { key: "notification_type", label: "type" },
+    { key: "channel_type", label: "channel" },
+    { key: "status", label: "status" },
+    { key: "state", label: "state" },
+    { key: "reason", label: "reason" },
+    { key: "source", label: "source" },
+    { key: "text_source", label: "text" },
+    { key: "content_length", label: "chars" }
+  ];
+
+  for (const mapping of mappings) {
+    const value = nonEmpty(meta[mapping.key]);
+    if (value) {
+      parts.push(`${mapping.label}=${value}`);
+    }
+  }
+
+  const preview = nonEmpty(meta.preview);
+  if (preview) {
+    parts.push(`preview=${JSON.stringify(preview)}`);
+  }
+
+  return parts.join(" ");
 }
 
 function readRuntimeProcessStatus(pid: number | null): {
@@ -3587,6 +3783,7 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
       String(DEFAULT_RUNTIME_ERROR_LOOKBACK_MINUTES)
     )
     .option("--grep <pattern>", "optional journalctl grep filter")
+    .option("--raw", "print raw journalctl output without AgentMC pretty formatting", false)
     .option("--no-follow", "print recent logs without following")
     .action(
       async (options: {
@@ -3594,6 +3791,7 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
         lines?: string;
         sinceMinutes?: string;
         grep?: string;
+        raw?: boolean;
         follow?: boolean;
       }) => {
         await streamRuntimeLogs({
@@ -3606,7 +3804,8 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
             7 * 24 * 60
           ),
           follow: options.follow !== false,
-          grep: options.grep
+          grep: options.grep,
+          raw: options.raw === true
         });
       }
     );

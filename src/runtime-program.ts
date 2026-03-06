@@ -1030,13 +1030,18 @@ export class AgentRuntimeProgram {
         this.emitInfo("Realtime session closed", { session_id: sessionId, reason });
       },
       onSignal: (event) => {
-        this.emitInfo("Realtime signal received", summarizeRealtimeSignalEvent(event));
+        const described = describeRealtimeSignalEvent(event);
+        if (!described) {
+          return;
+        }
+
+        this.emitInfo(described.message, described.meta);
       },
       onNotification: (event) => {
-        this.emitInfo("Realtime notification received", summarizeRealtimeNotificationEvent(event));
+        this.emitInfo("Notification received", summarizeRealtimeNotificationEvent(event));
       },
       onNotificationBridge: (event) => {
-        this.emitInfo("Realtime notification bridged", summarizeRealtimeNotificationBridgeEvent(event));
+        this.emitInfo("Notification sent to agent", summarizeRealtimeNotificationBridgeEvent(event));
       },
       onConnectionStateChange: (event) => {
         this.emitInfo("Realtime connection state changed", {
@@ -1048,6 +1053,12 @@ export class AgentRuntimeProgram {
         this.emitInfo("Realtime message ignored", summarizeRealtimeUnhandledMessageEvent(event));
       },
       onDebug: (event) => {
+        const runtimeEvent = describeRealtimeRuntimeDebugEvent(event);
+        if (runtimeEvent) {
+          this.emitInfo(runtimeEvent.message, runtimeEvent.meta);
+          return;
+        }
+
         if (!event.event.startsWith("agent.profile.update")) {
           return;
         }
@@ -4117,29 +4128,45 @@ function summarizeApiError(error: unknown): string | null {
   return code;
 }
 
-function summarizeRealtimeSignalEvent(event: {
+function describeRealtimeSignalEvent(event: {
   sessionId: number;
   source: string;
   signal: unknown;
-}): JsonObject {
+}): { message: string; meta: JsonObject } | null {
   const signal = valueAsObject(event.signal);
   const envelope = valueAsObject(signal?.payload);
   const payload = valueAsObject(envelope?.payload);
   const notification = valueAsObject(payload?.notification);
   const messageId = toPositiveInt(payload?.message_id ?? payload?.queued_message_id);
+  const channelType = nonEmpty(envelope?.type);
 
-  return compactJsonObject({
-    session_id: event.sessionId,
-    source: nonEmpty(event.source),
-    signal_id: toPositiveInt(signal?.id),
-    signal_type: nonEmpty(signal?.type),
-    sender: nonEmpty(signal?.sender),
-    channel_type: nonEmpty(envelope?.type),
-    request_id: nonEmpty(payload?.request_id) ?? nonEmpty(envelope?.request_id),
-    message_id: messageId,
-    notification_id: nonEmpty(notification?.id),
-    created_at: nonEmpty(signal?.created_at)
-  });
+  if (channelType === "chat.agent.delta" || channelType === "chat.agent.done") {
+    return null;
+  }
+
+  if (channelType === "chat.user" || channelType === "chat.request") {
+    return null;
+  }
+
+  if (channelType && channelType.startsWith("notification.")) {
+    return null;
+  }
+
+  return {
+    message: "Realtime signal received",
+    meta: compactJsonObject({
+      session_id: event.sessionId,
+      source: nonEmpty(event.source),
+      signal_id: toPositiveInt(signal?.id),
+      signal_type: nonEmpty(signal?.type),
+      sender: nonEmpty(signal?.sender),
+      channel_type: channelType,
+      request_id: nonEmpty(payload?.request_id) ?? nonEmpty(envelope?.request_id),
+      message_id: messageId,
+      notification_id: nonEmpty(notification?.id),
+      created_at: nonEmpty(signal?.created_at)
+    })
+  };
 }
 
 function summarizeRealtimeNotificationEvent(event: {
@@ -4211,6 +4238,72 @@ function summarizeRealtimeUnhandledMessageEvent(event: {
     sender: nonEmpty(signal?.sender),
     channel_type: nonEmpty(event.channelType)
   });
+}
+
+function describeRealtimeRuntimeDebugEvent(event: {
+  event: string;
+  details: unknown;
+}): { message: string; meta: JsonObject } | null {
+  const details = valueAsObject(event.details) ?? {};
+
+  if (event.event === "chat.message.received") {
+    return {
+      message: "Chat message received",
+      meta: compactJsonObject({
+        session_id: toPositiveInt(details.session_id),
+        request_id: nonEmpty(details.request_id),
+        message_id: toPositiveInt(details.message_id),
+        signal_id: toPositiveInt(details.signal_id),
+        content_length: toPositiveInt(details.content_length),
+        preview: nonEmpty(details.preview)
+      })
+    };
+  }
+
+  if (event.event === "chat.agent.dispatched") {
+    return {
+      message: "Sent chat message to agent",
+      meta: compactJsonObject({
+        session_id: toPositiveInt(details.session_id),
+        request_id: nonEmpty(details.request_id),
+        message_id: toPositiveInt(details.message_id),
+        signal_id: toPositiveInt(details.signal_id),
+        runtime_source: nonEmpty(details.runtime_source)
+      })
+    };
+  }
+
+  if (event.event === "chat.agent.completed") {
+    return {
+      message: "Agent finished response",
+      meta: compactJsonObject({
+        session_id: toPositiveInt(details.session_id),
+        request_id: nonEmpty(details.request_id),
+        message_id: toPositiveInt(details.message_id),
+        run_id: nonEmpty(details.run_id),
+        status: nonEmpty(details.status),
+        text_source: nonEmpty(details.text_source),
+        content_length: toPositiveInt(details.content_length),
+        preview: nonEmpty(details.preview)
+      })
+    };
+  }
+
+  if (event.event === "chat.reply.sent") {
+    return {
+      message: "Sent agent reply to user",
+      meta: compactJsonObject({
+        session_id: toPositiveInt(details.session_id),
+        request_id: nonEmpty(details.request_id),
+        message_id: toPositiveInt(details.message_id),
+        run_id: nonEmpty(details.run_id),
+        status: nonEmpty(details.status),
+        text_source: nonEmpty(details.text_source)
+      })
+    };
+  }
+
+  return null;
 }
 
 function compactJsonObject(value: JsonObject): JsonObject {

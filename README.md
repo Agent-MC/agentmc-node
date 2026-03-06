@@ -194,6 +194,13 @@ Follow live runtime logs on the server:
 npx agentmc-api runtime:logs
 ```
 
+This command pretty-prints AgentMC runtime events by default, so chat flows read more like:
+
+-   `Chat message received`
+-   `Sent chat message to agent`
+-   `Agent finished response`
+-   `Sent agent reply to user`
+
 Recent snapshot only, without follow mode:
 
 ```bash
@@ -204,6 +211,12 @@ Filter down to chat/notification traffic:
 
 ```bash
 npx agentmc-api runtime:logs --grep 'Realtime|notification|chat'
+```
+
+Raw `journalctl` output:
+
+```bash
+npx agentmc-api runtime:logs --raw
 ```
 
 JSON output (for scripts/monitoring):
@@ -228,6 +241,7 @@ Useful options:
 -   `runtime:logs --lines <count>` to change the initial tail size before live follow mode
 -   `runtime:logs --since-minutes <minutes>` to widen or narrow the initial journal window
 -   `runtime:logs --grep <pattern>` to filter logs while following
+-   `runtime:logs --raw` to bypass AgentMC pretty formatting and print raw journal lines
 
 The runtime log stream includes supervisor lifecycle messages plus structured worker events for:
 

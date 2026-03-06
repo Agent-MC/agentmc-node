@@ -1182,6 +1182,16 @@ export class OpenClawAgentRuntime {
       return;
     }
 
+    await this.emitDebug("chat.message.received", {
+      session_id: state.sessionId,
+      request_id: requestId,
+      ...(messageId > 0 ? { message_id: messageId } : {}),
+      signal_id: signal.id,
+      source: signal.sender,
+      content_length: userText.length,
+      preview: previewText(userText)
+    });
+
     const bridgedUserText = buildAgentMcBridgeMessage({
       userText
     });
@@ -1190,6 +1200,13 @@ export class OpenClawAgentRuntime {
     const stopActivityPulse = this.startSessionActivityPulse(state);
     const stopChatStatusPulse = this.startChatStatusPulse(state, requestId, messageId);
     try {
+      await this.emitDebug("chat.agent.dispatched", {
+        session_id: state.sessionId,
+        request_id: requestId,
+        ...(messageId > 0 ? { message_id: messageId } : {}),
+        signal_id: signal.id,
+        runtime_source: this.options.runtimeSource
+      });
       runResult = await this.runAgentChat({
         sessionId: state.sessionId,
         requestId,
@@ -1214,6 +1231,18 @@ export class OpenClawAgentRuntime {
     const finalizedContent =
       content === "" ? fallbackAssistantContentForStatus(runResult.status) : content;
 
+    await this.emitDebug("chat.agent.completed", {
+      session_id: state.sessionId,
+      request_id: requestId,
+      ...(messageId > 0 ? { message_id: messageId } : {}),
+      signal_id: signal.id,
+      run_id: runResult.runId,
+      status: runResult.status,
+      text_source: runResult.textSource,
+      content_length: finalizedContent.length,
+      preview: previewText(finalizedContent)
+    });
+
     await this.publishChannelMessage(state.sessionId, "chat.agent.done", requestId, {
       content: finalizedContent,
       ...(messageId > 0 ? { message_id: messageId } : {}),
@@ -1225,6 +1254,16 @@ export class OpenClawAgentRuntime {
         signal_id: signal.id,
         generated_at: new Date().toISOString()
       }
+    });
+
+    await this.emitDebug("chat.reply.sent", {
+      session_id: state.sessionId,
+      request_id: requestId,
+      ...(messageId > 0 ? { message_id: messageId } : {}),
+      signal_id: signal.id,
+      run_id: runResult.runId,
+      status: runResult.status,
+      text_source: runResult.textSource
     });
   }
 
