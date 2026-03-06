@@ -539,6 +539,56 @@ export async function subscribeToRealtimeNotifications(
       }
     };
 
+    const scheduleChannelResubscribe = (reason: string): void => {
+      if (disconnected) {
+        return;
+      }
+
+      const backoffMs = resolveResubscribeBackoffMs(resubscribeAttempt);
+      resubscribeAttempt += 1;
+      clearResubscribeTimer();
+      clearReadyTimeout();
+      if (currentConnectionState !== "connecting") {
+        currentConnectionState = "connecting";
+        if (options.onConnectionStateChange) {
+          void callOptionalHandler(options.onConnectionStateChange, "connecting", options.onError);
+        }
+      }
+
+      resubscribeTimerHandle = setTimeout(() => {
+        if (disconnected) {
+          return;
+        }
+
+        try {
+          if (boundChannel) {
+            unbindChannel(
+              boundChannel,
+              signalEventNames,
+              onSubscriptionSucceeded,
+              onSubscriptionError,
+              onSignalEvent
+            );
+            boundChannel = null;
+          }
+
+          pusher.unsubscribe(channelName);
+        } catch {
+          // Best-effort local cleanup.
+        }
+
+        void callErrorHandler(options.onError, new Error(`Realtime websocket resubscribing after ${reason}.`));
+        boundChannel = subscribeAndBindChannel(
+          pusher,
+          channelName,
+          signalEventNames,
+          onSubscriptionSucceeded,
+          onSubscriptionError,
+          onSignalEvent
+        );
+      }, backoffMs);
+    };
+
     const readyTimeoutMs = normalizeReadyTimeoutMs(options.readyTimeoutMs);
 
     const enqueueEvent = (task: () => Promise<void>): void => {
@@ -610,6 +660,7 @@ export async function subscribeToRealtimeNotifications(
     const onConnectionErrorEvent = (payload: unknown): void => {
       const error = normalizeError(payload, "Realtime websocket connection error.");
       void callErrorHandler(options.onError, error);
+      scheduleChannelResubscribe("transport_error");
     };
 
     const onConnectionDisconnectedEvent = (): void => {
@@ -617,6 +668,7 @@ export async function subscribeToRealtimeNotifications(
       if (options.onConnectionStateChange) {
         void callOptionalHandler(options.onConnectionStateChange, "disconnected", options.onError);
       }
+      scheduleChannelResubscribe("transport_disconnected");
     };
 
     const unbindConnectionHandlers = (): void => {
@@ -701,46 +753,7 @@ export async function subscribeToRealtimeNotifications(
         return;
       }
 
-      const backoffMs = resolveResubscribeBackoffMs(resubscribeAttempt);
-      resubscribeAttempt += 1;
-      clearResubscribeTimer();
-      if (currentConnectionState !== "connecting") {
-        currentConnectionState = "connecting";
-        if (options.onConnectionStateChange) {
-          void callOptionalHandler(options.onConnectionStateChange, "connecting", options.onError);
-        }
-      }
-      resubscribeTimerHandle = setTimeout(() => {
-        if (disconnected) {
-          return;
-        }
-
-        try {
-          if (boundChannel) {
-            unbindChannel(
-              boundChannel,
-              signalEventNames,
-              onSubscriptionSucceeded,
-              onSubscriptionError,
-              onSignalEvent
-            );
-            boundChannel = null;
-          }
-
-          pusher.unsubscribe(channelName);
-        } catch {
-          // Best-effort local cleanup.
-        }
-
-        boundChannel = subscribeAndBindChannel(
-          pusher,
-          channelName,
-          signalEventNames,
-          onSubscriptionSucceeded,
-          onSubscriptionError,
-          onSignalEvent
-        );
-      }, backoffMs);
+      scheduleChannelResubscribe("subscription_error");
     };
 
     boundChannel = subscribeAndBindChannel(
@@ -911,6 +924,56 @@ export async function subscribeToHostRealtimeSessionRequests(
       }
     };
 
+    const scheduleChannelResubscribe = (reason: string): void => {
+      if (disconnected) {
+        return;
+      }
+
+      const backoffMs = resolveResubscribeBackoffMs(resubscribeAttempt);
+      resubscribeAttempt += 1;
+      clearResubscribeTimer();
+      clearReadyTimeout();
+      if (currentConnectionState !== "connecting") {
+        currentConnectionState = "connecting";
+        if (options.onConnectionStateChange) {
+          void callOptionalHandler(options.onConnectionStateChange, "connecting", options.onError);
+        }
+      }
+
+      resubscribeTimerHandle = setTimeout(() => {
+        if (disconnected) {
+          return;
+        }
+
+        try {
+          if (boundChannel) {
+            unbindChannel(
+              boundChannel,
+              [eventName],
+              onSubscriptionSucceeded,
+              onSubscriptionError,
+              onSessionRequestedEvent
+            );
+            boundChannel = null;
+          }
+
+          pusher.unsubscribe(channelName);
+        } catch {
+          // Best-effort local cleanup.
+        }
+
+        void callErrorHandler(options.onError, new Error(`Realtime host websocket resubscribing after ${reason}.`));
+        boundChannel = subscribeAndBindChannel(
+          pusher,
+          channelName,
+          [eventName],
+          onSubscriptionSucceeded,
+          onSubscriptionError,
+          onSessionRequestedEvent
+        );
+      }, backoffMs);
+    };
+
     const readyTimeoutMs = normalizeReadyTimeoutMs(options.readyTimeoutMs);
 
     const enqueueEvent = (task: () => Promise<void>): void => {
@@ -988,6 +1051,7 @@ export async function subscribeToHostRealtimeSessionRequests(
     const onConnectionErrorEvent = (payload: unknown): void => {
       const error = normalizeError(payload, "Realtime host websocket connection error.");
       void callErrorHandler(options.onError, error);
+      scheduleChannelResubscribe("transport_error");
     };
 
     const onConnectionDisconnectedEvent = (): void => {
@@ -995,6 +1059,7 @@ export async function subscribeToHostRealtimeSessionRequests(
       if (options.onConnectionStateChange) {
         void callOptionalHandler(options.onConnectionStateChange, "disconnected", options.onError);
       }
+      scheduleChannelResubscribe("transport_disconnected");
     };
 
     const unbindConnectionHandlers = (): void => {
@@ -1039,46 +1104,7 @@ export async function subscribeToHostRealtimeSessionRequests(
         return;
       }
 
-      const backoffMs = resolveResubscribeBackoffMs(resubscribeAttempt);
-      resubscribeAttempt += 1;
-      clearResubscribeTimer();
-      if (currentConnectionState !== "connecting") {
-        currentConnectionState = "connecting";
-        if (options.onConnectionStateChange) {
-          void callOptionalHandler(options.onConnectionStateChange, "connecting", options.onError);
-        }
-      }
-      resubscribeTimerHandle = setTimeout(() => {
-        if (disconnected) {
-          return;
-        }
-
-        try {
-          if (boundChannel) {
-            unbindChannel(
-              boundChannel,
-              [eventName],
-              onSubscriptionSucceeded,
-              onSubscriptionError,
-              onSessionRequestedEvent
-            );
-            boundChannel = null;
-          }
-
-          pusher.unsubscribe(channelName);
-        } catch {
-          // Best-effort local cleanup.
-        }
-
-        boundChannel = subscribeAndBindChannel(
-          pusher,
-          channelName,
-          [eventName],
-          onSubscriptionSucceeded,
-          onSubscriptionError,
-          onSessionRequestedEvent
-        );
-      }, backoffMs);
+      scheduleChannelResubscribe("subscription_error");
     };
 
     boundChannel = subscribeAndBindChannel(

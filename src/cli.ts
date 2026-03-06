@@ -395,9 +395,32 @@ function resolveRuntimeAutoUpdateInstallDir(): string {
   return process.cwd();
 }
 
+function parseEnvBoolean(value: string | undefined): boolean | null {
+  if (value === undefined) {
+    return null;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) {
+    return null;
+  }
+
+  if (["1", "true", "yes", "on"].includes(normalized)) {
+    return true;
+  }
+
+  if (["0", "false", "no", "off"].includes(normalized)) {
+    return false;
+  }
+
+  return null;
+}
+
 function resolveRuntimeAutoUpdateConfig(): RuntimeAutoUpdateConfig {
+  const envEnabled = parseEnvBoolean(process.env["AGENTMC_AUTO_UPDATE"]);
+
   return {
-    enabled: true,
+    enabled: envEnabled ?? true,
     intervalSeconds: DEFAULT_AUTO_UPDATE_INTERVAL_SECONDS,
     installTimeoutMs: DEFAULT_AUTO_UPDATE_INSTALL_TIMEOUT_MS,
     npmCommand: "npm",
