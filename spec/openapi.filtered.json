@@ -56,6 +56,8 @@
                     "fingerprint": "a3f56f330f311a2159f8c101eaf1439a29f1d57f007375d56aa79f304bc4f112",
                     "status": "online",
                     "last_seen_at": "2026-02-22T17:21:02Z",
+                    "agent_runtime": "openclaw",
+                    "agent_runtime_version": "2026.02.1",
                     "meta": {
                       "hostname": "worker-01",
                       "os": "Ubuntu",
@@ -85,6 +87,18 @@
                     "event": "agent.realtime.host.session.requested",
                     "auth_endpoint": "https://agentmc.ai/api/v1/hosts/realtime/socket-auth"
                   },
+                  "host_runtime_commands": [
+                    {
+                      "id": 44,
+                      "type": "agent.provision",
+                      "provider": "openclaw",
+                      "payload": {
+                        "agent_name": "QA Agent",
+                        "agent_emoji": "🧪",
+                        "runtime_key": "qa-agent"
+                      }
+                    }
+                  ],
                   "agent": {
                     "id": 42,
                     "name": "Solomon",
@@ -145,6 +159,8 @@
                       "fingerprint": "a3f56f330f311a2159f8c101eaf1439a29f1d57f007375d56aa79f304bc4f112",
                       "status": "online",
                       "last_seen_at": "2026-02-22T17:21:00Z",
+                      "agent_runtime": "example",
+                      "agent_runtime_version": "example",
                       "meta": {
                         "hostname": "worker-01",
                         "ip": "10.0.2.15",
@@ -297,6 +313,8 @@
                     "fingerprint": "a3f56f330f311a2159f8c101eaf1439a29f1d57f007375d56aa79f304bc4f112",
                     "status": "online",
                     "last_seen_at": "2026-02-22T17:21:00Z",
+                    "agent_runtime": "example",
+                    "agent_runtime_version": "example",
                     "meta": {
                       "hostname": "worker-01",
                       "ip": "10.0.2.15",
@@ -7998,6 +8016,8 @@
               "fingerprint": "a3f56f330f311a2159f8c101eaf1439a29f1d57f007375d56aa79f304bc4f112",
               "status": "online",
               "last_seen_at": "2026-02-22T17:21:00Z",
+              "agent_runtime": "example",
+              "agent_runtime_version": "example",
               "meta": {
                 "hostname": "worker-01",
                 "ip": "10.0.2.15",
@@ -8039,6 +8059,25 @@
               "event": "example",
               "auth_endpoint": "example"
             }
+          },
+          "host_runtime_commands": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HostRuntimeCommand"
+            },
+            "description": "Pending host-scoped runtime commands that the connected host should execute before the next heartbeat.",
+            "example": [
+              {
+                "id": 44,
+                "type": "agent.provision",
+                "provider": "openclaw",
+                "payload": {
+                  "agent_name": "QA Agent",
+                  "agent_emoji": "🧪",
+                  "runtime_key": "qa-agent"
+                }
+              }
+            ]
           },
           "agent": {
             "type": "object",
@@ -8091,6 +8130,8 @@
             "fingerprint": "a3f56f330f311a2159f8c101eaf1439a29f1d57f007375d56aa79f304bc4f112",
             "status": "online",
             "last_seen_at": "2026-02-22T17:21:02Z",
+            "agent_runtime": "openclaw",
+            "agent_runtime_version": "2026.02.1",
             "meta": {
               "hostname": "worker-01",
               "os": "Ubuntu",
@@ -8120,12 +8161,166 @@
             "event": "agent.realtime.host.session.requested",
             "auth_endpoint": "https://agentmc.ai/api/v1/hosts/realtime/socket-auth"
           },
+          "host_runtime_commands": [
+            {
+              "id": 44,
+              "type": "agent.provision",
+              "provider": "openclaw",
+              "payload": {
+                "agent_name": "QA Agent",
+                "agent_emoji": "🧪",
+                "runtime_key": "qa-agent"
+              }
+            }
+          ],
           "agent": {
             "id": 42,
             "name": "Solomon",
             "type": "openclaw"
           }
         }
+      },
+      "HostRuntimeCommand": {
+        "type": "object",
+        "required": [
+          "id",
+          "type",
+          "provider",
+          "payload"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Unique identifier for this record.",
+            "example": 42
+          },
+          "type": {
+            "type": "string",
+            "description": "Type discriminator for this record.",
+            "example": "example"
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "openclaw"
+            ],
+            "description": "Allowed values: openclaw.",
+            "example": "openclaw"
+          },
+          "payload": {
+            "type": "object",
+            "required": [
+              "agent_name",
+              "runtime_key"
+            ],
+            "properties": {
+              "agent_name": {
+                "type": "string",
+                "description": "Agent name.",
+                "example": "Example Name"
+              },
+              "agent_emoji": {
+                "type": "string",
+                "nullable": true,
+                "description": "Agent emoji.",
+                "example": "example"
+              },
+              "runtime_key": {
+                "type": "string",
+                "description": "Runtime key.",
+                "example": "example"
+              }
+            },
+            "description": "Arbitrary JSON payload object.",
+            "example": {
+              "agent_name": "Example Name",
+              "agent_emoji": "example",
+              "runtime_key": "example"
+            }
+          }
+        },
+        "example": {
+          "id": 44,
+          "type": "agent.provision",
+          "provider": "openclaw",
+          "payload": {
+            "agent_name": "QA Agent",
+            "agent_emoji": "🧪",
+            "runtime_key": "qa-agent"
+          }
+        },
+        "description": "Host Runtime Command schema."
+      },
+      "HostRuntimeCommandUpdate": {
+        "type": "object",
+        "required": [
+          "id",
+          "status"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Unique identifier for this record.",
+            "example": 42
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "completed",
+              "failed"
+            ],
+            "description": "Current lifecycle status for this record. Allowed values: completed, failed.",
+            "example": "completed"
+          },
+          "result": {
+            "type": "object",
+            "nullable": true,
+            "properties": {
+              "runtime_key": {
+                "type": "string",
+                "nullable": true,
+                "description": "Runtime key.",
+                "example": "example"
+              },
+              "runtime_agent_name": {
+                "type": "string",
+                "nullable": true,
+                "description": "Runtime agent name.",
+                "example": "Example Name"
+              },
+              "workspace_dir": {
+                "type": "string",
+                "nullable": true,
+                "description": "Workspace dir.",
+                "example": "example"
+              }
+            },
+            "description": "Result.",
+            "example": {
+              "runtime_key": "example",
+              "runtime_agent_name": "Example Name",
+              "workspace_dir": "example"
+            }
+          },
+          "error": {
+            "type": "string",
+            "nullable": true,
+            "description": "Error.",
+            "example": "example"
+          }
+        },
+        "example": {
+          "id": 44,
+          "status": "completed",
+          "result": {
+            "runtime_key": "qa-agent",
+            "runtime_agent_name": "QA Agent",
+            "workspace_dir": "/root/.openclaw/workspace-qa-agent"
+          }
+        },
+        "description": "Host Runtime Command Update schema."
       },
       "AgentInstructionBundleFile": {
         "type": "object",
@@ -10232,6 +10427,8 @@
           "fingerprint",
           "status",
           "last_seen_at",
+          "agent_runtime",
+          "agent_runtime_version",
           "meta",
           "created_by_user_id",
           "agents_total",
@@ -10275,6 +10472,18 @@
             "nullable": true,
             "description": "Most recent runtime heartbeat update timestamp from this host.",
             "example": "2026-02-22T17:21:00Z"
+          },
+          "agent_runtime": {
+            "type": "string",
+            "nullable": true,
+            "description": "Normalized agent runtime platform currently reported by the host, such as `openclaw`.",
+            "example": "example"
+          },
+          "agent_runtime_version": {
+            "type": "string",
+            "nullable": true,
+            "description": "Reported version string for the current host agent runtime.",
+            "example": "example"
           },
           "meta": {
             "type": "object",
@@ -10333,6 +10542,8 @@
           "fingerprint": "a3f56f330f311a2159f8c101eaf1439a29f1d57f007375d56aa79f304bc4f112",
           "status": "online",
           "last_seen_at": "2026-02-22T17:21:00Z",
+          "agent_runtime": "example",
+          "agent_runtime_version": "example",
           "meta": {
             "hostname": "worker-01",
             "ip": "10.0.2.15",
@@ -11796,6 +12007,8 @@
               "fingerprint": "a3f56f330f311a2159f8c101eaf1439a29f1d57f007375d56aa79f304bc4f112",
               "status": "online",
               "last_seen_at": "2026-02-22T17:21:00Z",
+              "agent_runtime": "example",
+              "agent_runtime_version": "example",
               "meta": {
                 "hostname": "worker-01",
                 "ip": "10.0.2.15",
@@ -11858,6 +12071,8 @@
             "fingerprint": "a3f56f330f311a2159f8c101eaf1439a29f1d57f007375d56aa79f304bc4f112",
             "status": "online",
             "last_seen_at": "2026-02-22T17:21:00Z",
+            "agent_runtime": "example",
+            "agent_runtime_version": "example",
             "meta": {
               "hostname": "worker-01",
               "ip": "10.0.2.15",
@@ -12731,6 +12946,8 @@
               "fingerprint": "a3f56f330f311a2159f8c101eaf1439a29f1d57f007375d56aa79f304bc4f112",
               "status": "online",
               "last_seen_at": "2026-02-22T17:21:00Z",
+              "agent_runtime": "example",
+              "agent_runtime_version": "example",
               "meta": {
                 "hostname": "worker-01",
                 "ip": "10.0.2.15",
@@ -12760,6 +12977,8 @@
             "fingerprint": "a3f56f330f311a2159f8c101eaf1439a29f1d57f007375d56aa79f304bc4f112",
             "status": "online",
             "last_seen_at": "2026-02-22T17:21:00Z",
+            "agent_runtime": "example",
+            "agent_runtime_version": "example",
             "meta": {
               "hostname": "worker-01",
               "ip": "10.0.2.15",
@@ -13551,6 +13770,8 @@
                 "fingerprint": "a3f56f330f311a2159f8c101eaf1439a29f1d57f007375d56aa79f304bc4f112",
                 "status": "online",
                 "last_seen_at": "2026-02-22T17:21:00Z",
+                "agent_runtime": "example",
+                "agent_runtime_version": "example",
                 "meta": {
                   "hostname": "worker-01",
                   "ip": "10.0.2.15",
@@ -13611,6 +13832,8 @@
               "fingerprint": "a3f56f330f311a2159f8c101eaf1439a29f1d57f007375d56aa79f304bc4f112",
               "status": "online",
               "last_seen_at": "2026-02-22T17:21:00Z",
+              "agent_runtime": "example",
+              "agent_runtime_version": "example",
               "meta": {
                 "hostname": "worker-01",
                 "ip": "10.0.2.15",
@@ -14650,6 +14873,24 @@
                 }
               }
             }
+          },
+          "host_runtime_updates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HostRuntimeCommandUpdate"
+            },
+            "description": "Optional runtime command acknowledgements returned after executing host-scoped provisioning work.",
+            "example": [
+              {
+                "id": 44,
+                "status": "completed",
+                "result": {
+                  "runtime_key": "qa-agent",
+                  "runtime_agent_name": "QA Agent",
+                  "workspace_dir": "/root/.openclaw/workspace-qa-agent"
+                }
+              }
+            ]
           },
           "agent": {
             "nullable": true,
@@ -16700,6 +16941,8 @@
                 "fingerprint": "a3f56f330f311a2159f8c101eaf1439a29f1d57f007375d56aa79f304bc4f112",
                 "status": "online",
                 "last_seen_at": "2026-02-22T17:21:02Z",
+                "agent_runtime": "openclaw",
+                "agent_runtime_version": "2026.02.1",
                 "meta": {
                   "hostname": "worker-01",
                   "os": "Ubuntu",
@@ -16729,6 +16972,18 @@
                 "event": "agent.realtime.host.session.requested",
                 "auth_endpoint": "https://agentmc.ai/api/v1/hosts/realtime/socket-auth"
               },
+              "host_runtime_commands": [
+                {
+                  "id": 44,
+                  "type": "agent.provision",
+                  "provider": "openclaw",
+                  "payload": {
+                    "agent_name": "QA Agent",
+                    "agent_emoji": "🧪",
+                    "runtime_key": "qa-agent"
+                  }
+                }
+              ],
               "agent": {
                 "id": 42,
                 "name": "Solomon",
@@ -17340,6 +17595,8 @@
                 "fingerprint": "a3f56f330f311a2159f8c101eaf1439a29f1d57f007375d56aa79f304bc4f112",
                 "status": "online",
                 "last_seen_at": "2026-02-22T17:21:00Z",
+                "agent_runtime": "example",
+                "agent_runtime_version": "example",
                 "meta": {
                   "hostname": "worker-01",
                   "ip": "10.0.2.15",

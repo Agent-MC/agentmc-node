@@ -36,6 +36,8 @@ Host list returned.
       "fingerprint": "a3f56f330f311a2159f8c101eaf1439a29f1d57f007375d56aa79f304bc4f112",
       "status": "online",
       "last_seen_at": "2026-02-22T17:21:00Z",
+      "agent_runtime": "example",
+      "agent_runtime_version": "example",
       "meta": {
         "hostname": "worker-01",
         "ip": "10.0.2.15",

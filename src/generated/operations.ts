@@ -145,6 +145,8 @@ export const operations = [
             "fingerprint": "a3f56f330f311a2159f8c101eaf1439a29f1d57f007375d56aa79f304bc4f112",
             "status": "online",
             "last_seen_at": "2026-02-22T17:21:02Z",
+            "agent_runtime": "openclaw",
+            "agent_runtime_version": "2026.02.1",
             "meta": {
               "hostname": "worker-01",
               "os": "Ubuntu",
@@ -174,6 +176,18 @@ export const operations = [
             "event": "agent.realtime.host.session.requested",
             "auth_endpoint": "https://agentmc.ai/api/v1/hosts/realtime/socket-auth"
           },
+          "host_runtime_commands": [
+            {
+              "id": 44,
+              "type": "agent.provision",
+              "provider": "openclaw",
+              "payload": {
+                "agent_name": "QA Agent",
+                "agent_emoji": "🧪",
+                "runtime_key": "qa-agent"
+              }
+            }
+          ],
           "agent": {
             "id": 42,
             "name": "Solomon",
@@ -5770,6 +5784,8 @@ export const operations = [
               "fingerprint": "a3f56f330f311a2159f8c101eaf1439a29f1d57f007375d56aa79f304bc4f112",
               "status": "online",
               "last_seen_at": "2026-02-22T17:21:00Z",
+              "agent_runtime": "example",
+              "agent_runtime_version": "example",
               "meta": {
                 "hostname": "worker-01",
                 "ip": "10.0.2.15",
@@ -7455,6 +7471,8 @@ export const operations = [
             "fingerprint": "a3f56f330f311a2159f8c101eaf1439a29f1d57f007375d56aa79f304bc4f112",
             "status": "online",
             "last_seen_at": "2026-02-22T17:21:00Z",
+            "agent_runtime": "example",
+            "agent_runtime_version": "example",
             "meta": {
               "hostname": "worker-01",
               "ip": "10.0.2.15",

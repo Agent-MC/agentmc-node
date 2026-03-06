@@ -71,6 +71,21 @@ interface HostHeartbeatResult {
   agents: HostHeartbeatAgentRow[];
   hostRealtime: HostRealtimeSocketPayload | null;
   heartbeatIntervalSeconds: number | null;
+  hostRuntimeCommands: HostRuntimeCommand[];
+}
+
+interface HostRuntimeCommand {
+  id: number;
+  type: string;
+  provider: string | null;
+  payload: Record<string, unknown>;
+}
+
+interface HostRuntimeCommandUpdate {
+  id: number;
+  status: "completed" | "failed";
+  result?: Record<string, unknown>;
+  error?: string;
 }
 
 type HostHeartbeatRuntimeProvider = "openclaw" | "external" | "host-runtime";
@@ -1534,6 +1549,7 @@ async function runMultiAgentRuntimeFromEnv(env: NodeJS.ProcessEnv): Promise<bool
   let hostRealtimeRoutingLoopPromise: Promise<void> | null = null;
   let autoUpdateLoopPromise: Promise<void> | null = null;
   let restartRequestedByAutoUpdate = false;
+  let restartRequestedByProvisioning = false;
   const autoUpdateConfig = resolveRuntimeAutoUpdateConfig(env);
 
   const persistStatus = async (
@@ -1713,6 +1729,13 @@ async function runMultiAgentRuntimeFromEnv(env: NodeJS.ProcessEnv): Promise<bool
           summary: `worker mapping changed for ${changedWorkerKeys.join(", ")}`
         });
       },
+      onRestartRequested: async (summary) => {
+        restartRequestedByProvisioning = true;
+        await persistStatusSafe({
+          summary
+        });
+        await stopAll();
+      },
       shouldStop: () => stopping
     });
     hostRealtimeRoutingLoopPromise = runHostRealtimeSessionRoutingLoop({
@@ -1751,6 +1774,10 @@ async function runMultiAgentRuntimeFromEnv(env: NodeJS.ProcessEnv): Promise<bool
 
     if (restartRequestedByAutoUpdate) {
       process.stderr.write("[agentmc-runtime] auto-update applied; exiting for restart.\n");
+    }
+
+    if (restartRequestedByProvisioning) {
+      process.stderr.write("[agentmc-runtime] host provisioning applied; exiting for restart.\n");
     }
 
     return true;
@@ -1798,9 +1825,11 @@ async function runHostHeartbeatLoop(input: {
   intervalSeconds: number;
   onHostRealtimeSocketChanged?: (socket: HostRealtimeSocketPayload | null) => Promise<void> | void;
   onAgentMappingChanged?: (changedWorkerKeys: string[]) => Promise<void> | void;
+  onRestartRequested?: (summary: string) => Promise<void> | void;
   shouldStop: () => boolean;
 }): Promise<void> {
   let heartbeatIntervalSeconds = input.intervalSeconds;
+  let pendingHostRuntimeUpdates: HostRuntimeCommandUpdate[] = [];
 
   while (!input.shouldStop()) {
     await sleepWithStop(Math.max(1_000, heartbeatIntervalSeconds * 1000), input.shouldStop);
@@ -1809,7 +1838,13 @@ async function runHostHeartbeatLoop(input: {
     }
 
     try {
-      const heartbeat = await sendHostHeartbeat(input.client, input.workers, input.hostFingerprint);
+      const heartbeat = await sendHostHeartbeat(
+        input.client,
+        input.workers,
+        input.hostFingerprint,
+        pendingHostRuntimeUpdates
+      );
+      pendingHostRuntimeUpdates = [];
       const changedWorkerKeys = applyHeartbeatAgentMapping(input.workers, heartbeat.agents);
       if (
         heartbeat.heartbeatIntervalSeconds !== null &&
@@ -1826,11 +1861,352 @@ async function runHostHeartbeatLoop(input: {
       if (input.onAgentMappingChanged && changedWorkerKeys.length > 0) {
         await input.onAgentMappingChanged(changedWorkerKeys);
       }
+
+      if (heartbeat.hostRuntimeCommands.length > 0) {
+        const commandResult = await executeHostRuntimeCommands({
+          commands: heartbeat.hostRuntimeCommands,
+          workers: input.workers
+        });
+
+        if (commandResult.updates.length > 0) {
+          pendingHostRuntimeUpdates = commandResult.updates;
+
+          const ackHeartbeat = await sendHostHeartbeat(
+            input.client,
+            input.workers,
+            input.hostFingerprint,
+            pendingHostRuntimeUpdates
+          );
+          pendingHostRuntimeUpdates = [];
+
+          const ackChangedWorkerKeys = applyHeartbeatAgentMapping(input.workers, ackHeartbeat.agents);
+          if (
+            ackHeartbeat.heartbeatIntervalSeconds !== null &&
+            ackHeartbeat.heartbeatIntervalSeconds !== heartbeatIntervalSeconds
+          ) {
+            heartbeatIntervalSeconds = ackHeartbeat.heartbeatIntervalSeconds;
+            process.stderr.write(
+              `[agentmc-runtime] host heartbeat interval updated interval=${heartbeatIntervalSeconds}s source=server_defaults\n`
+            );
+          }
+          if (input.onHostRealtimeSocketChanged) {
+            await input.onHostRealtimeSocketChanged(ackHeartbeat.hostRealtime);
+          }
+          if (input.onAgentMappingChanged && ackChangedWorkerKeys.length > 0) {
+            await input.onAgentMappingChanged(ackChangedWorkerKeys);
+          }
+        }
+
+        if (commandResult.restartRequested) {
+          if (input.onRestartRequested) {
+            await input.onRestartRequested("host provisioning command completed; restarting runtime supervisor");
+          }
+
+          return;
+        }
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       process.stderr.write(`[agentmc-runtime] host heartbeat failed: ${message}\n`);
     }
   }
+}
+
+async function executeHostRuntimeCommands(input: {
+  commands: HostRuntimeCommand[];
+  workers: RuntimeWorkerConfig[];
+}): Promise<{ updates: HostRuntimeCommandUpdate[]; restartRequested: boolean }> {
+  const updates: HostRuntimeCommandUpdate[] = [];
+  let restartRequested = false;
+
+  for (const command of input.commands) {
+    try {
+      if (command.type === "agent.provision" && command.provider?.toLowerCase() === "openclaw") {
+        const result = provisionOpenClawAgent(command, input.workers);
+        updates.push({
+          id: command.id,
+          status: "completed",
+          result
+        });
+        restartRequested = true;
+        continue;
+      }
+
+      updates.push({
+        id: command.id,
+        status: "failed",
+        error: `Unsupported host runtime command: ${command.type} (${command.provider ?? "unknown provider"}).`
+      });
+    } catch (error) {
+      updates.push({
+        id: command.id,
+        status: "failed",
+        error: normalizeCommandError(error).message
+      });
+    }
+  }
+
+  return { updates, restartRequested };
+}
+
+function provisionOpenClawAgent(
+  command: HostRuntimeCommand,
+  workers: RuntimeWorkerConfig[]
+): Record<string, unknown> {
+  const runtimeKey = normalizeProvisionRuntimeKey(
+    nonEmpty(command.payload.runtime_key) ??
+      nonEmpty(command.payload.agent_key) ??
+      nonEmpty(command.payload.agent_name)
+  );
+  if (!runtimeKey) {
+    throw new Error("OpenClaw provisioning requires a valid runtime key.");
+  }
+
+  const agentName = nonEmpty(command.payload.agent_name) ?? runtimeKey;
+  const agentEmoji = nonEmpty(command.payload.agent_emoji);
+  const workspaceDir = resolveProvisionWorkspaceDir(workers, runtimeKey);
+  const openclawCommand = "openclaw";
+
+  if (!resolveExistingOpenClawWorker(runtimeKey, workers) && !detectExistingOpenClawAgentSync(runtimeKey)) {
+    runOpenClawCommandWithNonInteractiveFallback(
+      openclawCommand,
+      ["agents", "add", runtimeKey, "--workspace", workspaceDir, "--non-interactive", "--json"],
+      ["agents", "add", runtimeKey, "--workspace", workspaceDir, "--json"],
+      runtimeKey
+    );
+  }
+
+  if (agentName !== runtimeKey || agentEmoji) {
+    runOpenClawCommandWithNonInteractiveFallback(
+      openclawCommand,
+      ["agents", "set-identity", "--non-interactive", "--agent", runtimeKey, "--name", agentName, ...(agentEmoji ? ["--emoji", agentEmoji] : [])],
+      ["agents", "set-identity", "--agent", runtimeKey, "--name", agentName, ...(agentEmoji ? ["--emoji", agentEmoji] : [])],
+      runtimeKey
+    );
+  }
+
+  const discovered = detectExistingOpenClawAgentSync(runtimeKey);
+
+  process.stderr.write(
+    `[agentmc-runtime] provisioned openclaw agent key=${runtimeKey} workspace=${discovered?.workspaceDir ?? workspaceDir}\n`
+  );
+
+  return {
+    runtime_key: runtimeKey,
+    runtime_agent_name: agentName,
+    workspace_dir: discovered?.workspaceDir ?? workspaceDir
+  };
+}
+
+function resolveProvisionWorkspaceDir(workers: RuntimeWorkerConfig[], runtimeKey: string): string {
+  const configuredDefault = resolveOpenClawDefaultWorkspace();
+  if (configuredDefault) {
+    return deriveProvisionWorkspacePath(configuredDefault, runtimeKey);
+  }
+
+  const firstOpenClawWorker = workers.find((worker) => nonEmpty(worker.provider)?.toLowerCase() === "openclaw");
+  const existingWorkspace = nonEmpty(firstOpenClawWorker?.workspaceDir);
+  if (existingWorkspace) {
+    return deriveProvisionWorkspacePath(existingWorkspace, runtimeKey);
+  }
+
+  throw new Error("Unable to resolve an OpenClaw workspace path for agent provisioning.");
+}
+
+function deriveProvisionWorkspacePath(sourceWorkspace: string, runtimeKey: string): string {
+  const trimmed = sourceWorkspace.trim().replace(/\/+$/, "");
+  const baseName = trimmed.endsWith("/workspace") ? "workspace" : trimmed.split("/").pop() ?? "workspace";
+
+  return resolve(dirname(trimmed), `${baseName}-${runtimeKey}`);
+}
+
+function resolveOpenClawDefaultWorkspace(): string | null {
+  const config = readOpenClawConfigObject();
+  const defaults = valueAsObject(valueAsObject(config?.agents)?.defaults);
+
+  return nonEmpty(defaults?.workspace);
+}
+
+function readOpenClawConfigObject(): Record<string, unknown> | null {
+  const homeDir = nonEmpty(process.env.HOME);
+  const candidates = [
+    homeDir ? resolve(homeDir, ".openclaw", "openclaw.json") : null,
+    "/root/.openclaw/openclaw.json",
+    resolve(process.cwd(), ".openclaw", "openclaw.json")
+  ].filter((value): value is string => Boolean(value));
+
+  for (const configPath of candidates) {
+    if (!existsSync(configPath)) {
+      continue;
+    }
+
+    try {
+      const parsed = JSON.parse(readFileSync(configPath, "utf8"));
+      const object = valueAsObject(parsed);
+      if (object) {
+        return object;
+      }
+    } catch {
+      // Keep checking other candidate config paths.
+    }
+  }
+
+  return null;
+}
+
+function runOpenClawCommandWithNonInteractiveFallback(
+  command: string,
+  argsWithNonInteractive: string[],
+  argsWithoutNonInteractive: string[],
+  runtimeKey: string
+): void {
+  try {
+    execFileSync(command, argsWithNonInteractive, {
+      encoding: "utf8",
+      timeout: 60_000,
+      maxBuffer: 2 * 1024 * 1024,
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+
+    return;
+  } catch (error) {
+    if (isOpenClawAgentAlreadyExistsError(error, runtimeKey)) {
+      return;
+    }
+
+    if (!isUnknownNonInteractiveOptionError(error)) {
+      throw error;
+    }
+  }
+
+  try {
+    execFileSync(command, argsWithoutNonInteractive, {
+      encoding: "utf8",
+      timeout: 60_000,
+      maxBuffer: 2 * 1024 * 1024,
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+  } catch (error) {
+    if (isOpenClawAgentAlreadyExistsError(error, runtimeKey)) {
+      return;
+    }
+
+    throw error;
+  }
+}
+
+function resolveExistingOpenClawWorker(runtimeKey: string, workers: RuntimeWorkerConfig[]): RuntimeWorkerConfig | null {
+  const normalizedKey = runtimeKey.toLowerCase();
+
+  for (const worker of workers) {
+    const workerKey = nonEmpty(worker.openclawAgent) ?? nonEmpty(worker.localKey);
+    if (workerKey?.toLowerCase() === normalizedKey) {
+      return worker;
+    }
+  }
+
+  return null;
+}
+
+function detectExistingOpenClawAgentSync(runtimeKey: string): { workspaceDir: string | null } | null {
+  const config = readOpenClawConfigObject();
+  const agentsRoot = valueAsObject(config?.agents);
+  if (!agentsRoot) {
+    return null;
+  }
+
+  const rawList = Array.isArray(agentsRoot.list)
+    ? agentsRoot.list
+    : Object.entries(valueAsObject(agentsRoot.list) ?? {}).map(([id, row]) => {
+        const objectRow = valueAsObject(row);
+        return objectRow ? { id, ...objectRow } : null;
+      }).filter((row) => row !== null) as Array<Record<string, unknown>>;
+
+  for (const row of rawList) {
+    const objectRow = valueAsObject(row);
+    if (!objectRow) {
+      continue;
+    }
+
+    const key =
+      nonEmpty(objectRow.id) ??
+      nonEmpty(objectRow.agent_key) ??
+      nonEmpty(objectRow.agentKey) ??
+      nonEmpty(objectRow.name);
+    if (key?.toLowerCase() !== runtimeKey.toLowerCase()) {
+      continue;
+    }
+
+    return {
+      workspaceDir:
+        nonEmpty(objectRow.workspace) ??
+        nonEmpty(objectRow.workspace_path) ??
+        nonEmpty(objectRow.workspacePath) ??
+        nonEmpty(valueAsObject(valueAsObject(config?.agents)?.defaults)?.workspace) ??
+        null
+    };
+  }
+
+  return null;
+}
+
+function isUnknownNonInteractiveOptionError(error: unknown): boolean {
+  const candidates = extractCommandErrorText(error);
+  if (!candidates.includes("--non-interactive")) {
+    return false;
+  }
+
+  return (
+    candidates.includes("unknown option") ||
+    candidates.includes("unknown argument") ||
+    candidates.includes("unrecognized option")
+  );
+}
+
+function isOpenClawAgentAlreadyExistsError(error: unknown, runtimeKey: string): boolean {
+  const candidates = extractCommandErrorText(error);
+
+  return (
+    (candidates.includes("already exists") || candidates.includes("duplicate")) &&
+    (candidates.includes(runtimeKey.toLowerCase()) || candidates.includes("agent"))
+  );
+}
+
+function extractCommandErrorText(error: unknown): string {
+  const object = valueAsObject(error);
+
+  return [
+    nonEmpty(object?.message),
+    nonEmpty(object?.stderr),
+    nonEmpty(object?.stdout),
+    error instanceof Error ? error.message : null
+  ]
+    .filter((value): value is string => Boolean(value))
+    .join("\n")
+    .toLowerCase();
+}
+
+function normalizeProvisionRuntimeKey(value: unknown): string | null {
+  const normalized = nonEmpty(value);
+  if (!normalized) {
+    return null;
+  }
+
+  const slug = normalized
+    .replace(/[^A-Za-z0-9_.-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .toLowerCase();
+
+  return slug !== "" ? slug.slice(0, 160) : null;
+}
+
+function normalizeCommandError(error: unknown): Error {
+  if (error instanceof Error) {
+    return error;
+  }
+
+  return new Error(String(error));
 }
 
 async function runHostRealtimeSessionRoutingLoop(input: {
@@ -2197,7 +2573,8 @@ async function sleepWithStop(totalMs: number, shouldStop: () => boolean): Promis
 async function sendHostHeartbeat(
   client: AgentMCApi,
   workers: RuntimeWorkerConfig[],
-  hostFingerprint: string
+  hostFingerprint: string,
+  hostRuntimeUpdates: HostRuntimeCommandUpdate[] = []
 ): Promise<HostHeartbeatResult> {
   const privateIp = resolvePrivateIp();
   const publicIp = privateIp ?? "127.0.0.1";
@@ -2281,7 +2658,8 @@ async function sendHostHeartbeat(
           openclaw_agent: worker.openclawAgent ?? worker.localKey
         }
       };
-    })
+    }),
+    ...(hostRuntimeUpdates.length > 0 ? { host_runtime_updates: hostRuntimeUpdates } : {})
   };
 
   const response = await client.request("agentHeartbeat", {
@@ -2299,6 +2677,25 @@ async function sendHostHeartbeat(
   const heartbeatIntervalSeconds = toPositiveInt(
     responseDefaults?.heartbeat_interval_seconds ?? responseDefaults?.heartbeatIntervalSeconds
   );
+  const hostRuntimeCommands = Array.isArray(responseData?.host_runtime_commands)
+    ? responseData.host_runtime_commands
+        .map((row) => {
+          const objectRow = valueAsObject(row);
+          const id = toPositiveInt(objectRow?.id);
+          const type = nonEmpty(objectRow?.type);
+          if (id === null || !type) {
+            return null;
+          }
+
+          return {
+            id,
+            type,
+            provider: nonEmpty(objectRow?.provider),
+            payload: valueAsObject(objectRow?.payload) ?? {}
+          } satisfies HostRuntimeCommand;
+        })
+        .filter((row): row is HostRuntimeCommand => row !== null)
+    : [];
   const responseAgents = Array.isArray(responseData?.agents)
     ? responseData.agents
     : responseData?.agent
@@ -2331,7 +2728,8 @@ async function sendHostHeartbeat(
   return {
     agents: rows,
     hostRealtime,
-    heartbeatIntervalSeconds
+    heartbeatIntervalSeconds,
+    hostRuntimeCommands
   };
 }
 

@@ -2336,6 +2336,8 @@ export interface components {
          *         "fingerprint": "a3f56f330f311a2159f8c101eaf1439a29f1d57f007375d56aa79f304bc4f112",
          *         "status": "online",
          *         "last_seen_at": "2026-02-22T17:21:02Z",
+         *         "agent_runtime": "openclaw",
+         *         "agent_runtime_version": "2026.02.1",
          *         "meta": {
          *           "hostname": "worker-01",
          *           "os": "Ubuntu",
@@ -2365,6 +2367,18 @@ export interface components {
          *         "event": "agent.realtime.host.session.requested",
          *         "auth_endpoint": "https://agentmc.ai/api/v1/hosts/realtime/socket-auth"
          *       },
+         *       "host_runtime_commands": [
+         *         {
+         *           "id": 44,
+         *           "type": "agent.provision",
+         *           "provider": "openclaw",
+         *           "payload": {
+         *             "agent_name": "QA Agent",
+         *             "agent_emoji": "🧪",
+         *             "runtime_key": "qa-agent"
+         *           }
+         *         }
+         *       ],
          *       "agent": {
          *         "id": 42,
          *         "name": "Solomon",
@@ -2406,6 +2420,8 @@ export interface components {
              *       "fingerprint": "a3f56f330f311a2159f8c101eaf1439a29f1d57f007375d56aa79f304bc4f112",
              *       "status": "online",
              *       "last_seen_at": "2026-02-22T17:21:00Z",
+             *       "agent_runtime": "example",
+             *       "agent_runtime_version": "example",
              *       "meta": {
              *         "hostname": "worker-01",
              *         "ip": "10.0.2.15",
@@ -2445,6 +2461,22 @@ export interface components {
              */
             host_realtime?: components["schemas"]["HostRealtimeSocketPayload"] | null;
             /**
+             * @description Pending host-scoped runtime commands that the connected host should execute before the next heartbeat.
+             * @example [
+             *       {
+             *         "id": 44,
+             *         "type": "agent.provision",
+             *         "provider": "openclaw",
+             *         "payload": {
+             *           "agent_name": "QA Agent",
+             *           "agent_emoji": "🧪",
+             *           "runtime_key": "qa-agent"
+             *         }
+             *       }
+             *     ]
+             */
+            host_runtime_commands?: components["schemas"]["HostRuntimeCommand"][];
+            /**
              * @description Resolved agent snapshot after heartbeat processing (auto-created when needed).
              * @example {
              *       "id": 42,
@@ -2470,6 +2502,117 @@ export interface components {
                  */
                 type: "openclaw";
             } | null;
+        };
+        /**
+         * @description Host Runtime Command schema.
+         * @example {
+         *       "id": 44,
+         *       "type": "agent.provision",
+         *       "provider": "openclaw",
+         *       "payload": {
+         *         "agent_name": "QA Agent",
+         *         "agent_emoji": "🧪",
+         *         "runtime_key": "qa-agent"
+         *       }
+         *     }
+         */
+        HostRuntimeCommand: {
+            /**
+             * @description Unique identifier for this record.
+             * @example 42
+             */
+            id: number;
+            /**
+             * @description Type discriminator for this record.
+             * @example example
+             */
+            type: string;
+            /**
+             * @description Allowed values: openclaw.
+             * @example openclaw
+             * @enum {string}
+             */
+            provider: "openclaw";
+            /**
+             * @description Arbitrary JSON payload object.
+             * @example {
+             *       "agent_name": "Example Name",
+             *       "agent_emoji": "example",
+             *       "runtime_key": "example"
+             *     }
+             */
+            payload: {
+                /**
+                 * @description Agent name.
+                 * @example Example Name
+                 */
+                agent_name: string;
+                /**
+                 * @description Agent emoji.
+                 * @example example
+                 */
+                agent_emoji?: string | null;
+                /**
+                 * @description Runtime key.
+                 * @example example
+                 */
+                runtime_key: string;
+            };
+        };
+        /**
+         * @description Host Runtime Command Update schema.
+         * @example {
+         *       "id": 44,
+         *       "status": "completed",
+         *       "result": {
+         *         "runtime_key": "qa-agent",
+         *         "runtime_agent_name": "QA Agent",
+         *         "workspace_dir": "/root/.openclaw/workspace-qa-agent"
+         *       }
+         *     }
+         */
+        HostRuntimeCommandUpdate: {
+            /**
+             * @description Unique identifier for this record.
+             * @example 42
+             */
+            id: number;
+            /**
+             * @description Current lifecycle status for this record. Allowed values: completed, failed.
+             * @example completed
+             * @enum {string}
+             */
+            status: "completed" | "failed";
+            /**
+             * @description Result.
+             * @example {
+             *       "runtime_key": "example",
+             *       "runtime_agent_name": "Example Name",
+             *       "workspace_dir": "example"
+             *     }
+             */
+            result?: {
+                /**
+                 * @description Runtime key.
+                 * @example example
+                 */
+                runtime_key?: string | null;
+                /**
+                 * @description Runtime agent name.
+                 * @example Example Name
+                 */
+                runtime_agent_name?: string | null;
+                /**
+                 * @description Workspace dir.
+                 * @example example
+                 */
+                workspace_dir?: string | null;
+            } | null;
+            /**
+             * @description Error.
+             * @example example
+             */
+            error?: string | null;
         };
         /**
          * @description Agent Instruction Bundle File schema.
@@ -4299,6 +4442,8 @@ export interface components {
          *       "fingerprint": "a3f56f330f311a2159f8c101eaf1439a29f1d57f007375d56aa79f304bc4f112",
          *       "status": "online",
          *       "last_seen_at": "2026-02-22T17:21:00Z",
+         *       "agent_runtime": "example",
+         *       "agent_runtime_version": "example",
          *       "meta": {
          *         "hostname": "worker-01",
          *         "ip": "10.0.2.15",
@@ -4351,6 +4496,16 @@ export interface components {
              * @example 2026-02-22T17:21:00Z
              */
             last_seen_at: string | null;
+            /**
+             * @description Normalized agent runtime platform currently reported by the host, such as `openclaw`.
+             * @example example
+             */
+            agent_runtime: string | null;
+            /**
+             * @description Reported version string for the current host agent runtime.
+             * @example example
+             */
+            agent_runtime_version: string | null;
             /**
              * @description Required machine metadata snapshot reported by the runtime (hostname, primary IP, private/public network IPs, OS, architecture, CPU, RAM, disk, uptime, runtime version).
              * @example {
@@ -5522,6 +5677,8 @@ export interface components {
          *         "fingerprint": "a3f56f330f311a2159f8c101eaf1439a29f1d57f007375d56aa79f304bc4f112",
          *         "status": "online",
          *         "last_seen_at": "2026-02-22T17:21:00Z",
+         *         "agent_runtime": "example",
+         *         "agent_runtime_version": "example",
          *         "meta": {
          *           "hostname": "worker-01",
          *           "ip": "10.0.2.15",
@@ -5574,6 +5731,8 @@ export interface components {
              *       "fingerprint": "a3f56f330f311a2159f8c101eaf1439a29f1d57f007375d56aa79f304bc4f112",
              *       "status": "online",
              *       "last_seen_at": "2026-02-22T17:21:00Z",
+             *       "agent_runtime": "example",
+             *       "agent_runtime_version": "example",
              *       "meta": {
              *         "hostname": "worker-01",
              *         "ip": "10.0.2.15",
@@ -6383,6 +6542,8 @@ export interface components {
          *         "fingerprint": "a3f56f330f311a2159f8c101eaf1439a29f1d57f007375d56aa79f304bc4f112",
          *         "status": "online",
          *         "last_seen_at": "2026-02-22T17:21:00Z",
+         *         "agent_runtime": "example",
+         *         "agent_runtime_version": "example",
          *         "meta": {
          *           "hostname": "worker-01",
          *           "ip": "10.0.2.15",
@@ -6413,6 +6574,8 @@ export interface components {
              *       "fingerprint": "a3f56f330f311a2159f8c101eaf1439a29f1d57f007375d56aa79f304bc4f112",
              *       "status": "online",
              *       "last_seen_at": "2026-02-22T17:21:00Z",
+             *       "agent_runtime": "example",
+             *       "agent_runtime_version": "example",
              *       "meta": {
              *         "hostname": "worker-01",
              *         "ip": "10.0.2.15",
@@ -7145,6 +7308,8 @@ export interface components {
          *           "fingerprint": "a3f56f330f311a2159f8c101eaf1439a29f1d57f007375d56aa79f304bc4f112",
          *           "status": "online",
          *           "last_seen_at": "2026-02-22T17:21:00Z",
+         *           "agent_runtime": "example",
+         *           "agent_runtime_version": "example",
          *           "meta": {
          *             "hostname": "worker-01",
          *             "ip": "10.0.2.15",
@@ -7198,6 +7363,8 @@ export interface components {
              *         "fingerprint": "a3f56f330f311a2159f8c101eaf1439a29f1d57f007375d56aa79f304bc4f112",
              *         "status": "online",
              *         "last_seen_at": "2026-02-22T17:21:00Z",
+             *         "agent_runtime": "example",
+             *         "agent_runtime_version": "example",
              *         "meta": {
              *           "hostname": "worker-01",
              *           "ip": "10.0.2.15",
@@ -8085,6 +8252,21 @@ export interface components {
                     };
                 };
             };
+            /**
+             * @description Optional runtime command acknowledgements returned after executing host-scoped provisioning work.
+             * @example [
+             *       {
+             *         "id": 44,
+             *         "status": "completed",
+             *         "result": {
+             *           "runtime_key": "qa-agent",
+             *           "runtime_agent_name": "QA Agent",
+             *           "workspace_dir": "/root/.openclaw/workspace-qa-agent"
+             *         }
+             *       }
+             *     ]
+             */
+            host_runtime_updates?: components["schemas"]["HostRuntimeCommandUpdate"][];
             /**
              * @description Required runtime agent profile metadata. Omit `agent.id` when using host keys to auto-resolve or auto-create agents from runtime identity.
              * @example {
@@ -9110,6 +9292,8 @@ export interface components {
                  *         "fingerprint": "a3f56f330f311a2159f8c101eaf1439a29f1d57f007375d56aa79f304bc4f112",
                  *         "status": "online",
                  *         "last_seen_at": "2026-02-22T17:21:02Z",
+                 *         "agent_runtime": "openclaw",
+                 *         "agent_runtime_version": "2026.02.1",
                  *         "meta": {
                  *           "hostname": "worker-01",
                  *           "os": "Ubuntu",
@@ -9139,6 +9323,18 @@ export interface components {
                  *         "event": "agent.realtime.host.session.requested",
                  *         "auth_endpoint": "https://agentmc.ai/api/v1/hosts/realtime/socket-auth"
                  *       },
+                 *       "host_runtime_commands": [
+                 *         {
+                 *           "id": 44,
+                 *           "type": "agent.provision",
+                 *           "provider": "openclaw",
+                 *           "payload": {
+                 *             "agent_name": "QA Agent",
+                 *             "agent_emoji": "🧪",
+                 *             "runtime_key": "qa-agent"
+                 *           }
+                 *         }
+                 *       ],
                  *       "agent": {
                  *         "id": 42,
                  *         "name": "Solomon",
@@ -9762,6 +9958,8 @@ export interface components {
                  *         "fingerprint": "a3f56f330f311a2159f8c101eaf1439a29f1d57f007375d56aa79f304bc4f112",
                  *         "status": "online",
                  *         "last_seen_at": "2026-02-22T17:21:00Z",
+                 *         "agent_runtime": "example",
+                 *         "agent_runtime_version": "example",
                  *         "meta": {
                  *           "hostname": "worker-01",
                  *           "ip": "10.0.2.15",
@@ -10630,6 +10828,8 @@ export interface operations {
                      *         "fingerprint": "a3f56f330f311a2159f8c101eaf1439a29f1d57f007375d56aa79f304bc4f112",
                      *         "status": "online",
                      *         "last_seen_at": "2026-02-22T17:21:02Z",
+                     *         "agent_runtime": "openclaw",
+                     *         "agent_runtime_version": "2026.02.1",
                      *         "meta": {
                      *           "hostname": "worker-01",
                      *           "os": "Ubuntu",
@@ -10659,6 +10859,18 @@ export interface operations {
                      *         "event": "agent.realtime.host.session.requested",
                      *         "auth_endpoint": "https://agentmc.ai/api/v1/hosts/realtime/socket-auth"
                      *       },
+                     *       "host_runtime_commands": [
+                     *         {
+                     *           "id": 44,
+                     *           "type": "agent.provision",
+                     *           "provider": "openclaw",
+                     *           "payload": {
+                     *             "agent_name": "QA Agent",
+                     *             "agent_emoji": "🧪",
+                     *             "runtime_key": "qa-agent"
+                     *           }
+                     *         }
+                     *       ],
                      *       "agent": {
                      *         "id": 42,
                      *         "name": "Solomon",
@@ -10717,6 +10929,8 @@ export interface operations {
                      *           "fingerprint": "a3f56f330f311a2159f8c101eaf1439a29f1d57f007375d56aa79f304bc4f112",
                      *           "status": "online",
                      *           "last_seen_at": "2026-02-22T17:21:00Z",
+                     *           "agent_runtime": "example",
+                     *           "agent_runtime_version": "example",
                      *           "meta": {
                      *             "hostname": "worker-01",
                      *             "ip": "10.0.2.15",
@@ -10802,6 +11016,8 @@ export interface operations {
                      *         "fingerprint": "a3f56f330f311a2159f8c101eaf1439a29f1d57f007375d56aa79f304bc4f112",
                      *         "status": "online",
                      *         "last_seen_at": "2026-02-22T17:21:00Z",
+                     *         "agent_runtime": "example",
+                     *         "agent_runtime_version": "example",
                      *         "meta": {
                      *           "hostname": "worker-01",
                      *           "ip": "10.0.2.15",
