@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { access, mkdir, readFile, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, resolve } from "node:path";
@@ -562,22 +562,11 @@ export class OpenClawAgentRuntime {
     const orderedSessions = [...sessions].sort(
       (left, right) => toPositiveInteger(right?.id) - toPositiveInteger(left?.id)
     );
-    const browserSessions = orderedSessions.filter((session) => toPositiveInteger(session?.requested_by_user_id) >= 1);
+    const browserSessions = orderedSessions
+      .filter((session) => toPositiveInteger(session?.requested_by_user_id) >= 1)
+      .slice(0, Math.max(1, this.options.requestedSessionLimit));
     const systemSessions = orderedSessions.filter((session) => toPositiveInteger(session?.requested_by_user_id) < 1);
-
-    if (!this.hasTrackedRequestedSession(systemSessions)) {
-      const nextSystemSessionId = systemSessions
-        .map((session) => toPositiveInteger(session?.id))
-        .find((sessionId) => sessionId > 0 && !this.sessions.has(sessionId));
-
-      if (typeof nextSystemSessionId === "number") {
-        this.startSessionLoop(nextSystemSessionId);
-        return;
-      }
-    }
-
-    const limitedBrowserSessions = browserSessions.slice(0, Math.max(1, this.options.requestedSessionLimit));
-    const nextSessionId = limitedBrowserSessions
+    const nextSessionId = [...browserSessions, ...systemSessions]
       .map((session) => toPositiveInteger(session?.id))
       .find((sessionId) => sessionId > 0 && !this.sessions.has(sessionId));
 
@@ -1074,7 +1063,7 @@ export class OpenClawAgentRuntime {
     notification: JsonObject,
     runResult: OpenClawRunResult
   ): Promise<void> {
-    if (runResult.status !== "ok") {
+    if (runResult.status !== "ok" || runResult.textSource !== "wait") {
       return;
     }
 
@@ -1698,11 +1687,54 @@ export class OpenClawAgentRuntime {
       return;
     }
 
-    await this.publishChannelMessage(state.sessionId, "file.delete.error", requestId, {
-      ...buildFileIdPayload(fileId),
-      code: "unsupported_operation",
-      error: "managed runtime files cannot be deleted"
-    });
+    const baseHash = valueAsString(payload.base_hash)?.trim() || "";
+
+    try {
+      const current = await this.readRuntimeDoc(fileId);
+
+      if (current && baseHash !== current.base_hash) {
+        await this.publishChannelMessage(state.sessionId, "file.delete.error", requestId, {
+          ...buildFileIdPayload(fileId),
+          code: "conflict",
+          error: "base_hash mismatch",
+          current_hash: current.base_hash
+        });
+        return;
+      }
+
+      if (!current && baseHash !== "") {
+        await this.publishChannelMessage(state.sessionId, "file.delete.error", requestId, {
+          ...buildFileIdPayload(fileId),
+          code: "conflict",
+          error: "base_hash mismatch",
+          current_hash: null
+        });
+        return;
+      }
+
+      if (current) {
+        await unlink(this.resolveRuntimeDocPath(fileId));
+      }
+
+      await this.publishChannelMessage(state.sessionId, "file.delete.ok", requestId, {
+        ...buildFileIdPayload(fileId),
+        deleted: current !== null,
+        previous_hash: current?.base_hash ?? null
+      });
+    } catch (error) {
+      const normalized = normalizeError(error);
+      await this.emitError(normalized);
+
+      try {
+        await this.publishChannelMessage(state.sessionId, "file.delete.error", requestId, {
+          ...buildFileIdPayload(fileId),
+          code: "delete_failed",
+          error: "failed to delete file"
+        });
+      } catch (publishError) {
+        await this.emitError(normalizeError(publishError));
+      }
+    }
   }
 
   private async handleAgentProfileUpdate(
@@ -2526,13 +2558,6 @@ export class OpenClawAgentRuntime {
 
   private shouldProcessNotificationKey(key: string): boolean {
     return shouldProcessCacheKey(this.processedNotificationKeys, key, this.options.duplicateTtlMs);
-  }
-
-  private hasTrackedRequestedSession(sessions: readonly unknown[]): boolean {
-    return sessions.some((session) => {
-      const sessionId = toPositiveInteger(valueAsObject(session)?.id);
-      return sessionId > 0 && this.sessions.has(sessionId);
-    });
   }
 
   private resolveNotificationSessionState(
@@ -4069,17 +4094,6 @@ function toSafeRequestToken(value: string): string {
     .replace(/-+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 120);
-}
-
-function firstPositiveInteger(...values: unknown[]): number {
-  for (const value of values) {
-    const normalized = toPositiveInteger(value);
-    if (normalized > 0) {
-      return normalized;
-    }
-  }
-
-  return 0;
 }
 
 function toPositiveInteger(value: unknown): number {

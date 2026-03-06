@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -1654,6 +1654,39 @@ test("file.delete emits protocol error ack when filesystem deletes fail", async 
     assert.equal(published[0]?.channelType, "file.delete.error");
     assert.equal(published[0]?.requestId, "req-file-delete-failure");
     assert.equal(published[0]?.payload?.code, "delete_failed");
+  });
+});
+
+test("file.delete removes managed runtime docs when base_hash matches", async () => {
+  await withFixture(async ({ dir, sessionsPath }) => {
+    const runtime = createRuntime(sessionsPath, dir);
+    const published = [];
+    const initialBody = "keep runtime docs tidy";
+
+    await writeFile(join(dir, "AGENTS.md"), initialBody, "utf8");
+    const currentDoc = await runtime.readRuntimeDoc("AGENTS.md");
+    assert.ok(currentDoc);
+    runtime.publishChannelMessage = async (_sessionId, channelType, requestId, payload) => {
+      published.push({ channelType, requestId, payload });
+    };
+
+    await runtime.handleFileDelete(
+      createSessionState(),
+      {
+        request_id: "req-file-delete-success"
+      },
+      {
+        request_id: "req-file-delete-success",
+        file_id: "AGENTS.md",
+        base_hash: currentDoc?.base_hash
+      }
+    );
+
+    assert.equal(published.length, 1);
+    assert.equal(published[0]?.channelType, "file.delete.ok");
+    assert.equal(published[0]?.requestId, "req-file-delete-success");
+    assert.equal(published[0]?.payload?.deleted, true);
+    await assert.rejects(() => readFile(join(dir, "AGENTS.md"), "utf8"));
   });
 });
 

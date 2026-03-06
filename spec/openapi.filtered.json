@@ -6861,6 +6861,7 @@
           "label",
           "rate_limit_per_minute",
           "activity_retention_days",
+          "chat_retention_days",
           "features",
           "limits"
         ],
@@ -6887,6 +6888,12 @@
             "description": "Activity retention days.",
             "example": 1
           },
+          "chat_retention_days": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Chat retention days.",
+            "example": 1
+          },
           "features": {
             "type": "object",
             "additionalProperties": true,
@@ -6910,6 +6917,7 @@
           "label": "example",
           "rate_limit_per_minute": 1,
           "activity_retention_days": 1,
+          "chat_retention_days": 1,
           "features": {
             "key": "value"
           },

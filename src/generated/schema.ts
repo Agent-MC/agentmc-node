@@ -2070,6 +2070,7 @@ export interface components {
          *       "label": "example",
          *       "rate_limit_per_minute": 1,
          *       "activity_retention_days": 1,
+         *       "chat_retention_days": 1,
          *       "features": {
          *         "key": "value"
          *       },
@@ -2099,6 +2100,11 @@ export interface components {
              * @example 1
              */
             activity_retention_days: number;
+            /**
+             * @description Chat retention days.
+             * @example 1
+             */
+            chat_retention_days: number;
             /**
              * @description Features.
              * @example {

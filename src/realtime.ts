@@ -521,7 +521,6 @@ export async function subscribeToRealtimeNotifications(
     let readyTimeoutHandle: ReturnType<typeof setTimeout> | null = null;
     let resubscribeAttempt = 0;
     let eventQueue: Promise<void> = Promise.resolve();
-    let hasSubscriptionReady = false;
     let lastDeliveredSignalId = 0;
 
     const clearResubscribeTimer = (): void => {
@@ -673,7 +672,6 @@ export async function subscribeToRealtimeNotifications(
         clearReadyTimeout();
         clearResubscribeTimer();
         resubscribeAttempt = 0;
-        hasSubscriptionReady = true;
         subscription.markReady();
         await callOptionalHandler(options.onReady, claimedSession, options.onError);
       });

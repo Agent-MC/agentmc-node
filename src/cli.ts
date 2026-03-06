@@ -1284,9 +1284,7 @@ async function runMultiAgentRuntimeFromEnv(env: NodeJS.ProcessEnv): Promise<bool
       });
     }
 
-    const runtimeProvider = normalizeRuntimeProvider(null);
     const discoveredAgents = await detectRuntimeAgents({
-      runtimeProvider,
       workspaceDir: process.cwd()
     });
     if (discoveredAgents.length === 0) {

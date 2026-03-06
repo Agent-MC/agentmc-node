@@ -3741,58 +3741,6 @@ function parseJsonUnknown(value: string): unknown | null {
   }
 }
 
-function normalizeRuntimeProvider(value: string | null): "auto" | RuntimeProviderKind | undefined {
-  if (!value) {
-    return undefined;
-  }
-
-  const normalized = value.trim().toLowerCase();
-  if (normalized === "auto" || normalized === "openclaw" || normalized === "external") {
-    return normalized;
-  }
-
-  throw new Error("runtimeProvider must be one of: auto, openclaw, external.");
-}
-
-function parseCommaSeparatedList(value: unknown): string[] | undefined {
-  const raw = nonEmpty(value);
-  if (!raw) {
-    return undefined;
-  }
-
-  const values = raw
-    .split(",")
-    .map((entry) => entry.trim())
-    .filter((entry) => entry.length > 0);
-
-  return values.length > 0 ? values : undefined;
-}
-
-function parseCommandArguments(value: unknown): string[] | undefined {
-  const raw = nonEmpty(value);
-  if (!raw) {
-    return undefined;
-  }
-
-  try {
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) {
-      const values = parsed
-        .map((entry) => nonEmpty(entry))
-        .filter((entry): entry is string => entry !== null);
-      return values.length > 0 ? values : undefined;
-    }
-  } catch {
-    // Keep text fallback.
-  }
-
-  const values = raw
-    .split(/\s+/)
-    .map((entry) => entry.trim())
-    .filter((entry) => entry.length > 0);
-  return values.length > 0 ? values : undefined;
-}
-
 function requireNonEmpty(value: unknown, fieldName: string): string {
   const resolved = nonEmpty(value);
   if (!resolved) {
