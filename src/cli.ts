@@ -89,14 +89,8 @@ interface HostRuntimeCommandUpdate {
 }
 
 type HostHeartbeatRuntimeProvider = "openclaw" | "external" | "host-runtime";
-type RuntimeSupervisorMode = "multi-agent" | "single-agent";
+type RuntimeSupervisorMode = "multi-agent";
 type RuntimeSupervisorStatus = "running" | "stopped";
-
-interface AccessibleHeartbeatAgent {
-  id: number | null;
-  name: string | null;
-  runtimeKey: string | null;
-}
 
 type ApiErrorCarrier = Error & {
   status?: number;
@@ -1647,16 +1641,15 @@ async function runMultiAgentRuntimeFromEnv(env: NodeJS.ProcessEnv): Promise<bool
       hostApiKey,
       discoveredAgents
     });
-    let workers = resolved.workers;
+    const workers = resolved.workers;
     const startupWarnings = [...resolved.warnings];
 
     if (workers.length === 0) {
       throw new Error("Detected runtime agents but failed to build worker runtime configs.");
     }
     statusWorkers = workers;
-    let runtimeMode: RuntimeSupervisorMode = workers.length === 1 ? "single-agent" : "multi-agent";
     await persistStatusSafe({
-      mode: runtimeMode,
+      mode: "multi-agent",
       summary: `starting ${workers.length} worker runtime(s)`
     });
 
@@ -1674,43 +1667,7 @@ async function runMultiAgentRuntimeFromEnv(env: NodeJS.ProcessEnv): Promise<bool
       summary: "sending initial host heartbeat"
     });
 
-    let initialHeartbeat: HostHeartbeatResult;
-    try {
-      initialHeartbeat = await sendHostHeartbeat(heartbeatClient, workers, hostFingerprint);
-    } catch (error) {
-      if (!isScopedAgentHeartbeatError(error) || workers.length <= 1) {
-        throw error;
-      }
-
-      const accessibleAgents = await listAccessibleHeartbeatAgents(heartbeatClient);
-      const matchedWorkers = matchScopedHeartbeatWorkers(workers, accessibleAgents);
-      if (matchedWorkers.length === 0) {
-        throw error;
-      }
-
-      const skippedWorkers = workers
-        .filter((worker) => !matchedWorkers.some((matched) => matched.localKey === worker.localKey))
-        .map((worker) => worker.localName ?? worker.localKey);
-      workers = matchedWorkers;
-      statusWorkers = workers;
-      runtimeMode = workers.length === 1 ? "single-agent" : "multi-agent";
-
-      if (skippedWorkers.length > 0) {
-        startupWarnings.push(
-          `AGENTMC_API_KEY is scoped to a subset of agents; running ${workers.length} matched worker(s) and skipping ${skippedWorkers.join(", ")}.`
-        );
-      } else {
-        startupWarnings.push(
-          `AGENTMC_API_KEY is agent-scoped; retrying host heartbeat with ${workers.length} matched worker(s).`
-        );
-      }
-
-      await persistStatusSafe({
-        mode: runtimeMode,
-        summary: `retrying host heartbeat with ${workers.length} matched worker runtime(s)`
-      });
-      initialHeartbeat = await sendHostHeartbeat(heartbeatClient, workers, hostFingerprint);
-    }
+    const initialHeartbeat = await sendHostHeartbeat(heartbeatClient, workers, hostFingerprint);
 
     applyHeartbeatAgentMapping(workers, initialHeartbeat.agents);
     let latestHostRealtimeSocket: HostRealtimeSocketPayload | null = initialHeartbeat.hostRealtime;
@@ -2717,7 +2674,7 @@ function buildHostHeartbeatPayload(
         }
       }
     },
-    ...(agentPayloads.length === 1 ? { agent: agentPayloads[0] } : { agents: agentPayloads }),
+    agents: agentPayloads,
     ...(hostRuntimeUpdates.length > 0 ? { host_runtime_updates: hostRuntimeUpdates } : {})
   };
 }
@@ -2804,132 +2761,6 @@ async function sendHostHeartbeat(
   };
 }
 
-function apiErrorFieldMessages(error: unknown, fieldName: string): string[] {
-  const carrier = error as ApiErrorCarrier | null;
-  const payload = valueAsObject(carrier?.apiError);
-  const root = valueAsObject(payload?.error) ?? payload;
-  const details = valueAsObject(root?.details);
-  const fields = valueAsObject(details?.fields);
-  const rawMessages = Array.isArray(fields?.[fieldName]) ? fields[fieldName] : [];
-
-  return rawMessages
-    .map((value) => nonEmpty(value))
-    .filter((value): value is string => Boolean(value));
-}
-
-function apiErrorCode(error: unknown): string | null {
-  const carrier = error as ApiErrorCarrier | null;
-  const payload = valueAsObject(carrier?.apiError);
-  const root = valueAsObject(payload?.error) ?? payload;
-
-  return nonEmpty(root?.code) ?? null;
-}
-
-function isScopedAgentHeartbeatError(error: unknown): boolean {
-  const carrier = error as ApiErrorCarrier | null;
-  const code = apiErrorCode(error);
-  if (carrier?.status === 403 && code === "auth.insufficient_scope") {
-    return true;
-  }
-
-  if (carrier?.status !== 422) {
-    return false;
-  }
-
-  return apiErrorFieldMessages(error, "agents").some((message) =>
-    message.toLowerCase().includes("scoped agent")
-      && message.toLowerCase().includes("heartbeat one agent at a time")
-  );
-}
-
-async function listAccessibleHeartbeatAgents(client: AgentMCApi): Promise<AccessibleHeartbeatAgent[]> {
-  const response = await client.request("listAgents", {
-    params: {
-      query: {
-        per_page: 100
-      }
-    }
-  });
-
-  if (response.error) {
-    const summary = summarizeApiError(response.error);
-    throw new Error(`listAgents failed with status ${response.status}${summary ? ` (${summary})` : ""}`);
-  }
-
-  const responseData = valueAsObject(response.data);
-  const rows = Array.isArray(responseData?.data) ? responseData.data : [];
-
-  return rows
-    .map((row) => {
-      const objectRow = valueAsObject(row);
-      if (!objectRow) {
-        return null;
-      }
-
-      const meta = valueAsObject(objectRow.meta);
-      const identity = valueAsObject(meta?.identity);
-      const runtimeAgent = valueAsObject(meta?.runtime_agent);
-
-      return {
-        id: toPositiveInt(objectRow.id),
-        name: nonEmpty(objectRow.name),
-        runtimeKey:
-          nonEmpty(identity?.agent_key) ??
-          nonEmpty(identity?.agentKey) ??
-          nonEmpty(identity?.openclaw_agent) ??
-          nonEmpty(identity?.openclawAgent) ??
-          nonEmpty(runtimeAgent?.key) ??
-          nonEmpty(runtimeAgent?.agent_key) ??
-          nonEmpty(runtimeAgent?.agentKey) ??
-          null
-      } satisfies AccessibleHeartbeatAgent;
-    })
-    .filter((row): row is AccessibleHeartbeatAgent => row !== null);
-}
-
-function matchScopedHeartbeatWorkers(
-  workers: RuntimeWorkerConfig[],
-  accessibleAgents: AccessibleHeartbeatAgent[]
-): RuntimeWorkerConfig[] {
-  const matched: RuntimeWorkerConfig[] = [];
-  const usedLocalKeys = new Set<string>();
-
-  for (const remote of accessibleAgents) {
-    const remoteCandidates = [
-      nonEmpty(remote.runtimeKey)?.toLowerCase(),
-      nonEmpty(remote.name)?.toLowerCase()
-    ].filter((value): value is string => Boolean(value));
-    if (remoteCandidates.length === 0) {
-      continue;
-    }
-
-    const worker = workers.find((candidate) => {
-      if (usedLocalKeys.has(candidate.localKey)) {
-        return false;
-      }
-
-      const workerCandidates = [
-        candidate.localKey.toLowerCase(),
-        nonEmpty(candidate.openclawAgent)?.toLowerCase(),
-        nonEmpty(candidate.localName)?.toLowerCase()
-      ].filter((value): value is string => Boolean(value));
-
-      return remoteCandidates.some((value) => workerCandidates.includes(value));
-    });
-
-    if (!worker) {
-      continue;
-    }
-
-    if (remote.id !== null) {
-      worker.agentId = remote.id;
-    }
-    matched.push(worker);
-    usedLocalKeys.add(worker.localKey);
-  }
-
-  return matched;
-}
 
 function resolveHostHeartbeatAgentMeta(
   worker: RuntimeWorkerConfig,
