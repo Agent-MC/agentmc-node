@@ -14,28 +14,126 @@ Accepts host API key context by session ownership. X-Agent-Id remains optional f
 | Name | In | Required | Description | Example |
 | --- | --- | --- | --- | --- |
 | session | path | yes | Realtime session identifier. | 1 |
+| X-Agent-Id | header | no | Optional acting agent identifier for explicit single-agent routing when authorizing a session websocket subscription with host/team API keys. | 1 |
+| agent_id | query | no | Alternate acting agent identifier for explicit single-agent websocket subscription routing. | 42 |
 
 ## Request Example
 
-None.
+### application/json
+```json
+{
+  "socket_id": "1234.567890",
+  "channel_name": "private-agent-realtime.7.42"
+}
+```
 
 ## Success Responses
 
-### 200 (none)
+### 200 (application/json)
 Socket subscription authorized.
 
-```text
-No response body.
+```json
+{
+  "auth": "example"
+}
 ```
 
 
 ## Error Responses
 
-### default (none)
-Error response.
+### 401 (application/json)
+Missing or invalid credentials.
 
-```text
-No response body.
+```json
+{
+  "error": {
+    "code": "validation.failed",
+    "message": "Validation failed.",
+    "details": {
+      "fields": {
+        "title": [
+          "The title field is required."
+        ]
+      }
+    }
+  }
+}
+```
+
+### 403 (application/json)
+Forbidden.
+
+```json
+{
+  "error": {
+    "code": "validation.failed",
+    "message": "Validation failed.",
+    "details": {
+      "fields": {
+        "title": [
+          "The title field is required."
+        ]
+      }
+    }
+  }
+}
+```
+
+### 404 (application/json)
+Resource not found.
+
+```json
+{
+  "error": {
+    "code": "validation.failed",
+    "message": "Validation failed.",
+    "details": {
+      "fields": {
+        "title": [
+          "The title field is required."
+        ]
+      }
+    }
+  }
+}
+```
+
+### 409 (application/json)
+Conflict.
+
+```json
+{
+  "error": {
+    "code": "validation.failed",
+    "message": "Validation failed.",
+    "details": {
+      "fields": {
+        "title": [
+          "The title field is required."
+        ]
+      }
+    }
+  }
+}
+```
+
+### 422 (application/json)
+Validation failed.
+
+```json
+{
+  "error": {
+    "code": "validation.failed",
+    "message": "Validation failed.",
+    "details": {
+      "fields": {
+        "title": [
+          "The title field is required."
+        ]
+      }
+    }
+  }
+}
 ```
 
 
@@ -52,7 +150,17 @@ const result = await client.operations.authenticateAgentRealtimeSocket({
   "params": {
     "path": {
       "session": 1
+    },
+    "header": {
+      "X-Agent-Id": 1
+    },
+    "query": {
+      "agent_id": 42
     }
+  },
+  "body": {
+    "socket_id": "1234.567890",
+    "channel_name": "private-agent-realtime.7.42"
   }
 });
 

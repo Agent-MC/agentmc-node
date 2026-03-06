@@ -7,13 +7,15 @@
 
 ## Description
 
-No additional description.
+Deletes one calendar item. Host/team API key callers should send X-Agent-Id (or agent_id query) so deletion is attributed to the acting agent.
 
 ## Parameters
 
 | Name | In | Required | Description | Example |
 | --- | --- | --- | --- | --- |
 | item | path | yes | Calendar item identifier. | 1 |
+| X-Agent-Id | header | no | Acting agent identifier for host/team API key requests when deleting a calendar item. | 1 |
+| agent_id | query | no | Alternate acting agent identifier for host/team API key calendar deletes. | 42 |
 
 ## Request Example
 
@@ -21,21 +23,75 @@ None.
 
 ## Success Responses
 
-### 204 (none)
-Calendar item deleted.
+### 204 (application/json)
+No content.
 
-```text
-No response body.
+```json
+{
+  "data": {
+    "key": "value"
+  }
+}
 ```
 
 
 ## Error Responses
 
-### default (none)
-Error response.
+### 401 (application/json)
+Missing or invalid credentials.
 
-```text
-No response body.
+```json
+{
+  "error": {
+    "code": "validation.failed",
+    "message": "Validation failed.",
+    "details": {
+      "fields": {
+        "title": [
+          "The title field is required."
+        ]
+      }
+    }
+  }
+}
+```
+
+### 403 (application/json)
+Forbidden.
+
+```json
+{
+  "error": {
+    "code": "validation.failed",
+    "message": "Validation failed.",
+    "details": {
+      "fields": {
+        "title": [
+          "The title field is required."
+        ]
+      }
+    }
+  }
+}
+```
+
+### 404 (application/json)
+Resource not found.
+
+```json
+{
+  "error": {
+    "code": "validation.failed",
+    "message": "Validation failed.",
+    "details": {
+      "fields": {
+        "title": [
+          "The title field is required."
+        ]
+      }
+    }
+  }
+}
 ```
 
 
@@ -52,6 +108,12 @@ const result = await client.operations.deleteCalendarItem({
   "params": {
     "path": {
       "item": 1
+    },
+    "header": {
+      "X-Agent-Id": 1
+    },
+    "query": {
+      "agent_id": 42
     }
   }
 });

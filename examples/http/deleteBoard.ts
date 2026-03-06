@@ -7,7 +7,7 @@ const client = new AgentMCApi({
 const result = await client.operations.deleteBoard({
   "params": {
     "path": {
-      "id": 1
+      "id": 42
     }
   }
 });

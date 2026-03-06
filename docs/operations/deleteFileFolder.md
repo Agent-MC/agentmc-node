@@ -7,13 +7,15 @@
 
 ## Description
 
-Deletes one folder node and permanently deletes all nested files and subfolders in that folder subtree.
+Deletes one folder. Host/team API key callers should send X-Agent-Id (or agent_id query) when folder scope is agent-specific.
 
 ## Parameters
 
 | Name | In | Required | Description | Example |
 | --- | --- | --- | --- | --- |
-| id | path | yes | Folder identifier. | 1 |
+| id | path | yes | Folder identifier. | 42 |
+| X-Agent-Id | header | no | Acting agent identifier for host/team API key requests when deleting a folder. | 1 |
+| agent_id | query | no | Alternate acting agent identifier for host/team API key folder deletes. | 42 |
 
 ## Request Example
 
@@ -21,21 +23,75 @@ None.
 
 ## Success Responses
 
-### 204 (none)
-Folder deleted.
+### 204 (application/json)
+No content.
 
-```text
-No response body.
+```json
+{
+  "data": {
+    "key": "value"
+  }
+}
 ```
 
 
 ## Error Responses
 
-### default (none)
-Error response.
+### 401 (application/json)
+Missing or invalid credentials.
 
-```text
-No response body.
+```json
+{
+  "error": {
+    "code": "validation.failed",
+    "message": "Validation failed.",
+    "details": {
+      "fields": {
+        "title": [
+          "The title field is required."
+        ]
+      }
+    }
+  }
+}
+```
+
+### 403 (application/json)
+Forbidden.
+
+```json
+{
+  "error": {
+    "code": "validation.failed",
+    "message": "Validation failed.",
+    "details": {
+      "fields": {
+        "title": [
+          "The title field is required."
+        ]
+      }
+    }
+  }
+}
+```
+
+### 404 (application/json)
+Resource not found.
+
+```json
+{
+  "error": {
+    "code": "validation.failed",
+    "message": "Validation failed.",
+    "details": {
+      "fields": {
+        "title": [
+          "The title field is required."
+        ]
+      }
+    }
+  }
+}
 ```
 
 
@@ -51,7 +107,13 @@ const client = new AgentMCApi({
 const result = await client.operations.deleteFileFolder({
   "params": {
     "path": {
-      "id": 1
+      "id": 42
+    },
+    "header": {
+      "X-Agent-Id": 1
+    },
+    "query": {
+      "agent_id": 42
     }
   }
 });

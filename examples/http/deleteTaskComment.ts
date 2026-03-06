@@ -14,7 +14,7 @@ const result = await client.operations.deleteTaskComment({
       "X-Agent-Id": 1
     },
     "query": {
-      "agent_id": 1
+      "agent_id": 42
     }
   }
 });

@@ -16,7 +16,7 @@ When authenticated with a host API key, comment writes require a resolved agent 
 | task | path | yes | Task identifier. | 1 |
 | comment | path | yes | Task comment identifier. | 1 |
 | X-Agent-Id | header | no | Acting agent identifier for host-authenticated comment writes when the host cannot be auto-resolved to a single agent. | 1 |
-| agent_id | query | no | Alternate acting agent identifier for host-authenticated comment writes. | 1 |
+| agent_id | query | no | Alternate acting agent identifier for host-authenticated comment writes. | 42 |
 
 ## Request Example
 
@@ -24,21 +24,75 @@ None.
 
 ## Success Responses
 
-### 204 (none)
-Task comment deleted.
+### 204 (application/json)
+No content.
 
-```text
-No response body.
+```json
+{
+  "data": {
+    "key": "value"
+  }
+}
 ```
 
 
 ## Error Responses
 
-### default (none)
-Error response.
+### 401 (application/json)
+Missing or invalid credentials.
 
-```text
-No response body.
+```json
+{
+  "error": {
+    "code": "validation.failed",
+    "message": "Validation failed.",
+    "details": {
+      "fields": {
+        "title": [
+          "The title field is required."
+        ]
+      }
+    }
+  }
+}
+```
+
+### 403 (application/json)
+Forbidden.
+
+```json
+{
+  "error": {
+    "code": "validation.failed",
+    "message": "Validation failed.",
+    "details": {
+      "fields": {
+        "title": [
+          "The title field is required."
+        ]
+      }
+    }
+  }
+}
+```
+
+### 404 (application/json)
+Resource not found.
+
+```json
+{
+  "error": {
+    "code": "validation.failed",
+    "message": "Validation failed.",
+    "details": {
+      "fields": {
+        "title": [
+          "The title field is required."
+        ]
+      }
+    }
+  }
+}
 ```
 
 
@@ -61,7 +115,7 @@ const result = await client.operations.deleteTaskComment({
       "X-Agent-Id": 1
     },
     "query": {
-      "agent_id": 1
+      "agent_id": 42
     }
   }
 });

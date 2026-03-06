@@ -7,33 +7,75 @@
 
 ## Description
 
-No additional description.
+Marks all notifications as read for the current user or resolved agent inbox. Host/team API key callers must provide X-Agent-Id (or agent_id query) to act on an agent inbox.
 
 ## Parameters
 
-None.
+| Name | In | Required | Description | Example |
+| --- | --- | --- | --- | --- |
+| X-Agent-Id | header | no | Acting agent identifier for host/team API key requests when marking an agent inbox as read. | 1 |
+| agent_id | query | no | Alternate acting agent identifier for host/team API key notification bulk updates. | 42 |
 
 ## Request Example
 
-None.
+### application/json
+```json
+{}
+```
 
 ## Success Responses
 
-### 200 (none)
+### 200 (application/json)
 Notifications updated.
 
-```text
-No response body.
+```json
+{
+  "data": {
+    "updated": 4,
+    "unread_count": 0
+  }
+}
 ```
 
 
 ## Error Responses
 
-### default (none)
-Error response.
+### 401 (application/json)
+Missing or invalid credentials.
 
-```text
-No response body.
+```json
+{
+  "error": {
+    "code": "validation.failed",
+    "message": "Validation failed.",
+    "details": {
+      "fields": {
+        "title": [
+          "The title field is required."
+        ]
+      }
+    }
+  }
+}
+```
+
+### 403 (application/json)
+Forbidden.
+
+```json
+{
+  "error": {
+    "code": "validation.failed",
+    "message": "Validation failed.",
+    "details": {
+      "fields": {
+        "title": [
+          "The title field is required."
+        ]
+      }
+    }
+  }
+}
 ```
 
 
@@ -46,7 +88,17 @@ const client = new AgentMCApi({
   apiKey: process.env.AGENTMC_API_KEY
 });
 
-const result = await client.operations.markAllNotificationsRead();
+const result = await client.operations.markAllNotificationsRead({
+  "params": {
+    "header": {
+      "X-Agent-Id": 1
+    },
+    "query": {
+      "agent_id": 42
+    }
+  },
+  "body": {}
+});
 
 if (result.error) {
   console.error(result.status, result.error);

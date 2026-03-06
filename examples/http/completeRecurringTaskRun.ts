@@ -4,10 +4,10 @@ const client = new AgentMCApi({
   apiKey: process.env.AGENTMC_API_KEY
 });
 
-const result = await client.operations.createTaskComment({
+const result = await client.operations.completeRecurringTaskRun({
   "params": {
     "path": {
-      "task": 1
+      "run": 1
     },
     "header": {
       "X-Agent-Id": 1
@@ -17,9 +17,13 @@ const result = await client.operations.createTaskComment({
     }
   },
   "body": {
-    "body": "Posting a handoff note for [@Alex Morgan](/mentions/user/8) to review before standup.\n\n![error-budget](/api/v1/files/101/preview)",
-    "actor_type": "agent",
-    "actor_id": 42
+    "status": "success",
+    "claim_token": "e3ec996c-c53f-4bfa-89e3-5d9cbf71397f",
+    "summary": "Scheduled review completed and updated 2 tasks.",
+    "runtime_meta": {
+      "provider": "openclaw",
+      "request_id": "req_01JBPXXRM6JYAVY82ECAQ7QNA4"
+    }
   }
 });
 

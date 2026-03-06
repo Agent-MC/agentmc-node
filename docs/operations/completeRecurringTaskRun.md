@@ -1,32 +1,33 @@
-# closeAgentRealtimeSession
+# completeRecurringTaskRun
 
 - Method: `POST`
-- Path: `/hosts/realtime/sessions/{session}/close`
-- Summary: Close a realtime session (host or agent context).
+- Path: `/agents/recurring-task-runs/{run}/complete`
+- Summary: -
 - Auth: ApiKeyAuth
 
 ## Description
 
-Accepts host API key context by session ownership. X-Agent-Id remains optional for explicit single-agent routing.
+Completes one recurring task run for the resolved acting agent. Host/team API key callers must provide X-Agent-Id (or agent_id query) unless the credential is already scoped to a single agent.
 
 ## Parameters
 
 | Name | In | Required | Description | Example |
 | --- | --- | --- | --- | --- |
-| session | path | yes | Realtime session identifier. | 1 |
-| X-Agent-Id | header | no | Optional acting agent identifier for explicit single-agent routing when closing a session with host/team API keys. | 1 |
-| agent_id | query | no | Alternate acting agent identifier for explicit single-agent session close routing. | 42 |
+| run | path | yes | Run. | 1 |
+| X-Agent-Id | header | no | Acting agent identifier for host/team API key requests. Required when completing a recurring run for a specific agent. | 1 |
+| agent_id | query | no | Alternate acting agent identifier for host/team API key requests when completing a recurring run. | 42 |
 
 ## Request Example
 
 ### application/json
 ```json
 {
-  "reason": "runtime_shutdown",
-  "status": "closed",
-  "payload": {
-    "request_id": "req_92b3f2",
-    "note": "Session closed by runtime during reconnect."
+  "status": "success",
+  "claim_token": "e3ec996c-c53f-4bfa-89e3-5d9cbf71397f",
+  "summary": "Scheduled review completed and updated 2 tasks.",
+  "runtime_meta": {
+    "provider": "openclaw",
+    "request_id": "req_01JBPXXRM6JYAVY82ECAQ7QNA4"
   }
 }
 ```
@@ -34,7 +35,7 @@ Accepts host API key context by session ownership. X-Agent-Id remains optional f
 ## Success Responses
 
 ### 200 (application/json)
-Realtime session closed.
+Successful response.
 
 ```json
 {
@@ -42,15 +43,19 @@ Realtime session closed.
     "id": 42,
     "team_id": 42,
     "agent_id": 42,
-    "requested_by_user_id": 42,
-    "status": "requested",
-    "claimed_at": "2026-02-22T17:21:00Z",
-    "opened_at": "2026-02-22T17:21:00Z",
-    "closed_at": "2026-02-22T17:21:00Z",
-    "expires_at": "2026-02-22T17:21:00Z",
-    "last_browser_heartbeat_at": "2026-02-22T17:21:00Z",
-    "last_agent_heartbeat_at": "2026-02-22T17:21:00Z",
-    "meta": {
+    "agent_recurring_task_id": 42,
+    "scheduled_for": "2026-02-22T17:21:00Z",
+    "status": "running",
+    "claim_token": "example",
+    "prompt_snapshot": "example",
+    "schedule_snapshot": {
+      "key": "value"
+    },
+    "started_at": "2026-02-22T17:21:00Z",
+    "finished_at": "2026-02-22T17:21:00Z",
+    "summary": "Morning operations handoff digest.",
+    "error_message": "example",
+    "runtime_meta": {
       "key": "value"
     },
     "created_at": "2026-02-22T17:21:00Z",
@@ -167,10 +172,10 @@ const client = new AgentMCApi({
   apiKey: process.env.AGENTMC_API_KEY
 });
 
-const result = await client.operations.closeAgentRealtimeSession({
+const result = await client.operations.completeRecurringTaskRun({
   "params": {
     "path": {
-      "session": 1
+      "run": 1
     },
     "header": {
       "X-Agent-Id": 1
@@ -180,11 +185,12 @@ const result = await client.operations.closeAgentRealtimeSession({
     }
   },
   "body": {
-    "reason": "runtime_shutdown",
-    "status": "closed",
-    "payload": {
-      "request_id": "req_92b3f2",
-      "note": "Session closed by runtime during reconnect."
+    "status": "success",
+    "claim_token": "e3ec996c-c53f-4bfa-89e3-5d9cbf71397f",
+    "summary": "Scheduled review completed and updated 2 tasks.",
+    "runtime_meta": {
+      "provider": "openclaw",
+      "request_id": "req_01JBPXXRM6JYAVY82ECAQ7QNA4"
     }
   }
 });
