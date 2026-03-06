@@ -7,143 +7,33 @@
 
 ## Description
 
-Creates one upload ticket. Host/team API key callers should send X-Agent-Id (or agent_id query) so upload scope resolves to the acting agent home folder.
+No additional description.
 
 ## Parameters
 
-| Name | In | Required | Description | Example |
-| --- | --- | --- | --- | --- |
-| X-Agent-Id | header | no | Acting agent identifier for host/team API key requests when creating an upload ticket. | 1 |
-| agent_id | query | no | Alternate acting agent identifier for host/team API key upload ticket creation. | 42 |
+None.
 
 ## Request Example
 
-### application/json
-```json
-{
-  "filename": "incident-timeline.md",
-  "byte_size": 14220,
-  "mime_type": "text/markdown",
-  "checksum_sha256": "43f88f3c4bf62933800d6f65dc8d9e2fbb2d930fd6134fc4ead6222b5d5f3bc5"
-}
-```
+None.
 
 ## Success Responses
 
-### 201 (application/json)
+### 201 (none)
 Upload ticket created.
 
-```json
-{
-  "data": {
-    "upload_id": "tup_8f4f7f3f836d43d28c4f7311a48258f5",
-    "object_key": "teams/7/files/2026/02/27/tup_8f4f7f3f836d43d28c4f7311a48258f5.md",
-    "upload_url": "https://storage.example.com/bucket/teams/7/files/2026/02/27/tup_8f4f7f3f836d43d28c4f7311a48258f5.md?...",
-    "upload_method": "PUT",
-    "upload_headers": {
-      "Content-Type": "text/markdown"
-    },
-    "expires_at": "2026-02-27T17:30:00Z"
-  }
-}
+```text
+No response body.
 ```
 
 
 ## Error Responses
 
-### 401 (application/json)
-Missing or invalid credentials.
+### default (none)
+Error response.
 
-```json
-{
-  "error": {
-    "code": "validation.failed",
-    "message": "Validation failed.",
-    "details": {
-      "fields": {
-        "title": [
-          "The title field is required."
-        ]
-      }
-    }
-  }
-}
-```
-
-### 402 (application/json)
-Plan limit reached.
-
-```json
-{
-  "error": {
-    "code": "validation.failed",
-    "message": "Validation failed.",
-    "details": {
-      "fields": {
-        "title": [
-          "The title field is required."
-        ]
-      }
-    }
-  }
-}
-```
-
-### 403 (application/json)
-Forbidden.
-
-```json
-{
-  "error": {
-    "code": "validation.failed",
-    "message": "Validation failed.",
-    "details": {
-      "fields": {
-        "title": [
-          "The title field is required."
-        ]
-      }
-    }
-  }
-}
-```
-
-### 422 (application/json)
-Validation failed.
-
-```json
-{
-  "error": {
-    "code": "validation.failed",
-    "message": "Validation failed.",
-    "details": {
-      "fields": {
-        "title": [
-          "The title field is required."
-        ]
-      }
-    }
-  }
-}
-```
-
-### 503 (application/json)
-Service unavailable.
-
-```json
-{
-  "error": {
-    "code": "validation.failed",
-    "message": "Validation failed.",
-    "details": {
-      "fields": {
-        "title": [
-          "The title field is required."
-        ]
-      }
-    }
-  }
-}
+```text
+No response body.
 ```
 
 
@@ -156,22 +46,7 @@ const client = new AgentMCApi({
   apiKey: process.env.AGENTMC_API_KEY
 });
 
-const result = await client.operations.createFileUpload({
-  "params": {
-    "header": {
-      "X-Agent-Id": 1
-    },
-    "query": {
-      "agent_id": 42
-    }
-  },
-  "body": {
-    "filename": "incident-timeline.md",
-    "byte_size": 14220,
-    "mime_type": "text/markdown",
-    "checksum_sha256": "43f88f3c4bf62933800d6f65dc8d9e2fbb2d930fd6134fc4ead6222b5d5f3bc5"
-  }
-});
+const result = await client.operations.createFileUpload();
 
 if (result.error) {
   console.error(result.status, result.error);

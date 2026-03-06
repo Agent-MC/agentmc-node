@@ -10,7 +10,6 @@ Generated from `spec/openapi.filtered.json`.
 | [claimAgentRealtimeSession](./claimAgentRealtimeSession.md) | POST | `/hosts/realtime/sessions/{session}/claim` | Hosts |
 | [closeAgentRealtimeSession](./closeAgentRealtimeSession.md) | POST | `/hosts/realtime/sessions/{session}/close` | Hosts |
 | [commentCalendarItem](./commentCalendarItem.md) | POST | `/calendar/items/{item}/comments` | Calendar |
-| [completeRecurringTaskRun](./completeRecurringTaskRun.md) | POST | `/agents/recurring-task-runs/{run}/complete` | Agents |
 | [createAgentBrief](./createAgentBrief.md) | POST | `/briefs` | Briefs |
 | [createAgentRealtimeSignal](./createAgentRealtimeSignal.md) | POST | `/hosts/realtime/sessions/{session}/signals` | Hosts |
 | [createBoard](./createBoard.md) | POST | `/boards` | Boards |
@@ -30,14 +29,12 @@ Generated from `spec/openapi.filtered.json`.
 | [deleteTask](./deleteTask.md) | DELETE | `/tasks/{task}` | Tasks |
 | [deleteTaskComment](./deleteTaskComment.md) | DELETE | `/tasks/{task}/comments/{comment}` | Tasks |
 | [downloadFile](./downloadFile.md) | GET | `/files/{id}/download` | Files |
-| [getAgentsInstructions](./getAgentsInstructions.md) | GET | `/agents/instructions` | Agents |
 | [listAgentBriefs](./listAgentBriefs.md) | GET | `/briefs` | Briefs |
 | [listAgentRealtimeRequestedSessions](./listAgentRealtimeRequestedSessions.md) | GET | `/hosts/realtime/sessions/requested` | Hosts |
 | [listAgentRealtimeSignals](./listAgentRealtimeSignals.md) | GET | `/hosts/realtime/sessions/{session}/signals` | Hosts |
 | [listAgents](./listAgents.md) | GET | `/teams/agents` | Teams |
 | [listBoards](./listBoards.md) | GET | `/boards` | Boards |
 | [listCalendar](./listCalendar.md) | GET | `/calendar` | Calendar |
-| [listDueRecurringTaskRuns](./listDueRecurringTaskRuns.md) | GET | `/agents/recurring-task-runs/due` | Agents |
 | [listFileFolders](./listFileFolders.md) | GET | `/files/folders` | Files |
 | [listFiles](./listFiles.md) | GET | `/files` | Files |
 | [listHosts](./listHosts.md) | GET | `/hosts` | Hosts |

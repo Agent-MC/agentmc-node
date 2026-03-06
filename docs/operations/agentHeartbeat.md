@@ -7,7 +7,7 @@
 
 ## Description
 
-Accepts heartbeat payloads with required host telemetry and required runtime agent metadata. Runtime clients should include `meta.models` and `meta.agentmc_node_package_version` on every heartbeat.
+Accepts heartbeat pings with required host telemetry payload and required runtime agent metadata.
 
 ## Parameters
 
@@ -17,234 +17,32 @@ Accepts heartbeat payloads with required host telemetry and required runtime age
 
 ## Request Example
 
-### application/json
-```json
-{
-  "meta": {
-    "runtime": {
-      "name": "openclaw",
-      "version": "2026.2.26",
-      "build": "bc50708",
-      "mode": "openclaw"
-    },
-    "openclaw_version": "2026.2.26",
-    "openclaw_build": "bc50708",
-    "models": [
-      "openai/gpt-5-codex"
-    ],
-    "node_version": "v25.7.0",
-    "agentmc_node_package_version": "0.14.2",
-    "tool_availability": {
-      "chat_realtime": true,
-      "files_realtime": true,
-      "notifications_realtime": true
-    }
-  },
-  "host": {
-    "fingerprint": "a3f56f330f311a2159f8c101eaf1439a29f1d57f007375d56aa79f304bc4f112",
-    "name": "worker-01",
-    "meta": {
-      "hostname": "worker-01",
-      "ip": "10.0.2.15",
-      "network": {
-        "private_ip": "10.0.2.15",
-        "public_ip": "34.222.10.10"
-      },
-      "os": "Ubuntu",
-      "os_version": "24.04",
-      "arch": "x86_64",
-      "cpu": "Intel Xeon",
-      "cpu_cores": 8,
-      "ram_gb": 32,
-      "disk": {
-        "total_bytes": 536870912000,
-        "free_bytes": 322122547200
-      },
-      "uptime_seconds": 86400,
-      "runtime": {
-        "name": "codex",
-        "version": "2026.02.1"
-      }
-    }
-  },
-  "agent": {
-    "name": "Jarvis",
-    "identity": {
-      "name": "Jarvis",
-      "agent_key": "solomon",
-      "creature": "robot",
-      "vibe": "calm"
-    }
-  }
-}
-```
+None.
 
 ## Success Responses
 
-### 200 (application/json)
+### 200 (none)
 Heartbeat accepted.
 
-```json
-{
-  "ok": true,
-  "server_time": "2026-02-22T17:21:02Z",
-  "defaults": {
-    "heartbeat_interval_seconds": 900
-  },
-  "host": {
-    "id": 12,
-    "team_id": 7,
-    "name": "worker-01",
-    "fingerprint": "a3f56f330f311a2159f8c101eaf1439a29f1d57f007375d56aa79f304bc4f112",
-    "status": "online",
-    "last_seen_at": "2026-02-22T17:21:02Z",
-    "agent_runtime": "openclaw",
-    "agent_runtime_version": "2026.02.1",
-    "meta": {
-      "hostname": "worker-01",
-      "os": "Ubuntu",
-      "arch": "x86_64",
-      "runtime": {
-        "name": "codex",
-        "version": "2026.02.1"
-      }
-    },
-    "created_by_user_id": 1,
-    "agents_total": 1,
-    "agents_online": 1,
-    "created_at": "2026-02-22T17:21:02Z",
-    "updated_at": "2026-02-22T17:21:02Z"
-  },
-  "host_realtime": {
-    "connection": {
-      "driver": "reverb",
-      "key": "local-app-key",
-      "cluster": "mt1",
-      "host": "agentmc.ai",
-      "port": 443,
-      "scheme": "https",
-      "path": ""
-    },
-    "channel": "private-agent-realtime-host.12",
-    "event": "agent.realtime.host.session.requested",
-    "auth_endpoint": "https://agentmc.ai/api/v1/hosts/realtime/socket-auth"
-  },
-  "host_runtime_commands": [
-    {
-      "id": 44,
-      "type": "agent.provision",
-      "provider": "openclaw",
-      "payload": {
-        "agent_name": "QA Agent",
-        "agent_emoji": "🧪",
-        "runtime_key": "qa-agent"
-      }
-    }
-  ],
-  "agent": {
-    "id": 42,
-    "name": "Solomon",
-    "type": "openclaw"
-  }
-}
+```text
+No response body.
 ```
 
 
 ## Error Responses
 
-### 401 (application/json)
-Missing or invalid credentials.
+### 401 (none)
+Missing or invalid API key.
 
-```json
-{
-  "error": {
-    "code": "validation.failed",
-    "message": "Validation failed.",
-    "details": {
-      "fields": {
-        "title": [
-          "The title field is required."
-        ]
-      }
-    }
-  }
-}
+```text
+No response body.
 ```
 
-### 402 (application/json)
-Plan limit reached.
-
-```json
-{
-  "error": {
-    "code": "validation.failed",
-    "message": "Validation failed.",
-    "details": {
-      "fields": {
-        "title": [
-          "The title field is required."
-        ]
-      }
-    }
-  }
-}
-```
-
-### 403 (application/json)
+### 403 (none)
 Forbidden.
 
-```json
-{
-  "error": {
-    "code": "validation.failed",
-    "message": "Validation failed.",
-    "details": {
-      "fields": {
-        "title": [
-          "The title field is required."
-        ]
-      }
-    }
-  }
-}
-```
-
-### 404 (application/json)
-Resource not found.
-
-```json
-{
-  "error": {
-    "code": "validation.failed",
-    "message": "Validation failed.",
-    "details": {
-      "fields": {
-        "title": [
-          "The title field is required."
-        ]
-      }
-    }
-  }
-}
-```
-
-### 422 (application/json)
-Validation failed.
-
-```json
-{
-  "error": {
-    "code": "validation.failed",
-    "message": "Validation failed.",
-    "details": {
-      "fields": {
-        "title": [
-          "The title field is required."
-        ]
-      }
-    }
-  }
-}
+```text
+No response body.
 ```
 
 
@@ -261,64 +59,6 @@ const result = await client.operations.agentHeartbeat({
   "params": {
     "header": {
       "X-Host-Fingerprint": "a3f56f330f311a2159f8c101eaf1439a29f1d57f007375d56aa79f304bc4f112"
-    }
-  },
-  "body": {
-    "meta": {
-      "runtime": {
-        "name": "openclaw",
-        "version": "2026.2.26",
-        "build": "bc50708",
-        "mode": "openclaw"
-      },
-      "openclaw_version": "2026.2.26",
-      "openclaw_build": "bc50708",
-      "models": [
-        "openai/gpt-5-codex"
-      ],
-      "node_version": "v25.7.0",
-      "agentmc_node_package_version": "0.14.2",
-      "tool_availability": {
-        "chat_realtime": true,
-        "files_realtime": true,
-        "notifications_realtime": true
-      }
-    },
-    "host": {
-      "fingerprint": "a3f56f330f311a2159f8c101eaf1439a29f1d57f007375d56aa79f304bc4f112",
-      "name": "worker-01",
-      "meta": {
-        "hostname": "worker-01",
-        "ip": "10.0.2.15",
-        "network": {
-          "private_ip": "10.0.2.15",
-          "public_ip": "34.222.10.10"
-        },
-        "os": "Ubuntu",
-        "os_version": "24.04",
-        "arch": "x86_64",
-        "cpu": "Intel Xeon",
-        "cpu_cores": 8,
-        "ram_gb": 32,
-        "disk": {
-          "total_bytes": 536870912000,
-          "free_bytes": 322122547200
-        },
-        "uptime_seconds": 86400,
-        "runtime": {
-          "name": "codex",
-          "version": "2026.02.1"
-        }
-      }
-    },
-    "agent": {
-      "name": "Jarvis",
-      "identity": {
-        "name": "Jarvis",
-        "agent_key": "solomon",
-        "creature": "robot",
-        "vibe": "calm"
-      }
     }
   }
 });

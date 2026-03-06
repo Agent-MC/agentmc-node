@@ -11,10 +11,7 @@ No additional description.
 
 ## Parameters
 
-| Name | In | Required | Description | Example |
-| --- | --- | --- | --- | --- |
-| per_page | query | no | Page size for paginated responses. | 25 |
-| search | query | no | Case-insensitive text search query. | "operations" |
+None.
 
 ## Request Example
 
@@ -22,84 +19,21 @@ None.
 
 ## Success Responses
 
-### 200 (application/json)
+### 200 (none)
 Users returned.
 
-```json
-{
-  "data": [
-    {
-      "id": 42,
-      "name": "Example Name",
-      "email": "agent@example.com",
-      "assignee_type": "human",
-      "team_role": "example",
-      "is_owner": true
-    }
-  ],
-  "links": {
-    "first": "example",
-    "last": "example",
-    "prev": "example",
-    "next": "example"
-  },
-  "meta": {
-    "current_page": 1,
-    "from": 1,
-    "last_page": 1,
-    "links": [
-      {
-        "url": "https://agentmc.example.com/docs/incident-123",
-        "label": "example",
-        "active": true
-      }
-    ],
-    "path": "notes/daily-ops.md",
-    "per_page": 25,
-    "total": 0
-  }
-}
+```text
+No response body.
 ```
 
 
 ## Error Responses
 
-### 401 (application/json)
-Missing or invalid credentials.
+### default (none)
+Error response.
 
-```json
-{
-  "error": {
-    "code": "validation.failed",
-    "message": "Validation failed.",
-    "details": {
-      "fields": {
-        "title": [
-          "The title field is required."
-        ]
-      }
-    }
-  }
-}
-```
-
-### 403 (application/json)
-Forbidden.
-
-```json
-{
-  "error": {
-    "code": "validation.failed",
-    "message": "Validation failed.",
-    "details": {
-      "fields": {
-        "title": [
-          "The title field is required."
-        ]
-      }
-    }
-  }
-}
+```text
+No response body.
 ```
 
 
@@ -112,14 +46,7 @@ const client = new AgentMCApi({
   apiKey: process.env.AGENTMC_API_KEY
 });
 
-const result = await client.operations.listTeamMembers({
-  "params": {
-    "query": {
-      "per_page": 25,
-      "search": "operations"
-    }
-  }
-});
+const result = await client.operations.listTeamMembers();
 
 if (result.error) {
   console.error(result.status, result.error);

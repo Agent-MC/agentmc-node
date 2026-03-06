@@ -230,6 +230,7 @@ const DEFAULT_RUNTIME_ERROR_LOOKBACK_MINUTES = 30;
 const DEFAULT_RUNTIME_ERROR_LIMIT = 20;
 const DEFAULT_RUNTIME_LOG_LINES = 100;
 const DEFAULT_RUNTIME_DNS_RESULT_ORDER = "ipv4first";
+const DEFAULT_UNRESOLVED_WORKER_WAIT_MS = 10_000;
 const OPENCLAW_MODELS_STATUS_COMMAND: readonly string[] = ["models", "--status-json"];
 const OPENCLAW_MODELS_STATUS_FALLBACK_COMMAND: readonly string[] = ["models", "status", "--json"];
 const OPENCLAW_MODEL_PLACEHOLDER_TOKENS = new Set([
@@ -1662,14 +1663,19 @@ async function runMultiAgentRuntimeFromEnv(env: NodeJS.ProcessEnv): Promise<bool
     applyHeartbeatAgentMapping(resolved.workers, initialHeartbeat.agents);
     let latestHostRealtimeSocket: HostRealtimeSocketPayload | null = initialHeartbeat.hostRealtime;
     hostHeartbeatIntervalSeconds = initialHeartbeat.heartbeatIntervalSeconds ?? hostHeartbeatIntervalSeconds;
-    await persistStatusSafe({
-      summary: "initial host heartbeat complete"
-    });
-
     const unresolvedWorkers = resolved.workers.filter((worker) => worker.agentId === null);
     if (unresolvedWorkers.length > 0) {
       const unresolved = unresolvedWorkers.map((worker) => worker.localKey).join(", ");
-      throw new Error(`Host heartbeat did not resolve AgentMC ids for runtime agents: ${unresolved}`);
+      process.stderr.write(
+        `[agentmc-runtime] initial host heartbeat left workers unresolved; keeping them paused until AgentMC resolves ids local=${unresolved} cause=plan-capacity-or-mapping\n`
+      );
+      await persistStatusSafe({
+        summary: `initial host heartbeat complete; paused unresolved workers: ${unresolved}`
+      });
+    } else {
+      await persistStatusSafe({
+        summary: "initial host heartbeat complete"
+      });
     }
 
     for (const warning of resolved.warnings) {
@@ -3901,8 +3907,30 @@ async function runRuntimeEntryWithRestart(input: {
     }
   };
   let consecutiveFailures = 0;
+  let waitingForAgentId = false;
 
   while (!shouldStop()) {
+    if (entry.worker.agentId === null) {
+      if (!waitingForAgentId) {
+        waitingForAgentId = true;
+        process.stderr.write(
+          `[agentmc-runtime] worker paused awaiting AgentMC agent id local=${entry.worker.localKey} provider=${entry.worker.provider ?? "unknown"} workspace=${entry.worker.workspaceDir}\n`
+        );
+        await emitWorkerEvent("paused-awaiting-agent-id");
+      }
+
+      await sleep(DEFAULT_UNRESOLVED_WORKER_WAIT_MS);
+      continue;
+    }
+
+    if (waitingForAgentId) {
+      waitingForAgentId = false;
+      process.stderr.write(
+        `[agentmc-runtime] worker agent id resolved; resuming local=${entry.worker.localKey} agent=${entry.worker.agentId}\n`
+      );
+      await emitWorkerEvent("agent-id-resolved");
+    }
+
     const workerLabel =
       `agent=${entry.worker.agentId ?? `auto:${entry.worker.localKey}`} provider=${entry.worker.provider ?? "unknown"} ` +
       `local=${entry.worker.localName ?? "unknown"} workspace=${entry.worker.workspaceDir}`;

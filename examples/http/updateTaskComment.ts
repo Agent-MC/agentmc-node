@@ -14,11 +14,8 @@ const result = await client.operations.updateTaskComment({
       "X-Agent-Id": 1
     },
     "query": {
-      "agent_id": 42
+      "agent_id": 1
     }
-  },
-  "body": {
-    "body": "Updated handoff note with the latest timeline and log links."
   }
 });
 
