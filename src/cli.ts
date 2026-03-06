@@ -395,27 +395,9 @@ function resolveRuntimeAutoUpdateInstallDir(): string {
   return process.cwd();
 }
 
-function isProductionServiceEnvironment(env: NodeJS.ProcessEnv): boolean {
-  const nodeEnv = nonEmpty(env.NODE_ENV)?.toLowerCase();
-  if (nodeEnv === "production") {
-    return true;
-  }
-
-  // systemd sets these for long-lived services.
-  return (
-    nonEmpty(env.INVOCATION_ID) !== null ||
-    nonEmpty(env.JOURNAL_STREAM) !== null ||
-    nonEmpty(env.SYSTEMD_EXEC_PID) !== null
-  );
-}
-
-function resolveRuntimeAutoUpdateConfig(env: NodeJS.ProcessEnv): RuntimeAutoUpdateConfig {
-  const normalizedCliFilePath = fileURLToPath(import.meta.url).replace(/\\/g, "/");
-  const defaultEnabled =
-    normalizedCliFilePath.includes(INSTALLED_PACKAGE_PATH_MARKER) || isProductionServiceEnvironment(env);
-
+function resolveRuntimeAutoUpdateConfig(): RuntimeAutoUpdateConfig {
   return {
-    enabled: defaultEnabled,
+    enabled: true,
     intervalSeconds: DEFAULT_AUTO_UPDATE_INTERVAL_SECONDS,
     installTimeoutMs: DEFAULT_AUTO_UPDATE_INSTALL_TIMEOUT_MS,
     npmCommand: "npm",
@@ -1558,7 +1540,7 @@ async function runMultiAgentRuntimeFromEnv(env: NodeJS.ProcessEnv): Promise<bool
   let autoUpdateLoopPromise: Promise<void> | null = null;
   let restartRequestedByAutoUpdate = false;
   let restartRequestedByProvisioning = false;
-  const autoUpdateConfig = resolveRuntimeAutoUpdateConfig(env);
+  const autoUpdateConfig = resolveRuntimeAutoUpdateConfig();
 
   const persistStatus = async (
     input: Partial<Pick<RuntimeSupervisorSnapshot, "status" | "mode" | "host_fingerprint" | "summary">> = {}
