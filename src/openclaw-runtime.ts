@@ -36,6 +36,8 @@ const DEFAULT_REALTIME_SIGNAL_CATCHUP_LIMIT = 100;
 const DEFAULT_REALTIME_SIGNAL_CATCHUP_MAX_BATCHES = 5;
 const DEFAULT_PROCESSED_SIGNAL_ID_CACHE_LIMIT = DEFAULT_REALTIME_SIGNAL_CATCHUP_LIMIT * DEFAULT_REALTIME_SIGNAL_CATCHUP_MAX_BATCHES * 4;
 const DEFAULT_FALLBACK_SIGNAL_POLL_MS = 4_000;
+const DEFAULT_CONNECTED_SIGNAL_CATCHUP_IDLE_MS = 30_000;
+const DEFAULT_CONNECTED_SIGNAL_POLL_MS = 15_000;
 const DEFAULT_AGENTMC_API_BASE_URL = "https://agentmc.ai/api/v1";
 
 const DEFAULT_OPENCLAW_DOC_IDS = [
@@ -272,6 +274,7 @@ interface SessionState {
   lastHealthActivityAtMs: number;
   lastConnectionStateChangeAtMs: number;
   lastFallbackCatchupAtMs: number;
+  lastConnectedCatchupAtMs: number;
   catchupInFlight: boolean;
   chatSignalQueue: Promise<void>;
   processedSignalIds: Map<number, number>;
@@ -607,6 +610,7 @@ export class OpenClawAgentRuntime {
       lastHealthActivityAtMs: nowMs,
       lastConnectionStateChangeAtMs: nowMs,
       lastFallbackCatchupAtMs: 0,
+      lastConnectedCatchupAtMs: 0,
       catchupInFlight: false,
       chatSignalQueue: Promise.resolve(),
       processedSignalIds: new Map(),
@@ -736,6 +740,7 @@ export class OpenClawAgentRuntime {
 
         while (!this.stopRequested && !state.closed) {
           const nowMs = Date.now();
+          await this.maybePollConnectedSessionSignals(state, nowMs);
           await this.maybePollFallbackSessionSignals(state, nowMs);
           await this.maybeSelfHealSession(state, nowMs);
           if (state.closed || this.stopRequested) {
@@ -2654,6 +2659,31 @@ export class OpenClawAgentRuntime {
     await this.catchUpSessionSignals(state, "connection_fallback");
   }
 
+  private async maybePollConnectedSessionSignals(
+    state: SessionState,
+    nowMs: number,
+    force = false
+  ): Promise<void> {
+    if (state.closed || this.stopRequested || state.catchupInFlight || !state.sawConnectedState) {
+      return;
+    }
+
+    if (state.connectionState !== "connected") {
+      return;
+    }
+
+    if (!force && nowMs - state.lastHealthActivityAtMs < DEFAULT_CONNECTED_SIGNAL_CATCHUP_IDLE_MS) {
+      return;
+    }
+
+    if (!force && nowMs - state.lastConnectedCatchupAtMs < DEFAULT_CONNECTED_SIGNAL_POLL_MS) {
+      return;
+    }
+
+    state.lastConnectedCatchupAtMs = nowMs;
+    await this.catchUpSessionSignals(state, "connected_quiet");
+  }
+
   private async closeSession(
     state: SessionState,
     reason: string,
@@ -2723,7 +2753,7 @@ export class OpenClawAgentRuntime {
 
   private async catchUpSessionSignals(
     state: SessionState,
-    reason: "session_ready" | "connection_recovered" | "connection_fallback" | "signal_gap"
+    reason: "session_ready" | "connection_recovered" | "connection_fallback" | "signal_gap" | "connected_quiet"
   ): Promise<void> {
     if (state.closed || this.stopRequested || state.catchupInFlight) {
       return;

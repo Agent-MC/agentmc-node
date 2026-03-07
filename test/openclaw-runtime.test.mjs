@@ -48,6 +48,7 @@ function createSessionState(sessionId = 114) {
     lastHealthActivityAtMs: Date.now(),
     lastConnectionStateChangeAtMs: Date.now(),
     lastFallbackCatchupAtMs: 0,
+    lastConnectedCatchupAtMs: 0,
     catchupInFlight: false,
     chatSignalQueue: Promise.resolve(),
     processedSignalIds: new Map(),
@@ -360,6 +361,65 @@ test("fallback connection states poll persisted signals before websocket recover
     assert.equal(deliveredSignals.length, 1);
     assert.equal(deliveredSignals[0]?.source, "api_poll");
     assert.equal(deliveredSignals[0]?.signal?.id, 1);
+  });
+});
+
+test("connected quiet sessions poll persisted signals before websocket failure is detected", async () => {
+  await withFixture(async ({ dir, sessionsPath }) => {
+    const deliveredSignals = [];
+
+    const runtime = createRuntime(sessionsPath, dir, {
+      client: {
+        operations: {
+          listAgentRealtimeSignals: async () => {
+            return {
+              error: null,
+              status: 200,
+              data: {
+                data: [
+                  {
+                    id: 2,
+                    session_id: 916,
+                    sender: "browser",
+                    type: "message",
+                    payload: {
+                      type: "chat.user",
+                      payload: {
+                        request_id: "req-connected-quiet",
+                        message_id: 77,
+                        content: "hello"
+                      }
+                    },
+                    created_at: null
+                  }
+                ]
+              }
+            };
+          }
+        }
+      },
+      onSignal: (event) => {
+        deliveredSignals.push(event);
+      }
+    });
+
+    const staleMs = Date.now() - 35_000;
+    const state = {
+      ...createSessionState(916),
+      createdAtMs: staleMs,
+      lastHealthActivityAtMs: staleMs,
+      lastConnectionStateChangeAtMs: staleMs,
+      connectionState: "connected",
+      sawConnectedState: true,
+      catchupInFlight: false,
+      chatSignalQueue: Promise.resolve()
+    };
+
+    await runtime.maybePollConnectedSessionSignals(state, Date.now(), true);
+
+    assert.equal(deliveredSignals.length, 1);
+    assert.equal(deliveredSignals[0]?.source, "api_poll");
+    assert.equal(deliveredSignals[0]?.signal?.id, 2);
   });
 });
 
