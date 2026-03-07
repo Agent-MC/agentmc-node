@@ -4294,6 +4294,10 @@ function describeRealtimeSignalEvent(event: {
     return null;
   }
 
+  if (channelType === "snapshot.request" || channelType === "file.save" || channelType === "file.delete") {
+    return null;
+  }
+
   if (channelType && channelType.startsWith("notification.")) {
     return null;
   }
@@ -4445,6 +4449,107 @@ function describeRealtimeRuntimeDebugEvent(event: {
         run_id: nonEmpty(details.run_id),
         status: nonEmpty(details.status),
         text_source: nonEmpty(details.text_source)
+      })
+    };
+  }
+
+  if (event.event === "file.snapshot.requested") {
+    return {
+      message: "Agent file snapshot requested",
+      meta: compactJsonObject({
+        session_id: toPositiveInt(details.session_id),
+        request_id: nonEmpty(details.request_id),
+        signal_id: toPositiveInt(details.signal_id),
+        reason: nonEmpty(details.reason)
+      })
+    };
+  }
+
+  if (event.event === "file.snapshot.sent") {
+    return {
+      message: "Sent agent file snapshot",
+      meta: compactJsonObject({
+        session_id: toPositiveInt(details.session_id),
+        request_id: nonEmpty(details.request_id),
+        reason: nonEmpty(details.reason),
+        doc_count: toPositiveInt(details.doc_count)
+      })
+    };
+  }
+
+  if (event.event === "file.save.received") {
+    return {
+      message: "Agent file save received",
+      meta: compactJsonObject({
+        session_id: toPositiveInt(details.session_id),
+        request_id: nonEmpty(details.request_id),
+        signal_id: toPositiveInt(details.signal_id),
+        file_id: nonEmpty(details.file_id)
+      })
+    };
+  }
+
+  if (event.event === "file.save.completed") {
+    return {
+      message: "Saved agent file",
+      meta: compactJsonObject({
+        session_id: toPositiveInt(details.session_id),
+        request_id: nonEmpty(details.request_id),
+        signal_id: toPositiveInt(details.signal_id),
+        file_id: nonEmpty(details.file_id),
+        status: nonEmpty(details.status),
+        content_length: toPositiveInt(details.content_length)
+      })
+    };
+  }
+
+  if (event.event === "file.save.rejected") {
+    return {
+      message: "Agent file save rejected",
+      meta: compactJsonObject({
+        session_id: toPositiveInt(details.session_id),
+        request_id: nonEmpty(details.request_id),
+        signal_id: toPositiveInt(details.signal_id),
+        file_id: nonEmpty(details.file_id),
+        code: nonEmpty(details.code)
+      })
+    };
+  }
+
+  if (event.event === "file.delete.received") {
+    return {
+      message: "Agent file delete received",
+      meta: compactJsonObject({
+        session_id: toPositiveInt(details.session_id),
+        request_id: nonEmpty(details.request_id),
+        signal_id: toPositiveInt(details.signal_id),
+        file_id: nonEmpty(details.file_id)
+      })
+    };
+  }
+
+  if (event.event === "file.delete.completed") {
+    return {
+      message: "Deleted agent file",
+      meta: compactJsonObject({
+        session_id: toPositiveInt(details.session_id),
+        request_id: nonEmpty(details.request_id),
+        signal_id: toPositiveInt(details.signal_id),
+        file_id: nonEmpty(details.file_id),
+        status: nonEmpty(details.status)
+      })
+    };
+  }
+
+  if (event.event === "file.delete.rejected") {
+    return {
+      message: "Agent file delete rejected",
+      meta: compactJsonObject({
+        session_id: toPositiveInt(details.session_id),
+        request_id: nonEmpty(details.request_id),
+        signal_id: toPositiveInt(details.signal_id),
+        file_id: nonEmpty(details.file_id),
+        code: nonEmpty(details.code)
       })
     };
   }

@@ -829,17 +829,17 @@ export class OpenClawAgentRuntime {
     }
 
     if (this.options.filesRealtimeEnabled && channelType === "snapshot.request") {
-      await this.handleSnapshotRequest(state, payload, channelPayload);
+      await this.handleSnapshotRequest(state, signal, payload, channelPayload);
       return;
     }
 
     if (this.options.filesRealtimeEnabled && channelType === "file.save") {
-      await this.handleFileSave(state, payload, channelPayload);
+      await this.handleFileSave(state, signal, payload, channelPayload);
       return;
     }
 
     if (this.options.filesRealtimeEnabled && channelType === "file.delete") {
-      await this.handleFileDelete(state, payload, channelPayload);
+      await this.handleFileDelete(state, signal, payload, channelPayload);
       return;
     }
 
@@ -1657,6 +1657,7 @@ export class OpenClawAgentRuntime {
 
   private async handleSnapshotRequest(
     state: SessionState,
+    signal: AgentRealtimeSignalMessage,
     envelope: JsonObject,
     payload: JsonObject
   ): Promise<void> {
@@ -1678,10 +1679,22 @@ export class OpenClawAgentRuntime {
       valueAsString(envelope.reason)?.trim() ||
       "snapshot_request";
 
+    await this.emitDebug("file.snapshot.requested", {
+      session_id: state.sessionId,
+      request_id: requestId,
+      signal_id: signal.id,
+      reason
+    });
+
     await this.sendSnapshotResponse(state.sessionId, requestId, reason);
   }
 
-  private async handleFileSave(state: SessionState, envelope: JsonObject, payload: JsonObject): Promise<void> {
+  private async handleFileSave(
+    state: SessionState,
+    signal: AgentRealtimeSignalMessage,
+    envelope: JsonObject,
+    payload: JsonObject
+  ): Promise<void> {
     const requestIdFromPayload =
       valueAsString(payload.request_id)?.trim() ||
       valueAsString(envelope.request_id)?.trim() ||
@@ -1694,7 +1707,22 @@ export class OpenClawAgentRuntime {
       return;
     }
 
+    await this.emitDebug("file.save.received", {
+      session_id: state.sessionId,
+      request_id: requestId,
+      signal_id: signal.id,
+      file_id: fileId,
+      base_hash: valueAsString(payload.base_hash)?.trim() || null
+    });
+
     if (!requestIdFromPayload) {
+      await this.emitDebug("file.save.rejected", {
+        session_id: state.sessionId,
+        request_id: requestId,
+        signal_id: signal.id,
+        file_id: fileId,
+        code: "invalid_request"
+      });
       await this.publishChannelMessage(state.sessionId, "file.save.error", requestId, {
         ...buildFileIdPayload(fileId ?? ""),
         code: "invalid_request",
@@ -1704,6 +1732,12 @@ export class OpenClawAgentRuntime {
     }
 
     if (!fileId) {
+      await this.emitDebug("file.save.rejected", {
+        session_id: state.sessionId,
+        request_id: requestId,
+        signal_id: signal.id,
+        code: "invalid_request"
+      });
       await this.publishChannelMessage(state.sessionId, "file.save.error", requestId, {
         ...buildFileIdPayload(""),
         code: "invalid_request",
@@ -1713,6 +1747,13 @@ export class OpenClawAgentRuntime {
     }
 
     if (!this.options.runtimeDocIds.includes(fileId)) {
+      await this.emitDebug("file.save.rejected", {
+        session_id: state.sessionId,
+        request_id: requestId,
+        signal_id: signal.id,
+        file_id: fileId,
+        code: "invalid_file_id"
+      });
       await this.publishChannelMessage(state.sessionId, "file.save.error", requestId, {
         ...buildFileIdPayload(fileId),
         code: "invalid_file_id",
@@ -1728,6 +1769,14 @@ export class OpenClawAgentRuntime {
       const current = await this.readRuntimeDoc(fileId);
 
       if (current && baseHash !== current.base_hash) {
+        await this.emitDebug("file.save.rejected", {
+          session_id: state.sessionId,
+          request_id: requestId,
+          signal_id: signal.id,
+          file_id: fileId,
+          code: "conflict",
+          current_hash: current.base_hash
+        });
         await this.publishChannelMessage(state.sessionId, "file.save.error", requestId, {
           ...buildFileIdPayload(fileId),
           code: "conflict",
@@ -1738,6 +1787,13 @@ export class OpenClawAgentRuntime {
       }
 
       if (!current && baseHash !== "") {
+        await this.emitDebug("file.save.rejected", {
+          session_id: state.sessionId,
+          request_id: requestId,
+          signal_id: signal.id,
+          file_id: fileId,
+          code: "conflict"
+        });
         await this.publishChannelMessage(state.sessionId, "file.save.error", requestId, {
           ...buildFileIdPayload(fileId),
           code: "conflict",
@@ -1754,6 +1810,15 @@ export class OpenClawAgentRuntime {
         throw new Error(`Failed to read runtime file ${fileId} after save.`);
       }
 
+      await this.emitDebug("file.save.completed", {
+        session_id: state.sessionId,
+        request_id: requestId,
+        signal_id: signal.id,
+        file_id: fileId,
+        content_length: next.body_markdown.length,
+        status: "ok"
+      });
+
       await this.publishChannelMessage(state.sessionId, "file.save.ok", requestId, {
         ...buildFileIdPayload(fileId),
         doc: {
@@ -1765,6 +1830,13 @@ export class OpenClawAgentRuntime {
       });
     } catch (error) {
       const normalized = normalizeError(error);
+      await this.emitDebug("file.save.rejected", {
+        session_id: state.sessionId,
+        request_id: requestId,
+        signal_id: signal.id,
+        file_id: fileId,
+        code: "save_failed"
+      });
       await this.emitError(normalized);
 
       try {
@@ -1779,7 +1851,12 @@ export class OpenClawAgentRuntime {
     }
   }
 
-  private async handleFileDelete(state: SessionState, envelope: JsonObject, payload: JsonObject): Promise<void> {
+  private async handleFileDelete(
+    state: SessionState,
+    signal: AgentRealtimeSignalMessage,
+    envelope: JsonObject,
+    payload: JsonObject
+  ): Promise<void> {
     const requestIdFromPayload =
       valueAsString(payload.request_id)?.trim() ||
       valueAsString(envelope.request_id)?.trim() ||
@@ -1792,7 +1869,22 @@ export class OpenClawAgentRuntime {
       return;
     }
 
+    await this.emitDebug("file.delete.received", {
+      session_id: state.sessionId,
+      request_id: requestId,
+      signal_id: signal.id,
+      file_id: fileId,
+      base_hash: valueAsString(payload.base_hash)?.trim() || null
+    });
+
     if (!requestIdFromPayload) {
+      await this.emitDebug("file.delete.rejected", {
+        session_id: state.sessionId,
+        request_id: requestId,
+        signal_id: signal.id,
+        file_id: fileId,
+        code: "invalid_request"
+      });
       await this.publishChannelMessage(state.sessionId, "file.delete.error", requestId, {
         ...buildFileIdPayload(fileId ?? ""),
         code: "invalid_request",
@@ -1802,6 +1894,12 @@ export class OpenClawAgentRuntime {
     }
 
     if (!fileId) {
+      await this.emitDebug("file.delete.rejected", {
+        session_id: state.sessionId,
+        request_id: requestId,
+        signal_id: signal.id,
+        code: "invalid_request"
+      });
       await this.publishChannelMessage(state.sessionId, "file.delete.error", requestId, {
         ...buildFileIdPayload(""),
         code: "invalid_request",
@@ -1811,6 +1909,13 @@ export class OpenClawAgentRuntime {
     }
 
     if (!this.options.runtimeDocIds.includes(fileId)) {
+      await this.emitDebug("file.delete.rejected", {
+        session_id: state.sessionId,
+        request_id: requestId,
+        signal_id: signal.id,
+        file_id: fileId,
+        code: "invalid_file_id"
+      });
       await this.publishChannelMessage(state.sessionId, "file.delete.error", requestId, {
         ...buildFileIdPayload(fileId),
         code: "invalid_file_id",
@@ -1825,6 +1930,14 @@ export class OpenClawAgentRuntime {
       const current = await this.readRuntimeDoc(fileId);
 
       if (current && baseHash !== current.base_hash) {
+        await this.emitDebug("file.delete.rejected", {
+          session_id: state.sessionId,
+          request_id: requestId,
+          signal_id: signal.id,
+          file_id: fileId,
+          code: "conflict",
+          current_hash: current.base_hash
+        });
         await this.publishChannelMessage(state.sessionId, "file.delete.error", requestId, {
           ...buildFileIdPayload(fileId),
           code: "conflict",
@@ -1835,6 +1948,13 @@ export class OpenClawAgentRuntime {
       }
 
       if (!current && baseHash !== "") {
+        await this.emitDebug("file.delete.rejected", {
+          session_id: state.sessionId,
+          request_id: requestId,
+          signal_id: signal.id,
+          file_id: fileId,
+          code: "conflict"
+        });
         await this.publishChannelMessage(state.sessionId, "file.delete.error", requestId, {
           ...buildFileIdPayload(fileId),
           code: "conflict",
@@ -1848,6 +1968,14 @@ export class OpenClawAgentRuntime {
         await unlink(this.resolveRuntimeDocPath(fileId));
       }
 
+      await this.emitDebug("file.delete.completed", {
+        session_id: state.sessionId,
+        request_id: requestId,
+        signal_id: signal.id,
+        file_id: fileId,
+        status: current ? "deleted" : "already_missing"
+      });
+
       await this.publishChannelMessage(state.sessionId, "file.delete.ok", requestId, {
         ...buildFileIdPayload(fileId),
         deleted: current !== null,
@@ -1855,6 +1983,13 @@ export class OpenClawAgentRuntime {
       });
     } catch (error) {
       const normalized = normalizeError(error);
+      await this.emitDebug("file.delete.rejected", {
+        session_id: state.sessionId,
+        request_id: requestId,
+        signal_id: signal.id,
+        file_id: fileId,
+        code: "delete_failed"
+      });
       await this.emitError(normalized);
 
       try {
@@ -2178,6 +2313,12 @@ export class OpenClawAgentRuntime {
 
   private async sendSnapshotResponse(sessionId: number, requestId: string, reason: string): Promise<void> {
     const docs = await this.readRuntimeDocs();
+    await this.emitDebug("file.snapshot.sent", {
+      session_id: sessionId,
+      request_id: requestId,
+      reason,
+      doc_count: docs.length
+    });
     await this.publishChannelMessage(sessionId, "snapshot.response", requestId, {
       reason,
       docs,

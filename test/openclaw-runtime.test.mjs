@@ -48,6 +48,9 @@ function createSessionState(sessionId = 114) {
     lastHealthActivityAtMs: Date.now(),
     lastConnectionStateChangeAtMs: Date.now(),
     lastFallbackCatchupAtMs: 0,
+    catchupInFlight: false,
+    chatSignalQueue: Promise.resolve(),
+    processedSignalIds: new Map(),
     processedInboundKeys: new Map(),
     inboundChunkBuffers: new Map()
   };
@@ -133,7 +136,7 @@ test("signal cursor does not skip non-agent signals after agent websocket ids", 
     assert.equal(notifications.length, 1);
     assert.equal(notifications[0]?.signal?.id, 9);
     assert.equal(state.lastSignalId, 10);
-    assert.equal(state.lastNonAgentSignalId, 9);
+    assert.equal(state.processedSignalIds.has(9), true);
   });
 });
 
@@ -694,6 +697,11 @@ test("bridges unread notification events into OpenClaw runs", async () => {
         data: { data: { id: params?.path?.notification ?? null, is_read: true } }
       };
     };
+    runtime.options.client.operations.createTaskComment = async () => ({
+      error: null,
+      status: 201,
+      data: { data: { id: 121 } }
+    });
 
     await runtime.maybeBridgeNotificationToAi(createSessionState(), {
       source: "websocket",
@@ -1206,6 +1214,127 @@ test("snapshot requests dedupe repeated request ids", async () => {
   });
 });
 
+test("snapshot requests emit Agent Files debug events for runtime logs", async () => {
+  await withFixture(async ({ dir, sessionsPath }) => {
+    const debugEvents = [];
+    const published = [];
+    const runtime = createRuntime(sessionsPath, dir, {
+      includeMissingRuntimeDocs: true,
+      onDebug: (event) => {
+        debugEvents.push(event);
+      }
+    });
+
+    runtime.publishChannelMessage = async (sessionId, channelType, requestId, payload) => {
+      published.push({ sessionId, channelType, requestId, payload });
+    };
+
+    await runtime.handleSignal(
+      createSessionState(),
+      {
+        id: 604,
+        session_id: 114,
+        sender: "browser",
+        type: "message",
+        payload: {
+          type: "snapshot.request",
+          payload: {
+            request_id: "req-snapshot-log",
+            reason: "manual_refresh"
+          }
+        },
+        created_at: null
+      },
+      "websocket"
+    );
+
+    assert.deepEqual(
+      debugEvents.map((event) => event.event),
+      ["file.snapshot.requested", "file.snapshot.sent"]
+    );
+    assert.equal(debugEvents[0]?.details?.request_id, "req-snapshot-log");
+    assert.equal(debugEvents[0]?.details?.signal_id, 604);
+    assert.equal(debugEvents[1]?.details?.doc_count, 7);
+    assert.equal(published[0]?.channelType, "snapshot.response");
+    assert.equal(published[0]?.requestId, "req-snapshot-log");
+  });
+});
+
+test("file save and delete emit Agent Files debug events for runtime logs", async () => {
+  await withFixture(async ({ dir, sessionsPath }) => {
+    const debugEvents = [];
+    const published = [];
+    const runtime = createRuntime(sessionsPath, dir, {
+      onDebug: (event) => {
+        debugEvents.push(event);
+      }
+    });
+
+    runtime.publishChannelMessage = async (sessionId, channelType, requestId, payload) => {
+      published.push({ sessionId, channelType, requestId, payload });
+    };
+
+    const state = createSessionState();
+
+    await runtime.handleSignal(
+      state,
+      {
+        id: 605,
+        session_id: 114,
+        sender: "browser",
+        type: "message",
+        payload: {
+          type: "file.save",
+          payload: {
+            request_id: "req-file-save-log",
+            file_id: "AGENTS.md",
+            body_markdown: "# saved from test\n"
+          }
+        },
+        created_at: null
+      },
+      "websocket"
+    );
+
+    const saveAck = published.find((entry) => entry.channelType === "file.save.ok");
+    assert.equal(saveAck?.requestId, "req-file-save-log");
+    assert.equal(saveAck?.payload?.doc?.id, "AGENTS.md");
+
+    await runtime.handleSignal(
+      state,
+      {
+        id: 606,
+        session_id: 114,
+        sender: "browser",
+        type: "message",
+        payload: {
+          type: "file.delete",
+          payload: {
+            request_id: "req-file-delete-log",
+            file_id: "AGENTS.md",
+            base_hash: saveAck?.payload?.doc?.base_hash
+          }
+        },
+        created_at: null
+      },
+      "websocket"
+    );
+
+    assert.deepEqual(
+      debugEvents.map((event) => event.event),
+      [
+        "file.save.received",
+        "file.save.completed",
+        "file.delete.received",
+        "file.delete.completed"
+      ]
+    );
+    assert.equal(debugEvents[0]?.details?.signal_id, 605);
+    assert.equal(debugEvents[1]?.details?.file_id, "AGENTS.md");
+    assert.equal(debugEvents[3]?.details?.status, "deleted");
+  });
+});
+
 test("agent profile update messages execute OpenClaw set-identity and ack success", async () => {
   await withFixture(async ({ dir, sessionsPath }) => {
     const openclawStubPath = join(dir, "openclaw-profile-stub.mjs");
@@ -1657,6 +1786,14 @@ test("file.save emits protocol error ack when filesystem writes fail", async () 
     await runtime.handleFileSave(
       createSessionState(),
       {
+        id: 1701,
+        session_id: 114,
+        sender: "browser",
+        type: "message",
+        payload: null,
+        created_at: null
+      },
+      {
         request_id: "req-file-save-failure"
       },
       {
@@ -1687,6 +1824,14 @@ test("file.delete emits protocol error ack when filesystem deletes fail", async 
 
     await runtime.handleFileDelete(
       createSessionState(),
+      {
+        id: 1702,
+        session_id: 114,
+        sender: "browser",
+        type: "message",
+        payload: null,
+        created_at: null
+      },
       {
         request_id: "req-file-delete-failure"
       },
@@ -1719,6 +1864,14 @@ test("file.delete removes managed runtime docs when base_hash matches", async ()
 
     await runtime.handleFileDelete(
       createSessionState(),
+      {
+        id: 1703,
+        session_id: 114,
+        sender: "browser",
+        type: "message",
+        payload: null,
+        created_at: null
+      },
       {
         request_id: "req-file-delete-success"
       },

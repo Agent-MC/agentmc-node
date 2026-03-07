@@ -194,12 +194,15 @@ Follow live runtime logs on the server:
 npx agentmc-api runtime:logs
 ```
 
-This command pretty-prints AgentMC runtime events by default, so chat flows read more like:
+This command pretty-prints AgentMC runtime events by default, so chat, Agent Files, and notification flows read more like:
 
 -   `Chat message received`
 -   `Sent chat message to agent`
 -   `Agent finished response`
 -   `Sent agent reply to user`
+-   `Agent file snapshot requested`
+-   `Saved agent file`
+-   `Notification received`
 
 Recent snapshot only, without follow mode:
 
@@ -207,10 +210,10 @@ Recent snapshot only, without follow mode:
 npx agentmc-api runtime:logs --no-follow
 ```
 
-Filter down to chat/notification traffic:
+Filter down to chat/file/notification traffic:
 
 ```bash
-npx agentmc-api runtime:logs --grep 'Realtime|notification|chat'
+npx agentmc-api runtime:logs --grep 'Realtime|notification|chat|file|snapshot'
 ```
 
 Raw `journalctl` output:
@@ -247,6 +250,7 @@ The runtime log stream includes supervisor lifecycle messages plus structured wo
 
 -   realtime session connect/disconnect/state changes
 -   inbound realtime signals such as `chat.user` and notification channel events
+-   Agent Files activity such as snapshot requests and `file.save` / `file.delete`
 -   notification bridge runs that triggered an agent execution
 -   ignored/unhandled realtime messages that may explain missing behavior
 
