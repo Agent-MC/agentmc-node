@@ -7,14 +7,8 @@ const client = new AgentMCApi({
 const result = await client.operations.updateBoard({
   "params": {
     "path": {
-      "id": 42
+      "id": 1
     }
-  },
-  "body": {
-    "name": "Incident Response",
-    "description": "Updated board description with escalation runbook links.",
-    "visibility": "personal",
-    "personal_owner_user_id": 8
   }
 });
 

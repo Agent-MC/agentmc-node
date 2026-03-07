@@ -4,16 +4,7 @@ const client = new AgentMCApi({
   apiKey: process.env.AGENTMC_API_KEY
 });
 
-const result = await client.operations.listFileFolders({
-  "params": {
-    "header": {
-      "X-Agent-Id": 1
-    },
-    "query": {
-      "agent_id": 42
-    }
-  }
-});
+const result = await client.operations.listFileFolders();
 
 if (result.error) {
   console.error(result.status, result.error);

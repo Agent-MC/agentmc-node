@@ -170,8 +170,7 @@ test("runtime chat logs preserve realtime transport source", async () => {
       message_id: 88,
       signal_id: 123,
       source: "api_poll",
-      content_length: 3,
-      preview: "Hey"
+      content_length: 3
     });
 
     assert.equal(infoMessages.at(-1)?.message, "Sent chat message to agent");

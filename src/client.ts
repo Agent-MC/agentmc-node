@@ -73,9 +73,9 @@ export class AgentMCApi {
 
   constructor(config: AgentMCApiClientConfig = {}) {
     this.auth = {
-      apiKey: config.apiKey
+      apiKey: normalizeNonEmptyString(config.apiKey) ?? undefined
     };
-    this.baseUrl = normalizeBaseUrl(config.baseUrl ?? DEFAULT_BASE_URL);
+    this.baseUrl = normalizeBaseUrl(config.baseUrl);
 
     this.defaultHeaders = new Headers(config.headers);
 
@@ -84,7 +84,7 @@ export class AgentMCApi {
     }
 
     if (!this.defaultHeaders.has("User-Agent")) {
-      this.defaultHeaders.set("User-Agent", config.userAgent ?? DEFAULT_USER_AGENT);
+      this.defaultHeaders.set("User-Agent", normalizeNonEmptyString(config.userAgent) ?? DEFAULT_USER_AGENT);
     }
 
     this.openapiClient = createClient<paths>({
@@ -107,8 +107,7 @@ export class AgentMCApi {
   }
 
   getConfiguredApiKey(): string | null {
-    const key = this.auth.apiKey;
-    return typeof key === "string" && key.trim() !== "" ? key : null;
+    return this.auth.apiKey ?? null;
   }
 
   getBaseUrl(): string {
@@ -251,7 +250,7 @@ export class AgentMCApi {
     const headers = new Headers(this.defaultHeaders);
 
     const mergedAuth: AgentMCApiAuthConfig = {
-      apiKey: requestAuth?.apiKey ?? this.auth.apiKey
+      apiKey: normalizeNonEmptyString(requestAuth?.apiKey) ?? this.auth.apiKey
     };
 
     const authHeaders = this.resolveAuthHeaders(operation, mergedAuth);
@@ -310,9 +309,22 @@ export class AgentMCApi {
   }
 }
 
-function normalizeBaseUrl(value: string): string {
-  const normalized = String(value ?? "").trim();
+function normalizeBaseUrl(value: string | undefined): string {
+  const normalized = normalizeNonEmptyString(value);
+  if (!normalized) {
+    return DEFAULT_BASE_URL;
+  }
+
   return normalized.replace(/\/+$/, "");
+}
+
+function normalizeNonEmptyString(value: unknown): string | null {
+  if (typeof value !== "string" && typeof value !== "number") {
+    return null;
+  }
+
+  const normalized = String(value).trim();
+  return normalized.length > 0 ? normalized : null;
 }
 
 function deriveOpenApiUrl(baseUrl: string): string {

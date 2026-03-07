@@ -7,6 +7,7 @@ import { dirname, isAbsolute, resolve } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { promisify } from "node:util";
 
+import { createOperationStatusError } from "./api-error";
 import type { AgentMCApi } from "./client";
 import type {
   AgentRealtimeConnectionState,
@@ -556,7 +557,7 @@ export class OpenClawAgentRuntime {
       this.sessionAcquireRateLimitStreak = 0;
       this.nextSessionAcquireAtMs =
         nowMs + withJitter(this.options.requestPollMs, resolveBackoffJitterMs(this.options.requestPollMs));
-      throw createOperationError("listAgentRealtimeRequestedSessions", response.status, response.error);
+      throw createOperationStatusError("listAgentRealtimeRequestedSessions", response.status);
     }
 
     this.sessionAcquireRateLimitStreak = 0;
@@ -1128,7 +1129,7 @@ export class OpenClawAgentRuntime {
             });
 
       if (response.error) {
-        await this.emitError(createOperationError("createTaskComment", response.status, response.error));
+        await this.emitError(createOperationStatusError("createTaskComment", response.status));
         return false;
       }
     } catch (error) {
@@ -1179,7 +1180,7 @@ export class OpenClawAgentRuntime {
             });
 
       if (response.error) {
-        await this.emitError(createOperationError("markNotificationRead", response.status, response.error));
+        await this.emitError(createOperationStatusError("markNotificationRead", response.status));
       }
     } catch (error) {
       await this.emitError(normalizeError(error));
@@ -1280,8 +1281,7 @@ export class OpenClawAgentRuntime {
       signal_id: signal.id,
       source,
       sender: signal.sender,
-      content_length: userText.length,
-      preview: previewText(userText)
+      content_length: userText.length
     });
 
     const bridgedUserText = buildAgentMcBridgeMessage({
@@ -1333,8 +1333,7 @@ export class OpenClawAgentRuntime {
       run_id: runResult.runId,
       status: runResult.status,
       text_source: runResult.textSource,
-      content_length: finalizedContent.length,
-      preview: previewText(finalizedContent)
+      content_length: finalizedContent.length
     });
 
     await this.publishChannelMessage(state.sessionId, "chat.agent.done", requestId, {
@@ -2747,7 +2746,7 @@ export class OpenClawAgentRuntime {
     });
 
     if (response.error) {
-      await this.emitError(createOperationError("closeAgentRealtimeSession", response.status, response.error));
+      await this.emitError(createOperationStatusError("closeAgentRealtimeSession", response.status));
     }
   }
 
@@ -2791,7 +2790,7 @@ export class OpenClawAgentRuntime {
         });
 
         if (response.error) {
-          throw createOperationError("listAgentRealtimeSignals", response.status, response.error);
+          throw createOperationStatusError("listAgentRealtimeSignals", response.status);
         }
 
         const payload = valueAsObject(response.data) ?? (await readJsonResponseObject(response.response));
@@ -4542,13 +4541,6 @@ function toPositiveInteger(value: unknown): number {
   }
 
   return 0;
-}
-
-function createOperationError(operationId: string, status: number, _errorPayload: unknown): Error {
-  const resolvedStatus = Number.isInteger(status) && status > 0 ? status : null;
-  const statusSuffix = resolvedStatus === null ? "unknown status" : `status ${resolvedStatus}`;
-
-  return new Error(`${operationId} failed with ${statusSuffix}.`);
 }
 
 async function readJsonResponseObject(response: Response): Promise<Record<string, unknown> | null> {

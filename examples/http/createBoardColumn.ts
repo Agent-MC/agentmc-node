@@ -9,10 +9,6 @@ const result = await client.operations.createBoardColumn({
     "path": {
       "board": 1
     }
-  },
-  "body": {
-    "name": "In Progress",
-    "position": 2
   }
 });
 

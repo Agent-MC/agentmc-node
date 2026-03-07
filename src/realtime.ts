@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 
+import { createOperationStatusError } from "./api-error";
 import type { AgentMCApi } from "./client";
 
 type MaybePromise = void | Promise<void>;
@@ -328,7 +329,7 @@ class RealtimeNotificationsSubscription implements AgentRealtimeNotificationsSub
     if (closeResult.error) {
       await callErrorHandler(
         this.options.onError,
-        createOperationError("closeAgentRealtimeSession", closeResult.status, closeResult.error)
+        createOperationStatusError("closeAgentRealtimeSession", closeResult.status)
       );
     }
   }
@@ -493,11 +494,7 @@ export async function subscribeToRealtimeNotifications(
 
       const authPayload = valueAsObject(authResult.data) ?? (await readJsonResponseObject(authResult.response));
       if (authResult.error || !authPayload) {
-        throw createOperationError(
-          "authenticateAgentRealtimeSocket",
-          authResult.status,
-          authResult.error ?? { message: "Missing auth payload in response." }
-        );
+        throw createOperationStatusError("authenticateAgentRealtimeSocket", authResult.status);
       }
 
       return authPayload;
@@ -879,11 +876,7 @@ export async function subscribeToHostRealtimeSessionRequests(
 
       const authPayload = valueAsObject(authResult.data) ?? (await readJsonResponseObject(authResult.response));
       if (authResult.error || !authPayload) {
-        throw createOperationError(
-          "authenticateHostRealtimeSocket",
-          authResult.status,
-          authResult.error ?? { message: "Missing auth payload in response." }
-        );
+        throw createOperationStatusError("authenticateHostRealtimeSocket", authResult.status);
       }
 
       return authPayload;
@@ -1259,11 +1252,7 @@ async function resolveAndClaimSession(
     });
 
     if (requestedResult.error) {
-      throw createOperationError(
-        "listAgentRealtimeRequestedSessions",
-        requestedResult.status,
-        requestedResult.error
-      );
+      throw createOperationStatusError("listAgentRealtimeRequestedSessions", requestedResult.status);
     }
 
     const requestedPayload = valueAsObject(requestedResult.data) ?? (await readJsonResponseObject(requestedResult.response));
@@ -1327,7 +1316,7 @@ async function resolveAndClaimSession(
     }
 
     if (claimResult.error) {
-      const claimError = createOperationError("claimAgentRealtimeSession", claimResult.status, claimResult.error);
+      const claimError = createOperationStatusError("claimAgentRealtimeSession", claimResult.status);
       if (!explicitSessionRequested && isRetryableClaimFailureStatus(claimResult.status)) {
         lastClaimError = claimError;
         continue;
@@ -2154,7 +2143,7 @@ async function closeClaimedSessionOnSubscribeFailure(
   if (closeResult.error) {
     await callErrorHandler(
       onError,
-      createOperationError("closeAgentRealtimeSession", closeResult.status, closeResult.error)
+      createOperationStatusError("closeAgentRealtimeSession", closeResult.status)
     );
   }
 }
@@ -2210,7 +2199,7 @@ async function createRealtimeSignal(
   });
 
   if (response.error) {
-    throw createOperationError("createAgentRealtimeSignal", response.status, response.error);
+    throw createOperationStatusError("createAgentRealtimeSignal", response.status);
   }
 
   const responsePayload = valueAsObject(response.data) ?? (await readJsonResponseObject(response.response));
@@ -2499,13 +2488,6 @@ function normalizeSessionRecord(value: unknown): AgentRealtimeSessionRecord | nu
     requested_by_user_id: valueAsPositiveInteger(object.requested_by_user_id),
     socket: valueAsObject(object.socket) as AgentRealtimeSessionRecord["socket"]
   };
-}
-
-function createOperationError(operationId: string, status: number, _errorPayload: unknown): Error {
-  const resolvedStatus = Number.isInteger(status) && status > 0 ? status : null;
-  const statusSuffix = resolvedStatus === null ? "unknown status" : `status ${resolvedStatus}`;
-
-  return new Error(`${operationId} failed with ${statusSuffix}.`);
 }
 
 function normalizeError(value: unknown, fallbackMessage = "Unexpected realtime error."): Error {

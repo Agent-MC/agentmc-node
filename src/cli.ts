@@ -4,12 +4,13 @@ import { createHash } from "node:crypto";
 import { setDefaultResultOrder } from "node:dns";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
-import { arch, cpus, hostname, networkInterfaces, platform, release, totalmem, uptime } from "node:os";
-import { dirname, resolve } from "node:path";
+import { arch, cpus, homedir, hostname, networkInterfaces, platform, release, totalmem, uptime } from "node:os";
+import { basename, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { setTimeout as sleep } from "node:timers/promises";
 
 import { detectRuntimeAgents, type DiscoveredRuntimeAgent } from "./agent-discovery";
+import { summarizeApiError } from "./api-error";
 import { AgentMCApi } from "./client";
 import { operationsById, type OperationId } from "./generated/operations";
 import { AGENTMC_NODE_PACKAGE_VERSION } from "./package-version";
@@ -2068,8 +2069,9 @@ function resolveProvisionWorkspaceDir(workers: RuntimeWorkerConfig[], runtimeKey
 }
 
 function deriveProvisionWorkspacePath(sourceWorkspace: string, runtimeKey: string): string {
-  const trimmed = sourceWorkspace.trim().replace(/\/+$/, "");
-  const baseName = trimmed.endsWith("/workspace") ? "workspace" : trimmed.split("/").pop() ?? "workspace";
+  const trimmed = sourceWorkspace.trim().replace(/[\\/]+$/, "");
+  const resolvedBaseName = basename(trimmed);
+  const baseName = resolvedBaseName === "workspace" ? "workspace" : resolvedBaseName || "workspace";
 
   return resolve(dirname(trimmed), `${baseName}-${runtimeKey}`);
 }
@@ -2082,7 +2084,7 @@ function resolveOpenClawDefaultWorkspace(): string | null {
 }
 
 function readOpenClawConfigObject(): Record<string, unknown> | null {
-  const homeDir = nonEmpty(process.env.HOME);
+  const homeDir = nonEmpty(homedir());
   const candidates = [
     homeDir ? resolve(homeDir, ".openclaw", "openclaw.json") : null,
     "/root/.openclaw/openclaw.json",
@@ -3895,21 +3897,6 @@ function resolvePrivateIp(): string | null {
   }
 
   return null;
-}
-
-function summarizeApiError(error: unknown): string | null {
-  const payload = valueAsObject(error);
-  const root = valueAsObject(payload?.error) ?? payload;
-  const code = nonEmpty(root?.code);
-  const message = nonEmpty(root?.message);
-
-  if (code && message) {
-    return `${code}: ${message}`;
-  }
-  if (message) {
-    return message;
-  }
-  return code;
 }
 
 const FATAL_AGENTMC_AUTH_ERROR_CODES = new Set([

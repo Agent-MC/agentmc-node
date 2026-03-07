@@ -17,110 +17,25 @@ No additional description.
 
 ## Request Example
 
-### application/json
-```json
-{
-  "name": "In Progress",
-  "position": 2
-}
-```
+None.
 
 ## Success Responses
 
-### 201 (application/json)
+### 201 (none)
 Column created.
 
-```json
-{
-  "data": {
-    "id": 42,
-    "board_id": 42,
-    "team_id": 42,
-    "name": "Example Name",
-    "position": 1,
-    "created_at": "2026-02-22T17:21:00Z",
-    "updated_at": "2026-02-22T17:21:00Z"
-  }
-}
+```text
+No response body.
 ```
 
 
 ## Error Responses
 
-### 401 (application/json)
-Missing or invalid credentials.
+### default (none)
+Error response.
 
-```json
-{
-  "error": {
-    "code": "validation.failed",
-    "message": "Validation failed.",
-    "details": {
-      "fields": {
-        "title": [
-          "The title field is required."
-        ]
-      }
-    }
-  }
-}
-```
-
-### 403 (application/json)
-Forbidden.
-
-```json
-{
-  "error": {
-    "code": "validation.failed",
-    "message": "Validation failed.",
-    "details": {
-      "fields": {
-        "title": [
-          "The title field is required."
-        ]
-      }
-    }
-  }
-}
-```
-
-### 404 (application/json)
-Resource not found.
-
-```json
-{
-  "error": {
-    "code": "validation.failed",
-    "message": "Validation failed.",
-    "details": {
-      "fields": {
-        "title": [
-          "The title field is required."
-        ]
-      }
-    }
-  }
-}
-```
-
-### 422 (application/json)
-Validation failed.
-
-```json
-{
-  "error": {
-    "code": "validation.failed",
-    "message": "Validation failed.",
-    "details": {
-      "fields": {
-        "title": [
-          "The title field is required."
-        ]
-      }
-    }
-  }
-}
+```text
+No response body.
 ```
 
 
@@ -138,10 +53,6 @@ const result = await client.operations.createBoardColumn({
     "path": {
       "board": 1
     }
-  },
-  "body": {
-    "name": "In Progress",
-    "position": 2
   }
 });
 

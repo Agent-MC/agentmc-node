@@ -4,26 +4,7 @@ const client = new AgentMCApi({
   apiKey: process.env.AGENTMC_API_KEY
 });
 
-const result = await client.operations.createTask({
-  "params": {
-    "header": {
-      "X-Agent-Id": 1
-    },
-    "query": {
-      "agent_id": 42
-    }
-  },
-  "body": {
-    "board_id": 5,
-    "column_id": 13,
-    "title": "Draft post-incident summary",
-    "description": "Capture timeline, impact, and remediation status.\n\n![incident-graph](/api/v1/files/101/preview)",
-    "archived_at": null,
-    "position": 2,
-    "due_at": "2026-02-24T17:00:00Z",
-    "assigned_to_user_id": 8
-  }
-});
+const result = await client.operations.createTask();
 
 if (result.error) {
   console.error(result.status, result.error);

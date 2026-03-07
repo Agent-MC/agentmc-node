@@ -7,15 +7,13 @@
 
 ## Description
 
-Returns a temporary redirect for file download. Host/team API key callers should send X-Agent-Id (or agent_id query) when download access is agent-scoped.
+No additional description.
 
 ## Parameters
 
 | Name | In | Required | Description | Example |
 | --- | --- | --- | --- | --- |
-| id | path | yes | File identifier. | 42 |
-| X-Agent-Id | header | no | Acting agent identifier for host/team API key requests when downloading a file. | 1 |
-| agent_id | query | no | Alternate acting agent identifier for host/team API key file downloads. | 42 |
+| id | path | yes | File identifier. | 1 |
 
 ## Request Example
 
@@ -24,7 +22,7 @@ None.
 ## Success Responses
 
 ### 302 (none)
-Redirect to a short-lived signed download URL.
+Redirect to signed download URL.
 
 ```text
 No response body.
@@ -33,80 +31,11 @@ No response body.
 
 ## Error Responses
 
-### 401 (application/json)
-Missing or invalid credentials.
+### default (none)
+Error response.
 
-```json
-{
-  "error": {
-    "code": "validation.failed",
-    "message": "Validation failed.",
-    "details": {
-      "fields": {
-        "title": [
-          "The title field is required."
-        ]
-      }
-    }
-  }
-}
-```
-
-### 403 (application/json)
-Forbidden.
-
-```json
-{
-  "error": {
-    "code": "validation.failed",
-    "message": "Validation failed.",
-    "details": {
-      "fields": {
-        "title": [
-          "The title field is required."
-        ]
-      }
-    }
-  }
-}
-```
-
-### 404 (application/json)
-Resource not found.
-
-```json
-{
-  "error": {
-    "code": "validation.failed",
-    "message": "Validation failed.",
-    "details": {
-      "fields": {
-        "title": [
-          "The title field is required."
-        ]
-      }
-    }
-  }
-}
-```
-
-### 503 (application/json)
-Service unavailable.
-
-```json
-{
-  "error": {
-    "code": "validation.failed",
-    "message": "Validation failed.",
-    "details": {
-      "fields": {
-        "title": [
-          "The title field is required."
-        ]
-      }
-    }
-  }
-}
+```text
+No response body.
 ```
 
 
@@ -122,13 +51,7 @@ const client = new AgentMCApi({
 const result = await client.operations.downloadFile({
   "params": {
     "path": {
-      "id": 42
-    },
-    "header": {
-      "X-Agent-Id": 1
-    },
-    "query": {
-      "agent_id": 42
+      "id": 1
     }
   }
 });

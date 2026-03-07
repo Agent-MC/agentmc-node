@@ -7,6 +7,7 @@ import { basename, delimiter, dirname, join, resolve } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { promisify } from "node:util";
 
+import { summarizeApiError } from "./api-error";
 import { AgentMCApi } from "./client";
 import {
   AgentRuntime,
@@ -4257,23 +4258,6 @@ async function readJsonResponseObject(response: Response): Promise<Record<string
   }
 }
 
-function summarizeApiError(error: unknown): string | null {
-  const payload = valueAsObject(error);
-  const root = valueAsObject(payload?.error) ?? payload;
-  const code = nonEmpty(root?.code);
-  const message = nonEmpty(root?.message);
-
-  if (code && message) {
-    return `${code}: ${message}`;
-  }
-
-  if (message) {
-    return message;
-  }
-
-  return code;
-}
-
 function describeRealtimeSignalEvent(event: {
   sessionId: number;
   source: string;
@@ -4405,8 +4389,7 @@ function describeRealtimeRuntimeDebugEvent(event: {
         message_id: toPositiveInt(details.message_id),
         signal_id: toPositiveInt(details.signal_id),
         source: nonEmpty(details.source),
-        content_length: toPositiveInt(details.content_length),
-        preview: nonEmpty(details.preview)
+        content_length: toPositiveInt(details.content_length)
       })
     };
   }
@@ -4435,8 +4418,7 @@ function describeRealtimeRuntimeDebugEvent(event: {
         run_id: nonEmpty(details.run_id),
         status: nonEmpty(details.status),
         text_source: nonEmpty(details.text_source),
-        content_length: toPositiveInt(details.content_length),
-        preview: nonEmpty(details.preview)
+        content_length: toPositiveInt(details.content_length)
       })
     };
   }
