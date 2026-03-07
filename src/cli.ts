@@ -2354,6 +2354,7 @@ async function runHostRealtimeSessionRoutingLoop(input: {
         return rightId - leftId;
       });
       let routedSessions = 0;
+      let deferredSessions = 0;
 
       for (const session of orderedSessions) {
         const sessionObject = valueAsObject(session);
@@ -2377,17 +2378,24 @@ async function runHostRealtimeSessionRoutingLoop(input: {
           continue;
         }
 
-        runtime.attachRealtimeSession(sessionId);
-        routedSessions += 1;
+        if (runtime.attachRealtimeSession(sessionId)) {
+          routedSessions += 1;
+        } else {
+          deferredSessions += 1;
+        }
       }
 
       if (hostRealtimeSubscription) {
+        if (deferredSessions > 0) {
+          return input.intervalMs;
+        }
+
         // Push events drive immediate routing; keep only a low-frequency API reconciliation poll.
         return Math.max(DEFAULT_HOST_REALTIME_CONNECTED_RECONCILE_POLL_MS, input.intervalMs * 10);
       }
 
       const idlePollMs = Math.max(input.intervalMs, 5_000);
-      return routedSessions > 0 ? input.intervalMs : idlePollMs;
+      return routedSessions > 0 || deferredSessions > 0 ? input.intervalMs : idlePollMs;
     } catch (error) {
       const normalizedError = normalizeCliError(error);
       if (isFatalAgentMcAuthError(error)) {

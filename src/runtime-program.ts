@@ -213,6 +213,7 @@ export class AgentRuntimeProgram {
   private fatalRuntimeErrorNotified = false;
   private loopPromise: Promise<void> | null = null;
   private realtimeRuntime: AgentRuntime | null = null;
+  private readonly pendingRealtimeSessionIds = new Set<number>();
 
   private state: RuntimeState = {};
   private runtimeProvider: RuntimeProviderDescriptor | null = null;
@@ -341,10 +342,19 @@ export class AgentRuntimeProgram {
       attachSession?: (id: number) => boolean;
     };
     if (!runtime || typeof runtime.attachSession !== "function") {
+      this.pendingRealtimeSessionIds.add(resolvedSessionId);
       return false;
     }
 
-    return runtime.attachSession(resolvedSessionId);
+    const attached = runtime.attachSession(resolvedSessionId);
+
+    if (attached) {
+      this.pendingRealtimeSessionIds.delete(resolvedSessionId);
+      return true;
+    }
+
+    this.pendingRealtimeSessionIds.add(resolvedSessionId);
+    return false;
   }
 
   private async runLoop(): Promise<void> {
@@ -1211,11 +1221,38 @@ export class AgentRuntimeProgram {
 
     this.realtimeRuntime = runtime;
     await runtime.start();
+    const flushedPendingSessions = this.flushPendingRealtimeSessions();
 
     this.emitInfo("Realtime runtime started", {
       provider: provider.kind,
-      status: runtime.getStatus()
+      status: runtime.getStatus(),
+      flushed_pending_session_count: flushedPendingSessions
     });
+  }
+
+  private flushPendingRealtimeSessions(): number {
+    if (this.pendingRealtimeSessionIds.size === 0) {
+      return 0;
+    }
+
+    const runtime = this.realtimeRuntime as AgentRuntime & {
+      attachSession?: (id: number) => boolean;
+    };
+    if (!runtime || typeof runtime.attachSession !== "function") {
+      return 0;
+    }
+
+    let attachedCount = 0;
+    for (const sessionId of [...this.pendingRealtimeSessionIds]) {
+      if (!runtime.attachSession(sessionId)) {
+        continue;
+      }
+
+      this.pendingRealtimeSessionIds.delete(sessionId);
+      attachedCount += 1;
+    }
+
+    return attachedCount;
   }
 
   private resolveRuntimeDocsDirectory(): string {
