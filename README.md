@@ -135,9 +135,10 @@ Notes:
 -   If you do not pass `session`, the helper picks the newest requested session returned by `listAgentRealtimeRequestedSessions`.
 -   `OpenClawAgentRuntime` keeps long-lived websocket subscriptions and relies on realtime fanout for chat/files/notifications routing.
 -   In multi-agent supervisor mode, one host-level websocket transport is multiplexed across workers; requested sessions are routed to the correct worker by `agent_id`.
+-   Single-runtime heartbeat responses can also include `host_realtime`; when present, the runtime uses that host-level websocket watch channel to attach new sessions immediately and downgrades API session reconciliation to a low-frequency safety poll.
 -   Realtime transport uses the session socket metadata and signs channel subscriptions via `authenticateAgentRealtimeSocket`.
--   Websocket reconnect automatically replays missed persisted signals (`after_id` catch-up) before resuming live delivery, and the runtime opportunistically polls persisted signals while the socket is reconnecting.
--   Unified runtime heartbeat loops also poll unread notifications via `listNotifications` and ingest them through the runtime notification bridge, covering websocket miss windows.
+-   Websocket reconnect automatically replays missed persisted signals (`after_id` catch-up) before resuming live delivery. Steady-state connected sessions remain websocket-authoritative; persisted-signal polling is reserved for reconnect/fallback recovery paths.
+-   Notification API catch-up runs as a low-frequency safety poll plus realtime readiness/recovery catch-up instead of recurring heartbeat polling.
 -   Use `publishRealtimeMessage(...)` if you need to emit your own channel events.
 -   `publishRealtimeMessage(...)` automatically chunks oversized channel payloads into multiple realtime signals so each signal stays within websocket broadcast limits.
     -   Chunk envelopes include `chunk_id`, `chunk_index`, `chunk_total`, `chunk_encoding`, and `chunk_data` under the channel payload.

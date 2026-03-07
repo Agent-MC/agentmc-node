@@ -16,6 +16,7 @@ import {
   type OpenClawRuntimeApiNotificationIngestResult
 } from "./openclaw-runtime";
 import { AGENTMC_NODE_PACKAGE_VERSION } from "./package-version";
+import type { HostRealtimeSocketPayload } from "./realtime";
 
 const execFileAsync = promisify(execFile);
 const OPENCLAW_TELEMETRY_COMMAND_CANDIDATES: readonly string[][] = [
@@ -30,7 +31,8 @@ const DEFAULT_AGENTMC_API_BASE_URL = "https://agentmc.ai/api/v1";
 const DEFAULT_HEARTBEAT_INTERVAL_SECONDS = 60;
 const DEFAULT_HEARTBEAT_NOTIFICATION_CATCHUP_PER_PAGE = 50;
 const DEFAULT_HEARTBEAT_NOTIFICATION_CATCHUP_MAX_PAGES = 100;
-const DEFAULT_NOTIFICATION_CATCHUP_INTERVAL_SECONDS = 30;
+const DEFAULT_NOTIFICATION_CATCHUP_INTERVAL_SECONDS = 120;
+const DEFAULT_NOTIFICATION_CATCHUP_MIN_INTERVAL_MS = 15_000;
 const DEFAULT_RECURRING_TASK_POLL_INTERVAL_SECONDS = 30;
 const DEFAULT_RECURRING_TASK_POLL_LIMIT = 5;
 const DEFAULT_RECURRING_TASK_WAIT_TIMEOUT_MS = 600_000;
@@ -215,6 +217,7 @@ export class AgentRuntimeProgram {
   private state: RuntimeState = {};
   private runtimeProvider: RuntimeProviderDescriptor | null = null;
   private agentProfile: AgentProfile | null = null;
+  private hostRealtimeSocket: HostRealtimeSocketPayload | null = null;
   private heartbeatIntervalSeconds: number | null;
   private readonly recurringTaskPollIntervalSeconds: number;
   private readonly recurringTaskPollLimit: number;
@@ -223,6 +226,7 @@ export class AgentRuntimeProgram {
   private cachedOpenClawTelemetryCommandArgs: string[] | null = null;
   private lastOpenClawTelemetryError: string | null = null;
   private lastOpenClawIdentityError: string | null = null;
+  private lastNotificationCatchupAtMs = 0;
   private resolvedOpenClawCommand: string | null = null;
   private pendingImmediateHeartbeatReason: string | null = null;
 
@@ -281,7 +285,6 @@ export class AgentRuntimeProgram {
       apiKey: hostKey,
       baseUrl: DEFAULT_AGENTMC_API_BASE_URL,
       heartbeatEnabled: true,
-      realtimeSessionPollingEnabled: true,
       heartbeatIntervalSeconds: DEFAULT_HEARTBEAT_INTERVAL_SECONDS
     });
   }
@@ -401,9 +404,6 @@ export class AgentRuntimeProgram {
     if (agentId !== null && this.runtimeProvider && this.realtimeRuntime === null) {
       await this.startRealtimeRuntime(agentId, this.runtimeProvider);
     }
-    if (agentId !== null) {
-      await this.catchUpNotificationsDuringHeartbeat(agentId);
-    }
     this.throwIfFatalRuntimeError();
 
     let nextHeartbeatAtMs = this.heartbeatEnabled
@@ -440,14 +440,9 @@ export class AgentRuntimeProgram {
 
       if (agentId !== null && cycleNowMs >= nextNotificationCatchupAtMs) {
         try {
-          await this.catchUpNotificationsDuringHeartbeat(agentId);
-        } catch (error) {
-          const normalizedError = normalizeError(error);
-          const meta = { source: "notifications.catchup" };
-          if (this.registerFatalAuthError(normalizedError, meta)) {
-            throw this.fatalRuntimeError ?? normalizedError;
+          if (this.hasActiveRealtimeSessions()) {
+            await this.runNotificationCatchup(agentId, "notifications.safety_poll", DEFAULT_NOTIFICATION_CATCHUP_MIN_INTERVAL_MS);
           }
-          this.emitError(normalizedError, meta);
         } finally {
           nextNotificationCatchupAtMs = Date.now() + notificationCatchupIntervalMs;
         }
@@ -475,9 +470,6 @@ export class AgentRuntimeProgram {
           }
           if (agentId !== null && this.runtimeProvider && this.realtimeRuntime === null) {
             await this.startRealtimeRuntime(agentId, this.runtimeProvider);
-          }
-          if (agentId !== null) {
-            await this.catchUpNotificationsDuringHeartbeat(agentId);
           }
 
           if (immediateReason) {
@@ -521,6 +513,53 @@ export class AgentRuntimeProgram {
     }
 
     await this.startRealtimeRuntime(agentId, provider);
+  }
+
+  private updateHostRealtimeSocket(socket: HostRealtimeSocketPayload | null): void {
+    this.hostRealtimeSocket = socket;
+    const runtime = this.realtimeRuntime as AgentRuntime & {
+      setHostRealtimeSocket?: (socket: HostRealtimeSocketPayload | null) => void;
+    };
+
+    if (runtime && typeof runtime.setHostRealtimeSocket === "function") {
+      runtime.setHostRealtimeSocket(socket);
+    }
+  }
+
+  private hasActiveRealtimeSessions(): boolean {
+    const runtime = this.realtimeRuntime as AgentRuntime & {
+      getStatus?: () => { activeSessions?: number[] };
+    };
+    if (!runtime || typeof runtime.getStatus !== "function") {
+      return false;
+    }
+
+    const status = runtime.getStatus();
+    return Array.isArray(status?.activeSessions) && status.activeSessions.length > 0;
+  }
+
+  private async runNotificationCatchup(
+    agentId: number,
+    source: string,
+    minimumIntervalMs = 0
+  ): Promise<void> {
+    const nowMs = Date.now();
+    if (nowMs - this.lastNotificationCatchupAtMs < minimumIntervalMs) {
+      return;
+    }
+
+    this.lastNotificationCatchupAtMs = nowMs;
+
+    try {
+      await this.catchUpNotificationsDuringHeartbeat(agentId);
+    } catch (error) {
+      const normalizedError = normalizeError(error);
+      const meta = { source };
+      if (this.registerFatalAuthError(normalizedError, meta)) {
+        return;
+      }
+      this.emitError(normalizedError, meta);
+    }
   }
 
   private requestImmediateHeartbeatSync(reason: string): void {
@@ -1087,11 +1126,14 @@ export class AgentRuntimeProgram {
       client: this.client,
       agent: agentId,
       claimOwnerToken,
+      hostRealtimeSocket: this.hostRealtimeSocket,
       agentmcApiKey: this.agentMcApiKey ?? undefined,
       agentmcBaseUrl: this.agentMcApiBaseUrl,
       agentmcOpenApiUrl: this.agentMcOpenApiUrl,
       realtimeSessionsEnabled: this.options.realtimeSessionsEnabled !== false,
-      sessionPollingEnabled: this.options.realtimeSessionPollingEnabled !== false,
+      ...(typeof this.options.realtimeSessionPollingEnabled === "boolean"
+        ? { sessionPollingEnabled: this.options.realtimeSessionPollingEnabled }
+        : {}),
       runtimeDocsDirectory,
       runtimeWorkingDirectory: this.workspaceDir,
       includeMissingRuntimeDocs: true,
@@ -1105,10 +1147,15 @@ export class AgentRuntimeProgram {
         this.registerFatalAuthError(error, { source: "realtime.runtime" });
         this.emitError(error, { source: "realtime.runtime" });
       },
-      onSessionReady: (session) => {
+      onSessionReady: async (session) => {
         this.emitInfo("Realtime session ready", {
           session_id: toPositiveInt(valueAsObject(session)?.id)
         });
+        await this.runNotificationCatchup(
+          agentId,
+          "notifications.realtime_ready",
+          DEFAULT_NOTIFICATION_CATCHUP_MIN_INTERVAL_MS
+        );
       },
       onSessionClosed: (sessionId, reason) => {
         this.emitInfo("Realtime session closed", { session_id: sessionId, reason });
@@ -1495,6 +1542,7 @@ export class AgentRuntimeProgram {
     const responsePayload = valueAsObject(response.data);
     const responseDefaults = valueAsObject(responsePayload?.defaults) as HeartbeatDefaults | null;
     const responseHost = valueAsObject(responsePayload?.host);
+    const responseHostRealtime = normalizeHostRealtimeSocketPayload(responsePayload?.host_realtime);
     const responseAgent = valueAsObject(responsePayload?.agent);
     const responseAgentId = toPositiveInt(responseAgent?.id);
     const serverHeartbeatIntervalSeconds = toPositiveInt(
@@ -1514,6 +1562,7 @@ export class AgentRuntimeProgram {
     await this.persistState({
       last_heartbeat_at: nowIso
     });
+    this.updateHostRealtimeSocket(responseHostRealtime);
 
     this.emitInfo("Heartbeat sent", {
       at: nowIso,
@@ -4208,6 +4257,18 @@ function valueAsObject(value: unknown): JsonObject | null {
   }
 
   return value as JsonObject;
+}
+
+function normalizeHostRealtimeSocketPayload(value: unknown): HostRealtimeSocketPayload | null {
+  const object = valueAsObject(value);
+  if (!object) {
+    return null;
+  }
+
+  return {
+    ...object,
+    connection: valueAsObject(object.connection) as HostRealtimeSocketPayload["connection"]
+  };
 }
 
 function valueAsBoolean(value: unknown): boolean | null {

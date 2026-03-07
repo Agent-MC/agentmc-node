@@ -48,7 +48,6 @@ function createSessionState(sessionId = 114) {
     lastHealthActivityAtMs: Date.now(),
     lastConnectionStateChangeAtMs: Date.now(),
     lastFallbackCatchupAtMs: 0,
-    lastConnectedCatchupAtMs: 0,
     catchupInFlight: false,
     chatSignalQueue: Promise.resolve(),
     processedSignalIds: new Map(),
@@ -169,6 +168,122 @@ test("session acquisition prioritizes browser-requested sessions over host/syste
     await runtime.acquirePersistentSession();
 
     assert.equal(selectedSessionId, 46);
+  });
+});
+
+test("host realtime watch downgrades requested session polling to low-frequency reconciliation", async () => {
+  await withFixture(async ({ dir, sessionsPath }) => {
+    const runtime = createRuntime(sessionsPath, dir, {
+      hostRealtimeSocket: {
+        channel: "private-host.7.realtime",
+        event: "agent.realtime.host.session.requested",
+        connection: {
+          key: "app-key",
+          host: "ws.agentmc.test",
+          scheme: "https",
+          port: 443,
+          path: "/app",
+          cluster: "mt1"
+        }
+      },
+      client: {
+        operations: {
+          listAgentRealtimeRequestedSessions: async () => ({
+            error: null,
+            status: 200,
+            data: {
+              data: []
+            }
+          })
+        }
+      }
+    });
+
+    runtime.hostRealtimeSubscription = {
+      ready: Promise.resolve(),
+      disconnect: async () => {}
+    };
+
+    const startedAt = Date.now();
+    await runtime.acquirePersistentSession();
+
+    const nextPollDelayMs = runtime.nextSessionAcquireAtMs - startedAt;
+    assert.equal(nextPollDelayMs >= 60_000, true);
+  });
+});
+
+test("configured host realtime sockets do not slow API fallback until the watch is connected", async () => {
+  await withFixture(async ({ dir, sessionsPath }) => {
+    const runtime = createRuntime(sessionsPath, dir, {
+      hostRealtimeSocket: {
+        channel: "private-host.7.realtime",
+        event: "agent.realtime.host.session.requested",
+        connection: {
+          key: "app-key",
+          host: "ws.agentmc.test",
+          scheme: "https",
+          port: 443,
+          path: "/app",
+          cluster: "mt1"
+        }
+      }
+    });
+
+    assert.equal(runtime.resolveRequestedSessionPollMs(), runtime.options.requestPollMs);
+  });
+});
+
+test("session polling falls back to API routing when host realtime is removed", async () => {
+  await withFixture(async ({ dir, sessionsPath }) => {
+    const runtime = createRuntime(sessionsPath, dir, {
+      hostRealtimeSocket: {
+        channel: "private-host.7.realtime",
+        event: "agent.realtime.host.session.requested",
+        connection: {
+          key: "app-key",
+          host: "ws.agentmc.test",
+          scheme: "https",
+          port: 443,
+          path: "/app",
+          cluster: "mt1"
+        }
+      }
+    });
+
+    runtime.setHostRealtimeSocket(null);
+
+    assert.equal(runtime.shouldAcquireSession(Date.now()), true);
+    assert.equal(runtime.resolveRequestedSessionPollMs(), runtime.options.requestPollMs);
+  });
+});
+
+test("session polling disabled stays push-only until the host watch is connected", async () => {
+  await withFixture(async ({ dir, sessionsPath }) => {
+    const runtime = createRuntime(sessionsPath, dir, {
+      hostRealtimeSocket: {
+        channel: "private-host.7.realtime",
+        event: "agent.realtime.host.session.requested",
+        connection: {
+          key: "app-key",
+          host: "ws.agentmc.test",
+          scheme: "https",
+          port: 443,
+          path: "/app",
+          cluster: "mt1"
+        }
+      },
+      sessionPollingEnabled: false
+    });
+
+    assert.equal(runtime.shouldAcquireSession(Date.now()), false);
+
+    runtime.hostRealtimeSubscription = {
+      ready: Promise.resolve(),
+      disconnect: async () => {}
+    };
+    runtime.requestImmediateSessionAcquire();
+
+    assert.equal(runtime.shouldAcquireSession(Date.now()), true);
   });
 });
 
@@ -364,102 +479,60 @@ test("fallback connection states poll persisted signals before websocket recover
   });
 });
 
-test("connected quiet sessions poll persisted signals before websocket failure is detected", async () => {
+test("reconnect snapshots are emitted once per resubscribe", async () => {
   await withFixture(async ({ dir, sessionsPath }) => {
-    const deliveredSignals = [];
+    let subscriptionOptions = null;
+    const published = [];
 
     const runtime = createRuntime(sessionsPath, dir, {
       client: {
+        subscribeToRealtimeNotifications: async (options) => {
+          subscriptionOptions = options;
+          return {
+            session: { id: 912 },
+            ready: Promise.resolve(),
+            disconnect: async () => {}
+          };
+        },
         operations: {
-          listAgentRealtimeSignals: async () => {
-            return {
-              error: null,
-              status: 200,
-              data: {
-                data: [
-                  {
-                    id: 2,
-                    session_id: 916,
-                    sender: "browser",
-                    type: "message",
-                    payload: {
-                      type: "chat.user",
-                      payload: {
-                        request_id: "req-connected-quiet",
-                        message_id: 77,
-                        content: "hello"
-                      }
-                    },
-                    created_at: null
-                  }
-                ]
-              }
-            };
-          }
-        }
-      },
-      onSignal: (event) => {
-        deliveredSignals.push(event);
-      }
-    });
-
-    const staleMs = Date.now() - 35_000;
-    const state = {
-      ...createSessionState(916),
-      createdAtMs: staleMs,
-      lastHealthActivityAtMs: staleMs,
-      lastConnectionStateChangeAtMs: staleMs,
-      connectionState: "connected",
-      sawConnectedState: true,
-      catchupInFlight: false,
-      chatSignalQueue: Promise.resolve()
-    };
-
-    await runtime.maybePollConnectedSessionSignals(state, Date.now(), true);
-
-    assert.equal(deliveredSignals.length, 1);
-    assert.equal(deliveredSignals[0]?.source, "api_poll");
-    assert.equal(deliveredSignals[0]?.signal?.id, 2);
-  });
-});
-
-test("connected quiet polling starts after the shortened idle window", async () => {
-  await withFixture(async ({ dir, sessionsPath }) => {
-    let pollCount = 0;
-
-    const runtime = createRuntime(sessionsPath, dir, {
-      client: {
-        operations: {
-          listAgentRealtimeSignals: async () => {
-            pollCount += 1;
-            return {
-              error: null,
-              status: 200,
-              data: { data: [] }
-            };
-          }
+          listAgentRealtimeSignals: async () => ({
+            error: null,
+            status: 200,
+            data: { data: [] }
+          }),
+          closeAgentRealtimeSession: async () => ({
+            error: null,
+            status: 200,
+            data: {}
+          })
         }
       }
     });
 
-    const nowMs = Date.now();
-    const state = {
-      ...createSessionState(917),
-      createdAtMs: nowMs - 20_000,
-      lastHealthActivityAtMs: nowMs - 9_000,
-      lastConnectionStateChangeAtMs: nowMs - 20_000,
-      lastConnectedCatchupAtMs: 0,
-      connectionState: "connected",
-      sawConnectedState: true,
-      catchupInFlight: false,
-      chatSignalQueue: Promise.resolve()
+    runtime.publishChannelMessage = async (_sessionId, channelType, requestId, payload) => {
+      published.push({ channelType, requestId, payload });
     };
 
-    await runtime.maybePollConnectedSessionSignals(state, nowMs);
-    assert.equal(pollCount, 0);
+    runtime.startSessionLoop(912);
 
-    await runtime.maybePollConnectedSessionSignals(state, nowMs + 2_000);
-    assert.equal(pollCount, 1);
+    for (let attempt = 0; attempt < 20 && !subscriptionOptions; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+
+    assert.ok(subscriptionOptions);
+
+    await subscriptionOptions.onReady({ id: 912 });
+    await subscriptionOptions.onConnectionStateChange("disconnected");
+    await subscriptionOptions.onConnectionStateChange("connected");
+    await subscriptionOptions.onReady({ id: 912 });
+
+    const snapshotPublishes = published.filter((entry) => entry.channelType === "snapshot.response");
+    assert.equal(snapshotPublishes.length, 2);
+
+    const state = runtime.sessions.get(912);
+    if (state) {
+      await runtime.closeSession(state, "test_done", false);
+    }
   });
 });
 

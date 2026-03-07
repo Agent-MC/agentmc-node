@@ -11,6 +11,8 @@ import { createOperationStatusError } from "./api-error";
 import type { AgentMCApi } from "./client";
 import type {
   AgentRealtimeConnectionState,
+  HostRealtimeSessionRequestsSubscription,
+  HostRealtimeSocketPayload,
   AgentRealtimeNotificationEvent,
   AgentRealtimeSessionRecord,
   AgentRealtimeSignalMessage
@@ -22,6 +24,8 @@ const DEFAULT_REQUESTED_SESSION_LIMIT = 20;
 const DEFAULT_REQUEST_POLL_MS = 2_000;
 const DEFAULT_DUPLICATE_TTL_MS = 300_000;
 const DEFAULT_PUSH_LOOP_DELAY_MS = 1_000;
+const DEFAULT_SESSION_MAINTENANCE_LOOP_MS = 1_000;
+const DEFAULT_HOST_REALTIME_CONNECTED_RECONCILE_POLL_MS = 60_000;
 const MAX_RATE_LIMIT_BACKOFF_MS = 120_000;
 const DEFAULT_GATEWAY_TIMEOUT_MS = 240_000;
 const DEFAULT_OPENCLAW_SUBMIT_TIMEOUT_MS = 30_000;
@@ -37,8 +41,6 @@ const DEFAULT_REALTIME_SIGNAL_CATCHUP_LIMIT = 100;
 const DEFAULT_REALTIME_SIGNAL_CATCHUP_MAX_BATCHES = 5;
 const DEFAULT_PROCESSED_SIGNAL_ID_CACHE_LIMIT = DEFAULT_REALTIME_SIGNAL_CATCHUP_LIMIT * DEFAULT_REALTIME_SIGNAL_CATCHUP_MAX_BATCHES * 4;
 const DEFAULT_FALLBACK_SIGNAL_POLL_MS = 4_000;
-const DEFAULT_CONNECTED_SIGNAL_CATCHUP_IDLE_MS = 10_000;
-const DEFAULT_CONNECTED_SIGNAL_POLL_MS = 5_000;
 const DEFAULT_AGENTMC_API_BASE_URL = "https://agentmc.ai/api/v1";
 
 const DEFAULT_OPENCLAW_DOC_IDS = [
@@ -128,6 +130,7 @@ export interface OpenClawAgentRuntimeOptions {
   client: AgentMCApi;
   agent: number;
   claimOwnerToken?: string;
+  hostRealtimeSocket?: HostRealtimeSocketPayload | null;
   agentmcApiKey?: string;
   agentmcBaseUrl?: string;
   agentmcOpenApiUrl?: string;
@@ -208,6 +211,7 @@ interface ResolvedOptions {
   client: AgentMCApi;
   agent: number;
   claimOwnerToken: string | null;
+  hostRealtimeSocket: HostRealtimeSocketPayload | null;
   agentmcApiKey: string | null;
   agentmcBaseUrl: string;
   agentmcOpenApiUrl: string;
@@ -275,7 +279,6 @@ interface SessionState {
   lastHealthActivityAtMs: number;
   lastConnectionStateChangeAtMs: number;
   lastFallbackCatchupAtMs: number;
-  lastConnectedCatchupAtMs: number;
   catchupInFlight: boolean;
   chatSignalQueue: Promise<void>;
   processedSignalIds: Map<number, number>;
@@ -313,6 +316,10 @@ export class OpenClawAgentRuntime {
   private readonly options: ResolvedOptions;
   private readonly sessions = new Map<number, SessionState>();
   private readonly processedNotificationKeys = new Map<string, number>();
+  private hostRealtimeSocket: HostRealtimeSocketPayload | null;
+  private hostRealtimeSubscription: HostRealtimeSessionRequestsSubscription | null = null;
+  private hostRealtimeSocketKey: string | null = null;
+  private hostRealtimeSubscribeRetryAtMs = 0;
   private stopRequested = false;
   private runPromise: Promise<void> | null = null;
   private nextSessionAcquireAtMs = 0;
@@ -321,6 +328,7 @@ export class OpenClawAgentRuntime {
 
   constructor(options: OpenClawAgentRuntimeOptions) {
     this.options = resolveOptions(options);
+    this.hostRealtimeSocket = this.options.hostRealtimeSocket;
   }
 
   getStatus(): OpenClawAgentRuntimeStatus {
@@ -440,6 +448,7 @@ export class OpenClawAgentRuntime {
     }
 
     this.stopRequested = false;
+    this.hostRealtimeSubscribeRetryAtMs = 0;
     this.nextSessionAcquireAtMs = 0;
     this.sessionAcquireRateLimitStreak = 0;
     const runner = this.runLoop();
@@ -460,6 +469,7 @@ export class OpenClawAgentRuntime {
     }
 
     this.stopRequested = false;
+    this.hostRealtimeSubscribeRetryAtMs = 0;
     this.nextSessionAcquireAtMs = 0;
     this.sessionAcquireRateLimitStreak = 0;
     const runner = this.runLoop();
@@ -479,10 +489,24 @@ export class OpenClawAgentRuntime {
       this.closeSession(state, this.options.closeReason, true)
     );
     await Promise.allSettled(pendingCloses);
+    await this.disconnectHostRealtimeSubscription();
 
     if (this.runPromise) {
       await this.runPromise;
     }
+  }
+
+  setHostRealtimeSocket(socket: HostRealtimeSocketPayload | null | undefined): void {
+    this.hostRealtimeSocket = normalizeHostRealtimeSocketPayload(socket);
+    this.requestImmediateSessionAcquire();
+
+    if (this.hostRealtimeSocket) {
+      return;
+    }
+
+    void this.disconnectHostRealtimeSubscription().catch(async (error) => {
+      await this.emitError(normalizeError(error));
+    });
   }
 
   private async runLoop(): Promise<void> {
@@ -501,6 +525,7 @@ export class OpenClawAgentRuntime {
 
     while (!this.stopRequested) {
       const nowMs = Date.now();
+      await this.maybeMaintainHostRealtimeSubscription(nowMs);
       if (this.shouldAcquireSession(nowMs)) {
         try {
           await this.acquirePersistentSession();
@@ -511,6 +536,8 @@ export class OpenClawAgentRuntime {
 
       await sleep(this.resolveLoopDelayMs());
     }
+
+    await this.disconnectHostRealtimeSubscription();
   }
 
   private shouldAcquireSession(nowMs: number): boolean {
@@ -518,7 +545,7 @@ export class OpenClawAgentRuntime {
       return false;
     }
 
-    if (!this.options.sessionPollingEnabled) {
+    if (!this.options.sessionPollingEnabled && this.hostRealtimeSubscription === null) {
       return false;
     }
 
@@ -527,6 +554,7 @@ export class OpenClawAgentRuntime {
 
   private async acquirePersistentSession(): Promise<void> {
     const nowMs = Date.now();
+    const requestPollMs = this.resolveRequestedSessionPollMs();
     const response = await this.options.client.operations.listAgentRealtimeRequestedSessions({
       headers: {
         "X-Agent-Id": String(this.options.agent)
@@ -538,7 +566,7 @@ export class OpenClawAgentRuntime {
       if (status === 429) {
         this.sessionAcquireRateLimitStreak += 1;
         const streakMultiplier = 2 ** Math.min(this.sessionAcquireRateLimitStreak, 5);
-        const baseBackoffMs = Math.max(this.options.requestPollMs * streakMultiplier, 4_000);
+        const baseBackoffMs = Math.max(requestPollMs * streakMultiplier, 4_000);
         const retryAfterMs = parseRetryAfterMs(response.response);
         const cappedBackoffMs = Math.min(Math.max(baseBackoffMs, retryAfterMs ?? 0), MAX_RATE_LIMIT_BACKOFF_MS);
         const backoffMs = withJitter(cappedBackoffMs, resolveBackoffJitterMs(cappedBackoffMs));
@@ -556,13 +584,13 @@ export class OpenClawAgentRuntime {
 
       this.sessionAcquireRateLimitStreak = 0;
       this.nextSessionAcquireAtMs =
-        nowMs + withJitter(this.options.requestPollMs, resolveBackoffJitterMs(this.options.requestPollMs));
+        nowMs + withJitter(requestPollMs, resolveBackoffJitterMs(requestPollMs));
       throw createOperationStatusError("listAgentRealtimeRequestedSessions", response.status);
     }
 
     this.sessionAcquireRateLimitStreak = 0;
     this.nextSessionAcquireAtMs =
-      nowMs + withJitter(this.options.requestPollMs, resolveBackoffJitterMs(this.options.requestPollMs));
+      nowMs + withJitter(requestPollMs, resolveBackoffJitterMs(requestPollMs));
 
     const payload = valueAsObject(response.data) ?? (await readJsonResponseObject(response.response));
     const sessions = Array.isArray(payload?.data) ? payload.data : [];
@@ -590,10 +618,104 @@ export class OpenClawAgentRuntime {
       return DEFAULT_PUSH_LOOP_DELAY_MS;
     }
 
-    const fallbackDelayMs = Math.max(this.options.requestPollMs, 1_500);
+    const fallbackDelayMs = Math.max(this.resolveRequestedSessionPollMs(), 1_500);
     const requestedDelayMs = Math.max(0, this.nextSessionAcquireAtMs - nowMs);
+    const subscribeRetryDelayMs = Math.max(0, this.hostRealtimeSubscribeRetryAtMs - nowMs);
 
-    return Math.max(150, Math.min(fallbackDelayMs, requestedDelayMs));
+    return Math.max(150, Math.min(fallbackDelayMs, requestedDelayMs, subscribeRetryDelayMs || fallbackDelayMs));
+  }
+
+  private resolveRequestedSessionPollMs(): number {
+    if (this.hostRealtimeSubscription) {
+      return Math.max(DEFAULT_HOST_REALTIME_CONNECTED_RECONCILE_POLL_MS, this.options.requestPollMs * 10);
+    }
+
+    return this.options.requestPollMs;
+  }
+
+  private requestImmediateSessionAcquire(): void {
+    this.nextSessionAcquireAtMs = Math.min(this.nextSessionAcquireAtMs, Date.now());
+  }
+
+  private async maybeMaintainHostRealtimeSubscription(nowMs: number): Promise<void> {
+    if (!this.options.realtimeSessionsEnabled) {
+      await this.disconnectHostRealtimeSubscription();
+      return;
+    }
+
+    const socket = this.hostRealtimeSocket;
+    const socketKey = serializeHostRealtimeSocketKey(socket);
+    if (!socket || !socketKey) {
+      await this.disconnectHostRealtimeSubscription();
+      return;
+    }
+
+    if (this.hostRealtimeSubscription && socketKey === this.hostRealtimeSocketKey) {
+      return;
+    }
+
+    if (nowMs < this.hostRealtimeSubscribeRetryAtMs) {
+      return;
+    }
+
+    await this.disconnectHostRealtimeSubscription();
+
+    try {
+      const subscription = await this.options.client.subscribeToHostRealtimeSessionRequests({
+        socket,
+        onReady: () => {
+          this.requestImmediateSessionAcquire();
+        },
+        onSessionRequested: (event) => {
+          if (!this.shouldAttachHostHintedSession(event.agentId)) {
+            return;
+          }
+
+          if (!this.attachSession(event.sessionId ?? 0)) {
+            this.requestImmediateSessionAcquire();
+          }
+        },
+        onConnectionStateChange: (state) => {
+          if (state === "connected") {
+            this.requestImmediateSessionAcquire();
+          }
+        },
+        onError: async (error) => {
+          await this.emitError(error);
+        }
+      });
+
+      await subscription.ready;
+      this.hostRealtimeSubscription = subscription;
+      this.hostRealtimeSocketKey = socketKey;
+      this.hostRealtimeSubscribeRetryAtMs = 0;
+    } catch (error) {
+      await this.emitError(
+        new Error(`Host realtime session watch unavailable; falling back to API session reconciliation. ${normalizeError(error).message}`)
+      );
+      await this.disconnectHostRealtimeSubscription();
+      this.hostRealtimeSubscribeRetryAtMs = nowMs + Math.max(5_000, this.options.requestPollMs * 4);
+    }
+  }
+
+  private shouldAttachHostHintedSession(agentId: number | null): boolean {
+    return agentId === null || agentId === this.options.agent;
+  }
+
+  private async disconnectHostRealtimeSubscription(): Promise<void> {
+    if (!this.hostRealtimeSubscription) {
+      this.hostRealtimeSocketKey = null;
+      return;
+    }
+
+    try {
+      await this.hostRealtimeSubscription.disconnect();
+    } catch {
+      // Best-effort local disconnect.
+    } finally {
+      this.hostRealtimeSubscription = null;
+      this.hostRealtimeSocketKey = null;
+    }
   }
 
   private startSessionLoop(sessionId: number): void {
@@ -611,7 +733,6 @@ export class OpenClawAgentRuntime {
       lastHealthActivityAtMs: nowMs,
       lastConnectionStateChangeAtMs: nowMs,
       lastFallbackCatchupAtMs: 0,
-      lastConnectedCatchupAtMs: 0,
       catchupInFlight: false,
       chatSignalQueue: Promise.resolve(),
       processedSignalIds: new Map(),
@@ -656,16 +777,6 @@ export class OpenClawAgentRuntime {
             const previousState = state.connectionState;
             state.connectionState = nextState;
             state.lastConnectionStateChangeAtMs = nowMs;
-
-            if (
-              this.options.includeInitialSnapshot &&
-              this.options.filesRealtimeEnabled &&
-              nextState === "connected" &&
-              previousState !== "connected" &&
-              state.sawConnectedState
-            ) {
-              await this.sendInitialSnapshot(state, "reconnected");
-            }
 
             if (nextState === "connected") {
               state.lastFallbackCatchupAtMs = 0;
@@ -741,14 +852,13 @@ export class OpenClawAgentRuntime {
 
         while (!this.stopRequested && !state.closed) {
           const nowMs = Date.now();
-          await this.maybePollConnectedSessionSignals(state, nowMs);
           await this.maybePollFallbackSessionSignals(state, nowMs);
           await this.maybeSelfHealSession(state, nowMs);
           if (state.closed || this.stopRequested) {
             break;
           }
 
-          await sleep(150);
+          await sleep(DEFAULT_SESSION_MAINTENANCE_LOOP_MS);
         }
       } catch (error) {
         const normalizedError = normalizeError(error);
@@ -1122,11 +1232,11 @@ export class OpenClawAgentRuntime {
               params: requestParams,
               headers: responseActionHeaders,
               body: requestBody
-            })
+            } as never)
           : await this.options.client.operations.createTaskComment({
               params: requestParams,
               body: requestBody
-            });
+            } as never);
 
       if (response.error) {
         await this.emitError(createOperationStatusError("createTaskComment", response.status));
@@ -2662,31 +2772,6 @@ export class OpenClawAgentRuntime {
     await this.catchUpSessionSignals(state, "connection_fallback");
   }
 
-  private async maybePollConnectedSessionSignals(
-    state: SessionState,
-    nowMs: number,
-    force = false
-  ): Promise<void> {
-    if (state.closed || this.stopRequested || state.catchupInFlight || !state.sawConnectedState) {
-      return;
-    }
-
-    if (state.connectionState !== "connected") {
-      return;
-    }
-
-    if (!force && nowMs - state.lastHealthActivityAtMs < DEFAULT_CONNECTED_SIGNAL_CATCHUP_IDLE_MS) {
-      return;
-    }
-
-    if (!force && nowMs - state.lastConnectedCatchupAtMs < DEFAULT_CONNECTED_SIGNAL_POLL_MS) {
-      return;
-    }
-
-    state.lastConnectedCatchupAtMs = nowMs;
-    await this.catchUpSessionSignals(state, "connected_quiet");
-  }
-
   private async closeSession(
     state: SessionState,
     reason: string,
@@ -2743,7 +2828,7 @@ export class OpenClawAgentRuntime {
         reason,
         status
       }
-    });
+    } as never);
 
     if (response.error) {
       await this.emitError(createOperationStatusError("closeAgentRealtimeSession", response.status));
@@ -2981,6 +3066,7 @@ function resolveOptions(options: OpenClawAgentRuntimeOptions): ResolvedOptions {
   const realtimeSessionsEnabled = typeof options.realtimeSessionsEnabled === "boolean"
     ? options.realtimeSessionsEnabled
     : chatRealtimeEnabled || filesRealtimeEnabled || notificationsRealtimeEnabled || hasRealtimeCallbacks;
+  const normalizedHostRealtimeSocket = normalizeHostRealtimeSocketPayload(options.hostRealtimeSocket);
   const sessionPollingEnabled = options.sessionPollingEnabled !== false;
   const claimOwnerToken = normalizeClaimOwnerToken(valueAsString(options.claimOwnerToken));
   const agentmcApiKey = sanitizeRuntimeContextValue(
@@ -3003,6 +3089,7 @@ function resolveOptions(options: OpenClawAgentRuntimeOptions): ResolvedOptions {
     client: options.client,
     agent,
     claimOwnerToken,
+    hostRealtimeSocket: normalizedHostRealtimeSocket,
     agentmcApiKey,
     agentmcBaseUrl,
     agentmcOpenApiUrl,
@@ -4759,6 +4846,36 @@ function valueAsObject(value: unknown): JsonObject | null {
 
 function valueAsString(value: unknown): string | null {
   return typeof value === "string" ? value : null;
+}
+
+function normalizeHostRealtimeSocketPayload(value: unknown): HostRealtimeSocketPayload | null {
+  const object = valueAsObject(value);
+  if (!object) {
+    return null;
+  }
+
+  return {
+    ...object,
+    connection: valueAsObject(object.connection) as HostRealtimeSocketPayload["connection"]
+  };
+}
+
+function serializeHostRealtimeSocketKey(socket: HostRealtimeSocketPayload | null): string | null {
+  const socketObject = valueAsObject(socket);
+  const connection = valueAsObject(socketObject?.connection);
+  const key = valueAsString(connection?.key)?.trim() || null;
+  const host = valueAsString(connection?.host)?.trim() || null;
+  const channel = valueAsString(socketObject?.channel)?.trim() || null;
+  if (!key || !host || !channel) {
+    return null;
+  }
+
+  const scheme = valueAsString(connection?.scheme)?.trim() || "https";
+  const port = toPositiveInteger(connection?.port) || (scheme.toLowerCase() === "http" ? 80 : 443);
+  const cluster = valueAsString(connection?.cluster)?.trim() || "mt1";
+  const path = valueAsString(connection?.path)?.trim() || "";
+  const event = valueAsString(socketObject?.event)?.trim() || "agent.realtime.host.session.requested";
+  return [key, host, String(port), scheme.toLowerCase(), cluster, path, channel, event].join("|");
 }
 
 function normalizeApiSignalRecord(value: unknown, fallbackSessionId: number): AgentRealtimeSignalMessage | null {

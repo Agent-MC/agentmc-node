@@ -2322,7 +2322,7 @@ async function runHostRealtimeSessionRoutingLoop(input: {
             limit: sessionLimit
           }
         }
-      });
+      } as never);
 
       if (response.error) {
         if (isFatalAgentMcAuthError(response.error)) {
@@ -4008,7 +4008,7 @@ function buildRuntimeOptions(
     agentId: worker.agentId ?? undefined,
     heartbeatEnabled: !disableHeartbeat,
     // Host heartbeat ownership is separate from worker session recovery.
-    realtimeSessionPollingEnabled: true,
+    realtimeSessionPollingEnabled: false,
     runtimeProvider: provider,
     openclawAgent: worker.openclawAgent,
     onInfo: (message, meta) => {
