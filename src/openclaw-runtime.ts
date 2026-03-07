@@ -1586,7 +1586,7 @@ export class OpenClawAgentRuntime {
         runId,
         status: "timeout",
         textSource: "fallback",
-        content: "I finished waiting for the run, but no assistant text was found before timeout."
+        content: "The agent appears to still be busy and may respond later."
       };
     }
 
