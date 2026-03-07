@@ -34,6 +34,7 @@ const DEFAULT_SELF_HEAL_MIN_SESSION_AGE_MS = 20_000;
 const DEFAULT_REALTIME_PUBLISH_TIMEOUT_MS = 10_000;
 const DEFAULT_REALTIME_SIGNAL_CATCHUP_LIMIT = 100;
 const DEFAULT_REALTIME_SIGNAL_CATCHUP_MAX_BATCHES = 5;
+const DEFAULT_PROCESSED_SIGNAL_ID_CACHE_LIMIT = DEFAULT_REALTIME_SIGNAL_CATCHUP_LIMIT * DEFAULT_REALTIME_SIGNAL_CATCHUP_MAX_BATCHES * 4;
 const DEFAULT_FALLBACK_SIGNAL_POLL_MS = 4_000;
 const DEFAULT_AGENTMC_API_BASE_URL = "https://agentmc.ai/api/v1";
 
@@ -265,7 +266,6 @@ interface SessionState {
   closed: boolean;
   closeReason: string | null;
   lastSignalId: number;
-  lastNonAgentSignalId: number;
   connectionState: AgentRealtimeConnectionState;
   sawConnectedState: boolean;
   createdAtMs: number;
@@ -274,6 +274,7 @@ interface SessionState {
   lastFallbackCatchupAtMs: number;
   catchupInFlight: boolean;
   chatSignalQueue: Promise<void>;
+  processedSignalIds: Map<number, number>;
   processedInboundKeys: Map<string, number>;
   inboundChunkBuffers: Map<string, InboundChunkBuffer>;
 }
@@ -600,7 +601,6 @@ export class OpenClawAgentRuntime {
       closed: false,
       closeReason: null,
       lastSignalId: 0,
-      lastNonAgentSignalId: 0,
       connectionState: "connecting",
       sawConnectedState: false,
       createdAtMs: nowMs,
@@ -609,6 +609,7 @@ export class OpenClawAgentRuntime {
       lastFallbackCatchupAtMs: 0,
       catchupInFlight: false,
       chatSignalQueue: Promise.resolve(),
+      processedSignalIds: new Map(),
       processedInboundKeys: new Map(),
       inboundChunkBuffers: new Map()
     };
@@ -786,17 +787,8 @@ export class OpenClawAgentRuntime {
         });
       }
 
-      const isAgentSender = normalizedSender === "agent";
-
-      if (isAgentSender) {
-        if (signal.id <= state.lastSignalId) {
-          return;
-        }
-      } else {
-        if (signal.id <= state.lastNonAgentSignalId) {
-          return;
-        }
-        state.lastNonAgentSignalId = signal.id;
+      if (!markSignalIdProcessed(state, signal.id)) {
+        return;
       }
 
       state.lastSignalId = Math.max(state.lastSignalId, signal.id);
@@ -2643,10 +2635,6 @@ export class OpenClawAgentRuntime {
           }
 
           highestSignalId = Math.max(highestSignalId, signal.id);
-          if (signal.id <= state.lastSignalId) {
-            continue;
-          }
-
           await this.handleSignal(state, signal, "api_poll");
           delivered += 1;
           deliveredInBatch += 1;
@@ -3987,6 +3975,28 @@ function buildThinkingStatusDelta(thinkingText: string, frameIndex: number): str
 
 function shouldProcessInboundKey(state: SessionState, key: string, ttlMs: number): boolean {
   return shouldProcessCacheKey(state.processedInboundKeys, key, ttlMs);
+}
+
+function markSignalIdProcessed(state: SessionState, signalId: number): boolean {
+  if (signalId < 1) {
+    return true;
+  }
+
+  if (state.processedSignalIds.has(signalId)) {
+    return false;
+  }
+
+  state.processedSignalIds.set(signalId, Date.now());
+
+  while (state.processedSignalIds.size > DEFAULT_PROCESSED_SIGNAL_ID_CACHE_LIMIT) {
+    const oldestProcessedSignalId = state.processedSignalIds.keys().next().value;
+    if (typeof oldestProcessedSignalId !== "number") {
+      break;
+    }
+    state.processedSignalIds.delete(oldestProcessedSignalId);
+  }
+
+  return true;
 }
 
 function shouldProcessCacheKey(cache: Map<string, number>, key: string, ttlMs: number): boolean {
