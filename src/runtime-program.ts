@@ -4404,6 +4404,7 @@ function describeRealtimeRuntimeDebugEvent(event: {
         request_id: nonEmpty(details.request_id),
         message_id: toPositiveInt(details.message_id),
         signal_id: toPositiveInt(details.signal_id),
+        source: nonEmpty(details.source),
         content_length: toPositiveInt(details.content_length),
         preview: nonEmpty(details.preview)
       })
@@ -4418,6 +4419,7 @@ function describeRealtimeRuntimeDebugEvent(event: {
         request_id: nonEmpty(details.request_id),
         message_id: toPositiveInt(details.message_id),
         signal_id: toPositiveInt(details.signal_id),
+        source: nonEmpty(details.source),
         runtime_source: nonEmpty(details.runtime_source)
       })
     };

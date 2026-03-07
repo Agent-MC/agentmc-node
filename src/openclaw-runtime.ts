@@ -36,8 +36,8 @@ const DEFAULT_REALTIME_SIGNAL_CATCHUP_LIMIT = 100;
 const DEFAULT_REALTIME_SIGNAL_CATCHUP_MAX_BATCHES = 5;
 const DEFAULT_PROCESSED_SIGNAL_ID_CACHE_LIMIT = DEFAULT_REALTIME_SIGNAL_CATCHUP_LIMIT * DEFAULT_REALTIME_SIGNAL_CATCHUP_MAX_BATCHES * 4;
 const DEFAULT_FALLBACK_SIGNAL_POLL_MS = 4_000;
-const DEFAULT_CONNECTED_SIGNAL_CATCHUP_IDLE_MS = 30_000;
-const DEFAULT_CONNECTED_SIGNAL_POLL_MS = 15_000;
+const DEFAULT_CONNECTED_SIGNAL_CATCHUP_IDLE_MS = 10_000;
+const DEFAULT_CONNECTED_SIGNAL_POLL_MS = 5_000;
 const DEFAULT_AGENTMC_API_BASE_URL = "https://agentmc.ai/api/v1";
 
 const DEFAULT_OPENCLAW_DOC_IDS = [
@@ -829,7 +829,7 @@ export class OpenClawAgentRuntime {
     const channelPayload = valueAsObject(payload.payload) ?? {};
 
     if (this.options.chatRealtimeEnabled && (channelType === "chat.user" || channelType === "chat.request")) {
-      await this.enqueueChatUserSignal(state, signal, payload, channelPayload);
+      await this.enqueueChatUserSignal(state, signal, payload, channelPayload, source);
       return;
     }
 
@@ -879,7 +879,8 @@ export class OpenClawAgentRuntime {
     state: SessionState,
     signal: AgentRealtimeSignalMessage,
     envelope: JsonObject,
-    payload: JsonObject
+    payload: JsonObject,
+    source: SessionSignalSource
   ): Promise<void> {
     const existingQueue = state.chatSignalQueue instanceof Promise ? state.chatSignalQueue : Promise.resolve();
     state.chatSignalQueue = existingQueue
@@ -891,7 +892,7 @@ export class OpenClawAgentRuntime {
 
         state.lastHealthActivityAtMs = Date.now();
         try {
-          await this.handleChatUserSignal(state, signal, envelope, payload);
+          await this.handleChatUserSignal(state, signal, envelope, payload, source);
           state.lastHealthActivityAtMs = Date.now();
         } catch (error) {
           await this.emitError(normalizeError(error));
@@ -1189,7 +1190,8 @@ export class OpenClawAgentRuntime {
     state: SessionState,
     signal: AgentRealtimeSignalMessage,
     envelope: JsonObject,
-    payload: JsonObject
+    payload: JsonObject,
+    source: SessionSignalSource = "websocket"
   ): Promise<void> {
     this.pruneInboundChunkBuffers(state);
 
@@ -1276,7 +1278,8 @@ export class OpenClawAgentRuntime {
       request_id: requestId,
       ...(messageId > 0 ? { message_id: messageId } : {}),
       signal_id: signal.id,
-      source: signal.sender,
+      source,
+      sender: signal.sender,
       content_length: userText.length,
       preview: previewText(userText)
     });
@@ -1295,6 +1298,7 @@ export class OpenClawAgentRuntime {
         request_id: requestId,
         ...(messageId > 0 ? { message_id: messageId } : {}),
         signal_id: signal.id,
+        source,
         runtime_source: this.options.runtimeSource
       });
       runResult = await this.runAgentChat({

@@ -94,3 +94,98 @@ test("runtime log wiring prefers Agent Files debug events over generic file sign
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test("runtime chat logs preserve realtime transport source", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "agentmc-runtime-logs-"));
+  const infoMessages = [];
+  const originalStart = AgentRuntime.prototype.start;
+  const originalGetStatus = AgentRuntime.prototype.getStatus;
+
+  AgentRuntime.prototype.start = async function startStub() {};
+  AgentRuntime.prototype.getStatus = function getStatusStub() {
+    return {
+      running: true,
+      activeSessions: [],
+      realtimeSessionsEnabled: true,
+      sessionPollingEnabled: true,
+      chatRealtimeEnabled: true,
+      filesRealtimeEnabled: true,
+      docsRealtimeEnabled: true,
+      notificationsRealtimeEnabled: true
+    };
+  };
+
+  try {
+    const program = new AgentRuntimeProgram({
+      client: { operations: {} },
+      workspaceDir: dir,
+      onInfo: (message, meta) => {
+        infoMessages.push({ message, meta });
+      }
+    });
+
+    await program.startRealtimeRuntime(42, {
+      kind: "openclaw",
+      name: "OpenClaw",
+      version: "test",
+      build: null,
+      mode: "test",
+      models: []
+    });
+
+    const realtime = program.realtimeRuntime;
+    assert.ok(realtime);
+
+    await realtime.options.onDebug?.({
+      event: "chat.message.received",
+      at: new Date().toISOString(),
+      details: {
+        session_id: 91,
+        request_id: "req-chat-log",
+        message_id: 88,
+        signal_id: 123,
+        source: "api_poll",
+        content_length: 3,
+        preview: "Hey"
+      }
+    });
+
+    await realtime.options.onDebug?.({
+      event: "chat.agent.dispatched",
+      at: new Date().toISOString(),
+      details: {
+        session_id: 91,
+        request_id: "req-chat-log",
+        message_id: 88,
+        signal_id: 123,
+        source: "api_poll",
+        runtime_source: "agent-runtime"
+      }
+    });
+
+    assert.equal(infoMessages.at(-2)?.message, "Chat message received");
+    assert.deepEqual(infoMessages.at(-2)?.meta, {
+      session_id: 91,
+      request_id: "req-chat-log",
+      message_id: 88,
+      signal_id: 123,
+      source: "api_poll",
+      content_length: 3,
+      preview: "Hey"
+    });
+
+    assert.equal(infoMessages.at(-1)?.message, "Sent chat message to agent");
+    assert.deepEqual(infoMessages.at(-1)?.meta, {
+      session_id: 91,
+      request_id: "req-chat-log",
+      message_id: 88,
+      signal_id: 123,
+      source: "api_poll",
+      runtime_source: "agent-runtime"
+    });
+  } finally {
+    AgentRuntime.prototype.start = originalStart;
+    AgentRuntime.prototype.getStatus = originalGetStatus;
+    await rm(dir, { recursive: true, force: true });
+  }
+});

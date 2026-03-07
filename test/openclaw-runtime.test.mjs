@@ -423,6 +423,46 @@ test("connected quiet sessions poll persisted signals before websocket failure i
   });
 });
 
+test("connected quiet polling starts after the shortened idle window", async () => {
+  await withFixture(async ({ dir, sessionsPath }) => {
+    let pollCount = 0;
+
+    const runtime = createRuntime(sessionsPath, dir, {
+      client: {
+        operations: {
+          listAgentRealtimeSignals: async () => {
+            pollCount += 1;
+            return {
+              error: null,
+              status: 200,
+              data: { data: [] }
+            };
+          }
+        }
+      }
+    });
+
+    const nowMs = Date.now();
+    const state = {
+      ...createSessionState(917),
+      createdAtMs: nowMs - 20_000,
+      lastHealthActivityAtMs: nowMs - 9_000,
+      lastConnectionStateChangeAtMs: nowMs - 20_000,
+      lastConnectedCatchupAtMs: 0,
+      connectionState: "connected",
+      sawConnectedState: true,
+      catchupInFlight: false,
+      chatSignalQueue: Promise.resolve()
+    };
+
+    await runtime.maybePollConnectedSessionSignals(state, nowMs);
+    assert.equal(pollCount, 0);
+
+    await runtime.maybePollConnectedSessionSignals(state, nowMs + 2_000);
+    assert.equal(pollCount, 1);
+  });
+});
+
 test("parses top-level keyed session map", async () => {
   await withFixture(async ({ dir, sessionsPath }) => {
     const sessionKey = "agent:main:agentmc:114";
@@ -1629,6 +1669,54 @@ test("chat.user accepts queued_message_id as a source message id alias", async (
     assert.equal(doneMessages[0]?.requestId, "req-queued-message-id-1");
     assert.equal(doneMessages[0]?.payload?.message_id, 88);
     assert.equal(doneMessages[0]?.payload?.content, "Queued message id handled.");
+  });
+});
+
+test("chat debug events include the realtime transport source", async () => {
+  await withFixture(async ({ dir, sessionsPath }) => {
+    const debugEvents = [];
+    const runtime = createRuntime(sessionsPath, dir, {
+      onDebug: (event) => {
+        debugEvents.push(event);
+      },
+      sendThinkingDelta: false
+    });
+
+    runtime.runOpenClawChat = async (input) => ({
+      requestId: input.requestId,
+      runId: "run-chat-source-log",
+      status: "ok",
+      textSource: "wait",
+      content: "Transport source logged."
+    });
+    runtime.publishChannelMessage = async () => {};
+
+    await runtime.handleSignal(
+      createSessionState(),
+      {
+        id: 703,
+        session_id: 114,
+        sender: "browser",
+        type: "message",
+        payload: {
+          type: "chat.user",
+          payload: {
+            request_id: "req-chat-source-log",
+            message_id: 91,
+            content: "Please trace delivery."
+          }
+        },
+        created_at: null
+      },
+      "api_poll"
+    );
+
+    assert.deepEqual(
+      debugEvents.map((event) => event.event),
+      ["chat.message.received", "chat.agent.dispatched", "chat.agent.completed", "chat.reply.sent"]
+    );
+    assert.equal(debugEvents[0]?.details?.source, "api_poll");
+    assert.equal(debugEvents[1]?.details?.source, "api_poll");
   });
 });
 
