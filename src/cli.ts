@@ -48,6 +48,7 @@ function operationDocPath(operationId: OperationId): string {
 interface RuntimeWorkerConfig {
   agentId: number | null;
   apiKey: string;
+  baseUrl: string;
   workspaceDir: string;
   statePath: string;
   localKey: string;
@@ -229,6 +230,9 @@ const DEFAULT_AUTO_UPDATE_INTERVAL_SECONDS = 300;
 const DEFAULT_AUTO_UPDATE_INSTALL_TIMEOUT_MS = 120_000;
 const DEFAULT_AUTO_UPDATE_PACKAGE_NAME = "@agentmc/api";
 const DEFAULT_AUTO_UPDATE_REGISTRY_URL = "https://registry.npmjs.org/@agentmc%2Fapi/latest";
+const DEFAULT_AGENTMC_API_BASE_URL = "https://agentmc.ai/api/v1";
+const DEFAULT_INITIAL_HEARTBEAT_RETRY_BASE_MS = 5_000;
+const DEFAULT_INITIAL_HEARTBEAT_RETRY_MAX_MS = 60_000;
 const INSTALLED_PACKAGE_PATH_MARKER = "/node_modules/@agentmc/api/";
 const DEFAULT_RUNTIME_STATUS_PATH = ".agentmc/runtime-status.json";
 const DEFAULT_RUNTIME_STATE_PATH = ".agentmc/state.json";
@@ -1541,6 +1545,7 @@ async function runMultiAgentRuntimeFromEnv(env: NodeJS.ProcessEnv): Promise<bool
   if (!hostApiKey) {
     return false;
   }
+  const agentMcApiBaseUrl = resolveAgentMcApiBaseUrl(env);
 
   configureRuntimeDnsResolution();
 
@@ -1651,6 +1656,7 @@ async function runMultiAgentRuntimeFromEnv(env: NodeJS.ProcessEnv): Promise<bool
 
     const resolved = resolveWorkerConfigs({
       hostApiKey,
+      baseUrl: agentMcApiBaseUrl,
       discoveredAgents
     });
     const workers = resolved.workers;
@@ -1670,7 +1676,7 @@ async function runMultiAgentRuntimeFromEnv(env: NodeJS.ProcessEnv): Promise<bool
     const hostRealtimeRouteLimit = DEFAULT_HOST_REALTIME_ROUTE_LIMIT;
 
     const heartbeatClient = new AgentMCApi({
-      baseUrl: undefined,
+      baseUrl: agentMcApiBaseUrl,
       apiKey: hostApiKey
     });
     const hostFingerprint = resolveHostFingerprint();
@@ -1691,15 +1697,36 @@ async function runMultiAgentRuntimeFromEnv(env: NodeJS.ProcessEnv): Promise<bool
       summary: "sending initial host heartbeat"
     });
 
-    let initialHeartbeat: HostHeartbeatResult;
-    try {
-      initialHeartbeat = await sendHostHeartbeat(heartbeatClient, workers, hostFingerprint);
-    } catch (error) {
-      const normalizedError = normalizeCliError(error);
-      if (isFatalAgentMcAuthError(error)) {
-        throw toFatalHostApiKeyError(normalizedError);
+    let initialHeartbeat: HostHeartbeatResult | null = null;
+    let initialHeartbeatAttempt = 0;
+    while (!stopping && initialHeartbeat === null) {
+      try {
+        initialHeartbeat = await sendHostHeartbeat(heartbeatClient, workers, hostFingerprint);
+      } catch (error) {
+        const normalizedError = normalizeCliError(error);
+        if (isFatalAgentMcAuthError(error)) {
+          throw toFatalHostApiKeyError(normalizedError);
+        }
+
+        initialHeartbeatAttempt += 1;
+        const retryDelayMs = Math.min(
+          DEFAULT_INITIAL_HEARTBEAT_RETRY_MAX_MS,
+          DEFAULT_INITIAL_HEARTBEAT_RETRY_BASE_MS * 2 ** Math.min(initialHeartbeatAttempt - 1, 4)
+        );
+        const retryDelaySeconds = Math.max(1, Math.ceil(retryDelayMs / 1000));
+
+        process.stderr.write(
+          `[agentmc-runtime] initial host heartbeat failed: ${normalizedError.message}; retrying in ${retryDelaySeconds}s\n`
+        );
+        await persistStatusSafe({
+          summary: `initial host heartbeat failed; retrying in ${retryDelaySeconds}s`
+        });
+        await sleepWithStop(retryDelayMs, () => stopping);
       }
-      throw normalizedError;
+    }
+
+    if (initialHeartbeat === null) {
+      return true;
     }
 
     applyHeartbeatAgentMapping(workers, initialHeartbeat.agents);
@@ -2645,6 +2672,16 @@ async function sleepWithStop(totalMs: number, shouldStop: () => boolean): Promis
     await sleep(stepMs);
     remaining -= stepMs;
   }
+}
+
+function resolveAgentMcApiBaseUrl(env: NodeJS.ProcessEnv = process.env): string {
+  const configured = nonEmpty(env.AGENTMC_BASE_URL);
+  if (!configured) {
+    return DEFAULT_AGENTMC_API_BASE_URL;
+  }
+
+  const trimmed = configured.replace(/\/+$/, "");
+  return trimmed.endsWith("/api/v1") ? trimmed : `${trimmed}/api/v1`;
 }
 
 function buildHostHeartbeatPayload(
@@ -4011,6 +4048,7 @@ function buildRuntimeOptions(
   const provider = normalizeRuntimeProvider(worker.provider);
   return {
     apiKey: worker.apiKey,
+    baseUrl: worker.baseUrl,
     workspaceDir: worker.workspaceDir,
     statePath: worker.statePath,
     agentId: worker.agentId ?? undefined,
@@ -4140,6 +4178,7 @@ function normalizeRuntimeProvider(value: unknown): "auto" | "openclaw" | "extern
 
 function resolveWorkerConfigs(input: {
   hostApiKey: string;
+  baseUrl: string;
   discoveredAgents: DiscoveredRuntimeAgent[];
 }): { workers: RuntimeWorkerConfig[]; warnings: string[] } {
   const warnings: string[] = [];
@@ -4159,7 +4198,7 @@ function resolveWorkerConfigs(input: {
     }
 
     usedLocalKeys.add(normalizedKey);
-    workers.push(buildWorkerConfig(input.hostApiKey, local, null, cwd, normalizedKey));
+    workers.push(buildWorkerConfig(input.hostApiKey, input.baseUrl, local, null, cwd, normalizedKey));
   }
 
   return { workers, warnings };
@@ -4167,6 +4206,7 @@ function resolveWorkerConfigs(input: {
 
 function buildWorkerConfig(
   hostApiKey: string,
+  baseUrl: string,
   local: DiscoveredRuntimeAgent,
   agentId: number | null,
   cwd: string,
@@ -4180,6 +4220,7 @@ function buildWorkerConfig(
   return {
     agentId,
     apiKey: hostApiKey,
+    baseUrl,
     workspaceDir,
     statePath,
     localKey: safeKey,

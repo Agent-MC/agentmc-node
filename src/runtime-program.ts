@@ -268,6 +268,7 @@ export class AgentRuntimeProgram {
     this.agentMcApiBaseUrl = normalizeApiBaseUrl(
       nonEmpty(options.baseUrl) ??
         readClientStringValue(this.client, "getBaseUrl") ??
+        nonEmpty(process.env.AGENTMC_BASE_URL) ??
         DEFAULT_AGENTMC_API_BASE_URL
     );
     this.agentMcOpenApiUrl =
@@ -282,9 +283,11 @@ export class AgentRuntimeProgram {
       throw new Error("AGENTMC_API_KEY is required. Set one host-level API key.");
     }
 
+    const baseUrl = normalizeApiBaseUrl(nonEmpty(env.AGENTMC_BASE_URL) ?? DEFAULT_AGENTMC_API_BASE_URL);
+
     return new AgentRuntimeProgram({
       apiKey: hostKey,
-      baseUrl: DEFAULT_AGENTMC_API_BASE_URL,
+      baseUrl,
       heartbeatEnabled: true,
       heartbeatIntervalSeconds: DEFAULT_HEARTBEAT_INTERVAL_SECONDS
     });
