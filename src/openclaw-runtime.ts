@@ -8,7 +8,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { promisify } from "node:util";
 
 import { createOperationStatusError } from "./api-error";
-import type { AgentMCApi } from "./client";
+import { normalizeAgentMcBaseUrl, type AgentMCApi } from "./client";
 import type {
   AgentRealtimeConnectionState,
   HostRealtimeSessionRequestsSubscription,
@@ -3173,12 +3173,7 @@ function readClientConfiguredValue(
 }
 
 function normalizeAgentMcApiBaseUrl(value: string): string {
-  const trimmed = value.trim().replace(/\/+$/, "");
-  if (trimmed.endsWith("/api/v1")) {
-    return trimmed;
-  }
-
-  return `${trimmed}/api/v1`;
+  return normalizeAgentMcBaseUrl(value, { appendApiV1: true });
 }
 
 function normalizeAgentMcOpenApiUrl(value: string | null, apiBaseUrl: string): string {

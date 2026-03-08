@@ -309,13 +309,42 @@ export class AgentMCApi {
   }
 }
 
+export function normalizeAgentMcBaseUrl(value: string, options: { appendApiV1?: boolean } = {}): string {
+  let normalized = value.trim().replace(/\/+$/, "");
+
+  try {
+    const url = new URL(normalized);
+    if (shouldUpgradeOfficialAgentMcBaseUrl(url)) {
+      url.protocol = "https:";
+      normalized = url.toString().replace(/\/+$/, "");
+    }
+  } catch {
+    // Leave non-URL values unchanged; callers will surface invalid URL errors later.
+  }
+
+  if (options.appendApiV1 === true && !normalized.endsWith("/api/v1")) {
+    return `${normalized}/api/v1`;
+  }
+
+  return normalized;
+}
+
 function normalizeBaseUrl(value: string | undefined): string {
   const normalized = normalizeNonEmptyString(value);
   if (!normalized) {
     return DEFAULT_BASE_URL;
   }
 
-  return normalized.replace(/\/+$/, "");
+  return normalizeAgentMcBaseUrl(normalized);
+}
+
+function shouldUpgradeOfficialAgentMcBaseUrl(url: URL): boolean {
+  if (url.protocol !== "http:") {
+    return false;
+  }
+
+  const hostname = url.hostname.trim().toLowerCase();
+  return hostname === "agentmc.ai" || hostname.endsWith(".agentmc.ai");
 }
 
 function normalizeNonEmptyString(value: unknown): string | null {

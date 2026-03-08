@@ -11,7 +11,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 
 import { detectRuntimeAgents, type DiscoveredRuntimeAgent } from "./agent-discovery";
 import { summarizeApiError, summarizeOperationFailure } from "./api-error";
-import { AgentMCApi } from "./client";
+import { AgentMCApi, normalizeAgentMcBaseUrl } from "./client";
 import { operationsById, type OperationId } from "./generated/operations";
 import { AGENTMC_NODE_PACKAGE_VERSION } from "./package-version";
 import { closeSharedRealtimeTransports, type HostRealtimeSocketPayload } from "./realtime";
@@ -2680,8 +2680,7 @@ function resolveAgentMcApiBaseUrl(env: NodeJS.ProcessEnv = process.env): string 
     return DEFAULT_AGENTMC_API_BASE_URL;
   }
 
-  const trimmed = configured.replace(/\/+$/, "");
-  return trimmed.endsWith("/api/v1") ? trimmed : `${trimmed}/api/v1`;
+  return normalizeAgentMcBaseUrl(configured, { appendApiV1: true });
 }
 
 function buildHostHeartbeatPayload(

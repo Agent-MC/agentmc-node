@@ -8,7 +8,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { promisify } from "node:util";
 
 import { summarizeApiError, summarizeOperationFailure } from "./api-error";
-import { AgentMCApi } from "./client";
+import { AgentMCApi, normalizeAgentMcBaseUrl } from "./client";
 import {
   AgentRuntime,
   type AgentRuntimeRunInput,
@@ -2078,12 +2078,7 @@ function normalizeRealtimeClaimOwnerToken(value: unknown): string | null {
 }
 
 function normalizeApiBaseUrl(raw: string): string {
-  const trimmed = raw.trim().replace(/\/+$/, "");
-  if (trimmed.endsWith("/api/v1")) {
-    return trimmed;
-  }
-
-  return `${trimmed}/api/v1`;
+  return normalizeAgentMcBaseUrl(raw, { appendApiV1: true });
 }
 
 function readClientStringValue(
