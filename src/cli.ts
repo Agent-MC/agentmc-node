@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 import { setTimeout as sleep } from "node:timers/promises";
 
 import { detectRuntimeAgents, type DiscoveredRuntimeAgent } from "./agent-discovery";
-import { summarizeApiError } from "./api-error";
+import { summarizeApiError, summarizeOperationFailure } from "./api-error";
 import { AgentMCApi } from "./client";
 import { operationsById, type OperationId } from "./generated/operations";
 import { AGENTMC_NODE_PACKAGE_VERSION } from "./package-version";
@@ -2791,7 +2791,7 @@ async function sendHostHeartbeat(
   });
 
   if (response.error) {
-    const summary = summarizeApiError(response.error);
+    const summary = summarizeOperationFailure(response.error, response.response);
     const error = new Error(`agentHeartbeat failed with status ${response.status}${summary ? ` (${summary})` : ""}`) as ApiErrorCarrier;
     error.status = response.status;
     error.apiError = response.error;

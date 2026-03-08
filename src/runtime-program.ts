@@ -7,7 +7,7 @@ import { basename, delimiter, dirname, join, resolve } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { promisify } from "node:util";
 
-import { summarizeApiError } from "./api-error";
+import { summarizeApiError, summarizeOperationFailure } from "./api-error";
 import { AgentMCApi } from "./client";
 import {
   AgentRuntime,
@@ -4338,9 +4338,9 @@ function valueAsBoolean(value: unknown): boolean | null {
 
 function createOperationFailureError(
   operationId: string,
-  response: { status: number; error?: unknown }
+  response: { status: number; error?: unknown; response?: Response }
 ): Error {
-  const summary = summarizeApiError(response.error);
+  const summary = summarizeOperationFailure(response.error, response.response);
   const suffix = summary ? ` (${summary})` : "";
   const error = new Error(`${operationId} failed with status ${response.status}${suffix}.`) as Error & {
     status?: number;

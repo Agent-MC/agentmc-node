@@ -92,3 +92,51 @@ test("per-request auth overrides are trimmed before sending", async () => {
   assert.ok(capturedHeaders, "expected request headers to be captured");
   assert.equal(capturedHeaders.get("x-api-key"), "override_key");
 });
+
+test("agentHeartbeat uses POST /hosts/heartbeat with a JSON body", async () => {
+  let capturedRequest = null;
+
+  const client = new AgentMCApi({
+    apiKey: "cc_test_key",
+    fetch: async (input, init) => {
+      capturedRequest = input instanceof Request ? input : new Request(input, init);
+
+      return new Response(JSON.stringify({ host: { id: 1 } }), {
+        status: 200,
+        headers: {
+          "content-type": "application/json"
+        }
+      });
+    }
+  });
+
+  await client.operations.agentHeartbeat({
+    params: {
+      header: {
+        "X-Host-Fingerprint": "host-fingerprint"
+      }
+    },
+    body: {
+      host: {
+        fingerprint: "host-fingerprint"
+      },
+      agents: []
+    }
+  });
+
+  assert.ok(capturedRequest, "expected request to be captured");
+  assert.equal(capturedRequest.method, "POST");
+  assert.equal(capturedRequest.url, "https://agentmc.ai/api/v1/hosts/heartbeat");
+  assert.equal(capturedRequest.headers.get("x-api-key"), "cc_test_key");
+  assert.equal(capturedRequest.headers.get("x-host-fingerprint"), "host-fingerprint");
+  assert.equal(capturedRequest.headers.get("content-type"), "application/json");
+  assert.equal(
+    await capturedRequest.clone().text(),
+    JSON.stringify({
+      host: {
+        fingerprint: "host-fingerprint"
+      },
+      agents: []
+    })
+  );
+});

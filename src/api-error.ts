@@ -17,6 +17,30 @@ export function summarizeApiError(error: unknown): string | null {
   return code;
 }
 
+export function summarizeOperationFailure(error: unknown, response?: Response): string | null {
+  const details = new Set<string>();
+  const apiSummary = summarizeApiError(error);
+  if (apiSummary) {
+    details.add(apiSummary);
+  }
+
+  const allow = valueAsString(response?.headers.get("allow"));
+  if (allow) {
+    details.add(`allow=${allow}`);
+  }
+
+  const url = valueAsString(response?.url);
+  if (url) {
+    details.add(`url=${url}`);
+  }
+
+  if (details.size === 0) {
+    return null;
+  }
+
+  return Array.from(details).join("; ");
+}
+
 export function createOperationStatusError(operationId: string, status: number): Error {
   const resolvedStatus = Number.isInteger(status) && status > 0 ? status : null;
   const statusSuffix = resolvedStatus === null ? "unknown status" : `status ${resolvedStatus}`;
