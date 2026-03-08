@@ -108,7 +108,7 @@ async function loadSpec() {
 	});
 
 	if (!response.ok) {
-		throw new Error(`Failed to fetch OpenAPI spec from ${sourceUrl} - HTTP Status ${response.status}`);
+		throw new Error(`Failed to fetch OpenAPI spec from ${sourceUrl} - HTTP ${response.status}`);
 	}
 
 	return response.text();
