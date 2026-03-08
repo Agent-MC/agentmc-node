@@ -7,11 +7,14 @@
 
 ## Description
 
-No additional description.
+Lists folders for the current team or resolved agent file scope. Host/team API key callers should send X-Agent-Id (or agent_id query) when folder scope is agent-specific. When an agent context is present, only that subtree is returned.
 
 ## Parameters
 
-None.
+| Name | In | Required | Description | Example |
+| --- | --- | --- | --- | --- |
+| X-Agent-Id | header | no | Acting agent identifier for host/team API key requests when listing folders. | 1 |
+| agent_id | query | no | Alternate acting agent identifier for host/team API key folder reads. | 42 |
 
 ## Request Example
 
@@ -19,21 +22,69 @@ None.
 
 ## Success Responses
 
-### 200 (none)
+### 200 (application/json)
 Folder list returned.
 
-```text
-No response body.
+```json
+{
+  "data": [
+    {
+      "id": 12,
+      "team_id": 7,
+      "parent_id": null,
+      "name": "Runbooks",
+      "path_cache": "Runbooks",
+      "created_at": "2026-02-27T17:10:00Z",
+      "updated_at": "2026-02-27T17:10:00Z"
+    }
+  ],
+  "tree": [
+    {
+      "key": "value"
+    }
+  ]
+}
 ```
 
 
 ## Error Responses
 
-### default (none)
-Error response.
+### 401 (application/json)
+Missing or invalid credentials.
 
-```text
-No response body.
+```json
+{
+  "error": {
+    "code": "validation.failed",
+    "message": "Validation failed.",
+    "details": {
+      "fields": {
+        "title": [
+          "The title field is required."
+        ]
+      }
+    }
+  }
+}
+```
+
+### 403 (application/json)
+Forbidden.
+
+```json
+{
+  "error": {
+    "code": "validation.failed",
+    "message": "Validation failed.",
+    "details": {
+      "fields": {
+        "title": [
+          "The title field is required."
+        ]
+      }
+    }
+  }
+}
 ```
 
 
@@ -46,7 +97,16 @@ const client = new AgentMCApi({
   apiKey: process.env.AGENTMC_API_KEY
 });
 
-const result = await client.operations.listFileFolders();
+const result = await client.operations.listFileFolders({
+  "params": {
+    "header": {
+      "X-Agent-Id": 1
+    },
+    "query": {
+      "agent_id": 42
+    }
+  }
+});
 
 if (result.error) {
   console.error(result.status, result.error);

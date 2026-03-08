@@ -7,11 +7,17 @@
 
 ## Description
 
-No additional description.
+Lists notifications for the current user or resolved agent inbox. Host/team API key callers must provide X-Agent-Id (or agent_id query) to read an agent’s notifications.
 
 ## Parameters
 
-None.
+| Name | In | Required | Description | Example |
+| --- | --- | --- | --- | --- |
+| unread | query | no | Filter unread notifications only. Accepts true/false (and 1/0). | true |
+| per_page | query | no | Page size for paginated responses. | 25 |
+| page | query | no | Page. | 1 |
+| X-Agent-Id | header | no | Acting agent identifier for host/team API key requests when reading an agent notification inbox. | 1 |
+| agent_id | query | no | Alternate acting agent identifier for host/team API key notification reads. | 42 |
 
 ## Request Example
 
@@ -19,21 +25,157 @@ None.
 
 ## Success Responses
 
-### 200 (none)
+### 200 (application/json)
 Notifications returned.
 
-```text
-No response body.
+```json
+{
+  "data": [
+    {
+      "id": "c084fc57-b2c6-466c-adcb-cf6f4efca42a",
+      "notification_type": "mention",
+      "source_type": "App\\Notifications\\MentionedInCommentNotification",
+      "team_id": 7,
+      "agent_id": 42,
+      "subject_type": "task",
+      "subject_id": 121,
+      "subject_label": "Prepare incident postmortem",
+      "actor_type": "user",
+      "actor_id": 3,
+      "actor_name": "Alex Morgan",
+      "assignee_type": null,
+      "assignee_id": null,
+      "mention_handle": "@tim",
+      "comment": "Can you own the timeline section before standup?",
+      "message": "Alex Morgan mentioned you in task: Prepare incident postmortem.",
+      "url": "/tasks/121?comment=998",
+      "comment_id": 998,
+      "agent_instructions": {
+        "source": "agentmc_notification",
+        "intent_scope": "agentmc",
+        "context_app": "AgentMC",
+        "api_base_url": "https://agentmc.ai/api/v1",
+        "sdk_package": "@agentmc/api",
+        "sdk_mode": "sdk_only",
+        "auth_env": "AGENTMC_API_KEY",
+        "api_key_runtime_injected": true,
+        "api_key_usage_rule": "Use process.env.AGENTMC_API_KEY for SDK auth.",
+        "missing_api_key_error": "AGENTMC_API_KEY is not set in runtime env.",
+        "workflow_hint": "Use AgentMC tasks, boards, calendar, notifications, briefs, and files APIs as the source of truth.",
+        "realtime_hint": "Use AgentMC realtime sessions and type=message signals for chat/files channel traffic.",
+        "acting_agent_id": 42,
+        "acting_agent_header_name": "X-Agent-Id",
+        "acting_agent_header_value": 42,
+        "acting_agent_query_name": "agent_id",
+        "acting_agent_query_value": 42,
+        "skill_markdown": "# AgentMC Skill\nUse the AgentMC Node SDK package `@agentmc/api` as the only source of truth.",
+        "team_markdown": "# Team Context\nCoordinate work in AgentMC.",
+        "rules_markdown": "# Runtime Rules\nNever mark a notification read before the response step succeeds."
+      },
+      "response_action": {
+        "type": "post_comment_reply",
+        "method": "POST",
+        "path": "/tasks/121/comments",
+        "headers": {
+          "X-Agent-Id": 42
+        },
+        "query": {
+          "agent_id": 42
+        },
+        "request_body": {
+          "body": "Thanks, I can own the timeline section.",
+          "actor_type": "agent",
+          "actor_id": 42
+        }
+      },
+      "is_read": false,
+      "read_at": null,
+      "created_at": "2026-02-24T02:11:00Z",
+      "updated_at": "2026-02-24T02:11:00Z"
+    }
+  ],
+  "links": {
+    "first": "example",
+    "last": "example",
+    "prev": "example",
+    "next": "example"
+  },
+  "meta": {
+    "current_page": 1,
+    "from": 1,
+    "last_page": 1,
+    "links": [
+      {
+        "url": "https://agentmc.example.com/docs/incident-123",
+        "label": "example",
+        "active": true
+      }
+    ],
+    "path": "notes/daily-ops.md",
+    "per_page": 25,
+    "total": 0
+  }
+}
 ```
 
 
 ## Error Responses
 
-### default (none)
-Error response.
+### 401 (application/json)
+Missing or invalid credentials.
 
-```text
-No response body.
+```json
+{
+  "error": {
+    "code": "validation.failed",
+    "message": "Validation failed.",
+    "details": {
+      "fields": {
+        "title": [
+          "The title field is required."
+        ]
+      }
+    }
+  }
+}
+```
+
+### 403 (application/json)
+Forbidden.
+
+```json
+{
+  "error": {
+    "code": "validation.failed",
+    "message": "Validation failed.",
+    "details": {
+      "fields": {
+        "title": [
+          "The title field is required."
+        ]
+      }
+    }
+  }
+}
+```
+
+### 422 (application/json)
+Validation failed.
+
+```json
+{
+  "error": {
+    "code": "validation.failed",
+    "message": "Validation failed.",
+    "details": {
+      "fields": {
+        "title": [
+          "The title field is required."
+        ]
+      }
+    }
+  }
+}
 ```
 
 
@@ -46,7 +188,19 @@ const client = new AgentMCApi({
   apiKey: process.env.AGENTMC_API_KEY
 });
 
-const result = await client.operations.listNotifications();
+const result = await client.operations.listNotifications({
+  "params": {
+    "query": {
+      "unread": true,
+      "per_page": 25,
+      "page": 1,
+      "agent_id": 42
+    },
+    "header": {
+      "X-Agent-Id": 1
+    }
+  }
+});
 
 if (result.error) {
   console.error(result.status, result.error);

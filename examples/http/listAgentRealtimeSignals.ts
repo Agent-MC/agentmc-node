@@ -10,8 +10,12 @@ const result = await client.operations.listAgentRealtimeSignals({
       "session": 1
     },
     "query": {
-      "after_id": 1,
-      "limit": 1
+      "after_id": 120,
+      "limit": 20,
+      "agent_id": 42
+    },
+    "header": {
+      "X-Agent-Id": 1
     }
   }
 });

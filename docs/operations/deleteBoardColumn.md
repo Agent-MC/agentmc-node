@@ -17,25 +17,103 @@ No additional description.
 
 ## Request Example
 
-None.
+### application/json
+```json
+{
+  "column_id": 13
+}
+```
 
 ## Success Responses
 
-### 204 (none)
-Column deleted.
+### 204 (application/json)
+No content.
 
-```text
-No response body.
+```json
+{
+  "data": {
+    "key": "value"
+  }
+}
 ```
 
 
 ## Error Responses
 
-### default (none)
-Error response.
+### 401 (application/json)
+Missing or invalid credentials.
 
-```text
-No response body.
+```json
+{
+  "error": {
+    "code": "validation.failed",
+    "message": "Validation failed.",
+    "details": {
+      "fields": {
+        "title": [
+          "The title field is required."
+        ]
+      }
+    }
+  }
+}
+```
+
+### 403 (application/json)
+Forbidden.
+
+```json
+{
+  "error": {
+    "code": "validation.failed",
+    "message": "Validation failed.",
+    "details": {
+      "fields": {
+        "title": [
+          "The title field is required."
+        ]
+      }
+    }
+  }
+}
+```
+
+### 404 (application/json)
+Resource not found.
+
+```json
+{
+  "error": {
+    "code": "validation.failed",
+    "message": "Validation failed.",
+    "details": {
+      "fields": {
+        "title": [
+          "The title field is required."
+        ]
+      }
+    }
+  }
+}
+```
+
+### 422 (application/json)
+Validation failed.
+
+```json
+{
+  "error": {
+    "code": "validation.failed",
+    "message": "Validation failed.",
+    "details": {
+      "fields": {
+        "title": [
+          "The title field is required."
+        ]
+      }
+    }
+  }
+}
 ```
 
 
@@ -53,6 +131,9 @@ const result = await client.operations.deleteBoardColumn({
     "path": {
       "board": 1
     }
+  },
+  "body": {
+    "column_id": 13
   }
 });
 

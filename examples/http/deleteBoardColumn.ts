@@ -9,6 +9,9 @@ const result = await client.operations.deleteBoardColumn({
     "path": {
       "board": 1
     }
+  },
+  "body": {
+    "column_id": 13
   }
 });
 

@@ -383,6 +383,7 @@ export class AgentRuntimeProgram {
     }
     this.runtimeProvider = await this.resolveRuntimeProvider();
     this.agentProfile = await this.resolveAgentProfile(agentId, this.runtimeProvider);
+    this.assertRecurringTaskOperationsAvailable();
     const recurringPollIntervalMs = this.recurringTaskPollIntervalSeconds * 1000;
     const notificationCatchupIntervalMs = DEFAULT_NOTIFICATION_CATCHUP_INTERVAL_SECONDS * 1000;
     let nextRecurringPollAtMs = Date.now();
@@ -1619,6 +1620,22 @@ export class AgentRuntimeProgram {
     return typeof operation === "function" ? (operation as ApiOperationHandler) : null;
   }
 
+  private getRequiredOperation(operationId: string, capability: string): ApiOperationHandler {
+    const operation = this.getOptionalOperation(operationId);
+    if (operation) {
+      return operation;
+    }
+
+    throw new Error(
+      `Generated AgentMC client is missing required operation "${operationId}" for ${capability}. Run "npm run generate" to refresh the SDK from the current OpenAPI spec.`
+    );
+  }
+
+  private assertRecurringTaskOperationsAvailable(): void {
+    this.getRequiredOperation("listDueRecurringTaskRuns", "recurring task polling");
+    this.getRequiredOperation("completeRecurringTaskRun", "recurring task completion");
+  }
+
   private async catchUpNotificationsDuringHeartbeat(agentId: number): Promise<void> {
     if (this.stopRequested) {
       return;
@@ -1707,11 +1724,10 @@ export class AgentRuntimeProgram {
   }
 
   private async pollRecurringTaskRuns(agentId: number, provider: RuntimeProviderDescriptor): Promise<void> {
-    const listDueRecurringTaskRuns = this.getOptionalOperation("listDueRecurringTaskRuns");
-    if (!listDueRecurringTaskRuns) {
-      return;
-    }
-
+    const listDueRecurringTaskRuns = this.getRequiredOperation(
+      "listDueRecurringTaskRuns",
+      "recurring task polling"
+    );
     const response = await listDueRecurringTaskRuns({
       params: {
         query: {
@@ -1804,11 +1820,10 @@ export class AgentRuntimeProgram {
       runtime_meta: execution.runtimeMeta
     };
 
-    const completeRecurringTaskRun = this.getOptionalOperation("completeRecurringTaskRun");
-    if (!completeRecurringTaskRun) {
-      return;
-    }
-
+    const completeRecurringTaskRun = this.getRequiredOperation(
+      "completeRecurringTaskRun",
+      "recurring task completion"
+    );
     const response = await completeRecurringTaskRun({
       params: {
         path: {
